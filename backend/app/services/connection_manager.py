@@ -10,7 +10,7 @@ from uuid import UUID
 import mcp.types as mcp_types
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
-from mcp.client.streamable_http import streamable_http_client
+from mcp.client.streamable_http import create_mcp_http_client, streamable_http_client
 
 from app.core.config import Settings, get_settings
 from app.core.exceptions import (
@@ -23,6 +23,22 @@ from app.core.logging import logger
 from app.core.security import sanitize_environment, validate_http_url, validate_stdio_command
 from app.domain.entities import ServerEntity
 from app.schemas.server import TransportType
+
+
+def format_mcp_error(exc: BaseException) -> str:
+    """Extract a concise, human-readable error string from nested ExceptionGroups and MCPErrors."""
+    current: BaseException = exc
+    while isinstance(current, BaseExceptionGroup) and current.exceptions:
+        current = current.exceptions[0]
+
+    # Handle McpError from MCP SDK
+    if hasattr(current, "error") and hasattr(current.error, "message"):
+        code = getattr(current.error, "code", None)
+        code_str = f" [code {code}]" if code else ""
+        return f"{current.error.message}{code_str}"
+
+    msg = str(current).strip()
+    return msg if msg else type(current).__name__
 
 
 class SessionWorker:
@@ -83,8 +99,13 @@ class SessionWorker:
                     logger.info(
                         f"Connecting streamable-http client for '{self.server.name}' at {self.server.http_config.url}"
                     )
+                    http_client = None
+                    if self.server.http_config.headers:
+                        http_client = await stack.enter_async_context(
+                            create_mcp_http_client(headers=self.server.http_config.headers)
+                        )
                     read_stream, write_stream = await stack.enter_async_context(
-                        streamable_http_client(self.server.http_config.url)
+                        streamable_http_client(self.server.http_config.url, http_client=http_client)
                     )
                 else:
                     raise ValueError(f"Unsupported transport: {self.server.transport}")
@@ -128,7 +149,7 @@ class SessionWorker:
 
         if self.error:
             await self.stop()
-            raise ServerConnectionError(str(self.server.id), str(self.error))
+            raise ServerConnectionError(str(self.server.id), format_mcp_error(self.error))
 
         if not self.session:
             await self.stop()
@@ -220,8 +241,9 @@ class ConnectionManager:
         except Exception as exc:
             latency_ms = (time.perf_counter() - start_time) * 1000
             await worker.stop()
-            logger.warning(f"Connection test failed for '{server.name}': {exc}")
-            return False, str(exc), 0, round(latency_ms, 2)
+            error_msg = format_mcp_error(exc)
+            logger.warning(f"Connection test failed for '{server.name}': {error_msg}")
+            return False, error_msg, 0, round(latency_ms, 2)
 
     async def list_tools(
         self,
@@ -238,7 +260,10 @@ class ConnectionManager:
             raise ExecutionTimeoutError("list_tools", fetch_timeout) from exc
         except Exception as exc:
             await self.disconnect(server.id)
-            raise ServerConnectionError(str(server.id), f"Failed to list tools: {exc}") from exc
+            error_msg = format_mcp_error(exc)
+            raise ServerConnectionError(
+                str(server.id), f"Failed to list tools: {error_msg}"
+            ) from exc
 
     async def call_tool(
         self,
