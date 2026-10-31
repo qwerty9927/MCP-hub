@@ -1,0 +1,460 @@
+{
+  "info": {
+    "_postman_id": "a9d8f7e6-1234-4567-89ab-cdef01234567",
+    "name": "MCP Hub & Gateway API",
+    "description": "Complete Postman collection for MCP Hub REST API and the unified Streamable HTTP MCP Gateway (/mcp). Automatically extracts and passes mcp-session-id between requests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "MCP Gateway (/mcp)",
+      "description": "Requests interacting directly with the unified MCP Server endpoint via Streamable HTTP (JSON-RPC 2.0).",
+      "item": [
+        {
+          "name": "1. Initialize Session",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "// Extract mcp-session-id header and store into environment variable",
+                  "var sessionId = pm.response.headers.get(\"mcp-session-id\");",
+                  "if (sessionId) {",
+                  "    pm.environment.set(\"mcp_session_id\", sessionId);",
+                  "    console.log(\"Saved mcp_session_id: \" + sessionId);",
+                  "} else {",
+                  "    console.error(\"mcp-session-id header not found\");",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 1,\n  \"method\": \"initialize\",\n  \"params\": {\n    \"protocolVersion\": \"2024-11-05\",\n    \"capabilities\": {},\n    \"clientInfo\": {\n      \"name\": \"postman-client\",\n      \"version\": \"1.0.0\"\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mcp",
+              "host": ["{{baseUrl}}"],
+              "path": ["mcp"]
+            },
+            "description": "Initializes the MCP session handshake. Postman test script automatically stores the returned 'mcp-session-id' header into the environment variable {{mcp_session_id}}."
+          }
+        },
+        {
+          "name": "2. Initialized Notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              },
+              {
+                "key": "mcp-session-id",
+                "value": "{{mcp_session_id}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"notifications/initialized\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mcp",
+              "host": ["{{baseUrl}}"],
+              "path": ["mcp"]
+            },
+            "description": "Notifies the MCP Gateway that the client has completed initialization (returns 202 Accepted)."
+          }
+        },
+        {
+          "name": "3. List Tools (tools/list)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              },
+              {
+                "key": "mcp-session-id",
+                "value": "{{mcp_session_id}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 2,\n  \"method\": \"tools/list\",\n  \"params\": {}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mcp",
+              "host": ["{{baseUrl}}"],
+              "path": ["mcp"]
+            },
+            "description": "Returns the list of all tools aggregated from enabled downstream servers, namespaced as <server_slug>__<tool_name>."
+          }
+        },
+        {
+          "name": "4. Call Tool - Math Server Calculate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              },
+              {
+                "key": "mcp-session-id",
+                "value": "{{mcp_session_id}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 3,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"math_server__calculate\",\n    \"arguments\": {\n      \"expression\": \"25 * 4 + 10\"\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mcp",
+              "host": ["{{baseUrl}}"],
+              "path": ["mcp"]
+            },
+            "description": "Invokes the 'calculate' tool on downstream Server 1 ('math_server')."
+          }
+        },
+        {
+          "name": "5. Call Tool - Text Server Calculate (Duplicate Name)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              },
+              {
+                "key": "mcp-session-id",
+                "value": "{{mcp_session_id}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 4,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"text_server__calculate\",\n    \"arguments\": {\n      \"expression\": \"25 * 4 + 10\"\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mcp",
+              "host": ["{{baseUrl}}"],
+              "path": ["mcp"]
+            },
+            "description": "Invokes the duplicate-named 'calculate' tool on Server 2 ('text_server') to prove collision-free routing."
+          }
+        },
+        {
+          "name": "6. Call Tool - Text Transform",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              },
+              {
+                "key": "mcp-session-id",
+                "value": "{{mcp_session_id}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 5,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"text_server__text_transform\",\n    \"arguments\": {\n      \"text\": \"hello postman mcp gateway\",\n      \"mode\": \"uppercase\"\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mcp",
+              "host": ["{{baseUrl}}"],
+              "path": ["mcp"]
+            },
+            "description": "Invokes 'text_transform' on Server 2."
+          }
+        },
+        {
+          "name": "7. Terminate Session",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "mcp-session-id",
+                "value": "{{mcp_session_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mcp",
+              "host": ["{{baseUrl}}"],
+              "path": ["mcp"]
+            },
+            "description": "Closes and discards the active Streamable HTTP session on the MCP Gateway."
+          }
+        }
+      ]
+    },
+    {
+      "name": "REST API - Server Management",
+      "description": "CRUD and lifecycle endpoints for downstream MCP servers.",
+      "item": [
+        {
+          "name": "Register Math Server",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.id) {",
+                  "    pm.environment.set(\"server1_id\", jsonData.id);",
+                  "    console.log(\"Saved server1_id: \" + jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"math_server\",\n  \"description\": \"Math expression tools\",\n  \"transport\": \"stdio\",\n  \"stdio_config\": {\n    \"command\": \"python3\",\n    \"args\": [\"demo_server/server.py\"]\n  },\n  \"enabled\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/servers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "servers"]
+            }
+          }
+        },
+        {
+          "name": "Register Text Server",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.id) {",
+                  "    pm.environment.set(\"server2_id\", jsonData.id);",
+                  "    console.log(\"Saved server2_id: \" + jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"text_server\",\n  \"description\": \"Text transformation tools\",\n  \"transport\": \"stdio\",\n  \"stdio_config\": {\n    \"command\": \"python3\",\n    \"args\": [\"demo_server/server_b.py\"]\n  },\n  \"enabled\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/servers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "servers"]
+            }
+          }
+        },
+        {
+          "name": "Connect Server 1",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/servers/{{server1_id}}/connect",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "servers", "{{server1_id}}", "connect"]
+            }
+          }
+        },
+        {
+          "name": "Connect Server 2",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/servers/{{server2_id}}/connect",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "servers", "{{server2_id}}", "connect"]
+            }
+          }
+        },
+        {
+          "name": "List Registered Servers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/servers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "servers"]
+            }
+          }
+        },
+        {
+          "name": "Disable Server 2 (Test Dynamic Updates)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/servers/{{server2_id}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "servers", "{{server2_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Re-enable Server 2",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/servers/{{server2_id}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "servers", "{{server2_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "REST API - Tools & Auditing",
+      "description": "Unified tool catalog and execution history inspection.",
+      "item": [
+        {
+          "name": "List All Catalog Tools",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tools",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "tools"]
+            }
+          }
+        },
+        {
+          "name": "List Execution History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/executions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "executions"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "System Probes",
+      "description": "Liveness, readiness, and observability metrics.",
+      "item": [
+        {
+          "name": "Health Probe",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            }
+          }
+        },
+        {
+          "name": "Readiness Probe",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ready",
+              "host": ["{{baseUrl}}"],
+              "path": ["ready"]
+            }
+          }
+        },
+        {
+          "name": "Metrics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/metrics",
+              "host": ["{{baseUrl}}"],
+              "path": ["metrics"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
