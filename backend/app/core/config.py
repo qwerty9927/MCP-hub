@@ -47,9 +47,6 @@ class Settings(BaseSettings):
     # Security: SSRF Protection
     ALLOW_PRIVATE_NETWORK_HTTP: bool
 
-    # Security: Database Encryption Key for sensitive secrets and configs
-    ENCRYPTION_KEY: str
-
     # Database (SQLite with aiosqlite)
     DATABASE_URL: str
 

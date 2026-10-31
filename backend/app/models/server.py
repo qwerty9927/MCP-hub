@@ -4,12 +4,11 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.domain.entities import ServerEntity
 from app.infrastructure.database import Base
-from app.models.types import EncryptedJSON
 from app.schemas.server import HttpConfig, ServerHealthStatus, StdioConfig, TransportType
 
 
@@ -22,8 +21,8 @@ class ServerModel(Base):
     name: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     transport: Mapped[str] = mapped_column(String(20), nullable=False)
-    stdio_config: Mapped[dict[str, Any] | None] = mapped_column(EncryptedJSON, nullable=True)
-    http_config: Mapped[dict[str, Any] | None] = mapped_column(EncryptedJSON, nullable=True)
+    stdio_config: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    http_config: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     health_status: Mapped[str] = mapped_column(String(20), default="UNKNOWN", nullable=False)
     last_connected_at: Mapped[datetime | None] = mapped_column(

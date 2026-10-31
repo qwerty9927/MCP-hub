@@ -3,8 +3,8 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com)
 [![MCP SDK](https://img.shields.io/badge/MCP%20SDK-2.3+-orange.svg)](https://modelcontextprotocol.io)
-[![Tests Passing](https://img.shields.io/badge/tests-50%20passed-brightgreen.svg)]()
-[![Coverage 88%](https://img.shields.io/badge/coverage-88%25-green.svg)]()
+[![Tests Passing](https://img.shields.io/badge/tests-42%20passed-brightgreen.svg)]()
+[![Coverage 86%](https://img.shields.io/badge/coverage-86%25-green.svg)]()
 
 A production-oriented backend for an **MCP Hub** that centrally orchestrates multiple **Model Context Protocol (MCP)** servers, exposes their tools through a unified REST API, and functions as a full-featured **MCP Gateway** exposing aggregated tools over standard Streamable HTTP (`/mcp`).
 
@@ -74,7 +74,6 @@ flowchart TD
 3. **Multi-Transport Support**: First-class support for both `stdio` (subprocess pipelines) and `streamable-http` (HTTP streaming endpoints) using the official `mcp` 2.x SDK.
 4. **Unified Tool Catalog**: Tools discovered from heterogeneous MCP servers are indexed into a consolidated catalog with persistent SQLite storage and caching. Cross-server naming collisions are resolved using server-qualified identifiers (`{server_id}:{tool_name}`) in REST and namespaced slugs in MCP Gateway.
 5. **Defense-in-Depth Security**:
-   - **Database Encryption at Rest**: Sensitive fields (`stdio_config.env`, `http_config.headers`, execution `arguments`) are automatically encrypted using AES-128-CBC and HMAC-SHA256 (Fernet) before writing to SQLite storage, with transparent ORM decryption and zero-compromise raw SQL inspection.
    - Stdio commands restricted to an approved executable allowlist (`python`, `uv`, `node`, `npx`, `docker`).
    - Command injection defense and argument validation.
    - SSRF protection rejecting private IP ranges, loopback, and cloud metadata endpoints (`169.254.169.254`).

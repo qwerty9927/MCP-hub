@@ -4,12 +4,11 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.domain.entities import ExecutionEntity
 from app.infrastructure.database import Base
-from app.models.types import EncryptedJSON
 
 
 class ExecutionModel(Base):
@@ -26,7 +25,7 @@ class ExecutionModel(Base):
     )
     server_name: Mapped[str] = mapped_column(String(100), nullable=False)
     tool_name: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
-    arguments: Mapped[dict[str, Any]] = mapped_column(EncryptedJSON, default=dict, nullable=False)
+    arguments: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     is_error: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     duration_ms: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
