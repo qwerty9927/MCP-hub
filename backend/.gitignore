@@ -11,3 +11,4 @@ htmlcov/
 *.sqlite
 *.sqlite3
 mcp_hub.db
+.zed
