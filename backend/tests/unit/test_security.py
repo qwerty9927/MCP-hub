@@ -3,7 +3,7 @@
 import pytest
 
 from app.core.exceptions import DisallowedExecutableError, SecurityViolationError, SSRFSecurityError
-from app.core.security import (
+from app.helpers.security import (
     mask_sensitive_headers,
     sanitize_environment,
     validate_http_url,

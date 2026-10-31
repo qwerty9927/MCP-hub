@@ -1,7 +1,6 @@
 """MCP Gateway Service for exposing the hub as an aggregated MCP Server via Streamable HTTP."""
 
 import asyncio
-import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -20,6 +19,7 @@ from mcp.server.streamable_http_manager import (
 from app.core.config import get_settings
 from app.core.exceptions import AppValidationError, ServerDisabledError, ToolNotFoundError
 from app.core.logging import logger
+from app.helpers.text import slugify
 from app.services.connection_manager import ConnectionManager
 from app.services.server_registry import ServerRegistryService
 from app.services.tool_catalog import ToolCatalogService
@@ -149,11 +149,7 @@ class MCPGatewayService:
             yield
         logger.info("MCP Gateway Streamable HTTP Session Manager shut down.")
 
-    @staticmethod
-    def _slugify_name(name: str) -> str:
-        """Convert a server name to a safe alphanumeric snake_case slug."""
-        cleaned = re.sub(r"[^a-zA-Z0-9_]+", "_", name.strip()).strip("_").lower()
-        return cleaned if cleaned else "server"
+    _slugify_name = staticmethod(slugify)
 
     async def refresh_tool_mappings(self) -> dict[str, GatewayToolMapping]:
         """Aggregate tools from all enabled and available downstream servers into the tool mapping."""

@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.core.security import mask_sensitive_headers, validate_http_url, validate_stdio_command
+from app.helpers.security import mask_sensitive_headers, validate_http_url, validate_stdio_command
 
 
 class TransportType(StrEnum):

@@ -3,7 +3,7 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com)
 [![MCP SDK](https://img.shields.io/badge/MCP%20SDK-2.3+-orange.svg)](https://modelcontextprotocol.io)
-[![Tests Passing](https://img.shields.io/badge/tests-42%20passed-brightgreen.svg)]()
+[![Tests Passing](https://img.shields.io/badge/tests-46%20passed-brightgreen.svg)]()
 [![Coverage 86%](https://img.shields.io/badge/coverage-86%25-green.svg)]()
 
 A production-oriented backend for an **MCP Hub** that centrally orchestrates multiple **Model Context Protocol (MCP)** servers, exposes their tools through a unified REST API, and functions as a full-featured **MCP Gateway** exposing aggregated tools over standard Streamable HTTP (`/mcp`).
@@ -100,6 +100,12 @@ backend/
 │   │   ├── security.py                  # SSRF & command injection defenses
 │   │   ├── logging.py                   # Structured correlation-ID logging
 │   │   └── exceptions.py                # Domain exception hierarchy
+│   ├── helpers/
+│   │   ├── __init__.py                  # Unified helpers interface
+│   │   ├── errors.py                    # MCP error & ExceptionGroup unwrapping
+│   │   ├── security.py                  # Command, URL & environment sanitization
+│   │   ├── text.py                      # String & slugification utilities
+│   │   └── validation.py                # JSON schema & tool argument validation
 │   ├── domain/
 │   │   └── entities.py                  # Domain dataclasses & entities
 │   ├── schemas/

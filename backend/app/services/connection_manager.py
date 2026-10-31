@@ -20,25 +20,10 @@ from app.core.exceptions import (
     ToolExecutionError,
 )
 from app.core.logging import logger
-from app.core.security import sanitize_environment, validate_http_url, validate_stdio_command
 from app.domain.entities import ServerEntity
+from app.helpers.errors import format_mcp_error
+from app.helpers.security import sanitize_environment, validate_http_url, validate_stdio_command
 from app.schemas.server import TransportType
-
-
-def format_mcp_error(exc: BaseException) -> str:
-    """Extract a concise, human-readable error string from nested ExceptionGroups and MCPErrors."""
-    current: BaseException = exc
-    while isinstance(current, BaseExceptionGroup) and current.exceptions:
-        current = current.exceptions[0]
-
-    # Handle McpError from MCP SDK
-    if hasattr(current, "error") and hasattr(current.error, "message"):
-        code = getattr(current.error, "code", None)
-        code_str = f" [code {code}]" if code else ""
-        return f"{current.error.message}{code_str}"
-
-    msg = str(current).strip()
-    return msg if msg else type(current).__name__
 
 
 class SessionWorker:

@@ -5,16 +5,14 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-import jsonschema
 import mcp.types as mcp_types
-from jsonschema.exceptions import ValidationError as JSONSchemaValidationError
 
 from app.core.exceptions import (
-    AppValidationError,
     ServerDisabledError,
     ToolNotFoundError,
 )
 from app.domain.entities import ExecutionEntity
+from app.helpers.validation import validate_tool_arguments
 from app.infrastructure.repositories.base import ExecutionRepositoryBase
 from app.schemas.tool import ToolExecuteResponse
 from app.services.connection_manager import ConnectionManager
@@ -69,18 +67,7 @@ class ToolRouterService:
             tool = await self.tool_catalog.get_tool(tool_name, server_id=server_id)
 
         # 3. Validate arguments against tool input schema
-        if (
-            tool.input_schema
-            and isinstance(tool.input_schema, dict)
-            and (tool.input_schema.get("type") == "object" or "properties" in tool.input_schema)
-        ):
-            try:
-                jsonschema.validate(instance=arguments, schema=tool.input_schema)
-            except JSONSchemaValidationError as val_err:
-                raise AppValidationError(
-                    f"Invalid arguments for tool '{tool_name}': {val_err.message}",
-                    details={"path": list(val_err.path), "schema_error": val_err.message},
-                ) from val_err
+        validate_tool_arguments(arguments, tool.input_schema, tool_name)
 
         # 4. Invoke MCP tool via downstream connection session
         try:
