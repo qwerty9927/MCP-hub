@@ -44,6 +44,4 @@ ignore = ["E501", "B008"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["."]
-filterwarnings = [
-    "ignore::DeprecationWarning",
-]
+filterwarnings = ["ignore::DeprecationWarning"]

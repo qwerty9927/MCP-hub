@@ -130,6 +130,7 @@ class MCPGatewayService:
     @property
     def session_manager(self) -> StreamableHTTPSessionManager:
         """Return the current StreamableHTTPSessionManager."""
+        assert self.server._session_manager is not None
         return self.server._session_manager
 
     def get_proxy_asgi_app(self) -> MCPGatewayProxyASGI:
@@ -149,8 +150,6 @@ class MCPGatewayService:
             yield
         logger.info("MCP Gateway Streamable HTTP Session Manager shut down.")
 
-    _slugify_name = staticmethod(slugify)
-
     async def refresh_tool_mappings(self) -> dict[str, GatewayToolMapping]:
         """Aggregate tools from all enabled and available downstream servers into the tool mapping."""
         async with self._lock:
@@ -161,7 +160,7 @@ class MCPGatewayService:
             new_tool_map: dict[str, GatewayToolMapping] = {}
 
             for srv in enabled_servers:
-                slug = self._slugify_name(srv.name)
+                slug = slugify(srv.name)
 
                 # Fetch cached or persisted tools for this server
                 tools_response = await self.tool_catalog.list_tools(
@@ -236,7 +235,7 @@ class MCPGatewayService:
                     name=mapping.hub_tool_name,
                     description=mapping.description
                     or f"Tool '{mapping.original_tool_name}' from {mapping.server_name}",
-                    inputSchema=mapping.input_schema,
+                    input_schema=mapping.input_schema,
                 )
             )
 

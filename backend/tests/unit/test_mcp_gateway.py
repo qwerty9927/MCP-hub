@@ -9,6 +9,7 @@ import pytest
 
 from app.core.exceptions import AppValidationError
 from app.domain.entities import ServerEntity
+from app.helpers.text import slugify
 from app.schemas.common import PaginatedResponse
 from app.schemas.server import ServerHealthStatus, ServerRead, TransportType
 from app.schemas.tool import ToolRead
@@ -46,10 +47,10 @@ def gateway_service(mock_registry, mock_tool_catalog, mock_connection_mgr, mock_
 
 
 def test_slugify_name():
-    assert MCPGatewayService._slugify_name("Github Tools") == "github_tools"
-    assert MCPGatewayService._slugify_name("Postgres-DB #1") == "postgres_db_1"
-    assert MCPGatewayService._slugify_name("  --- special ---  ") == "special"
-    assert MCPGatewayService._slugify_name("!!!") == "server"
+    assert slugify("Github Tools") == "github_tools"
+    assert slugify("Postgres-DB #1") == "postgres_db_1"
+    assert slugify("  --- special ---  ") == "special"
+    assert slugify("!!!") == "server"
 
 
 @pytest.mark.asyncio
