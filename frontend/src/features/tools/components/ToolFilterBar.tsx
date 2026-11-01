@@ -42,10 +42,15 @@ export function ToolFilterBar({ filters, onChange }: ToolFilterBarProps) {
                 <div className="relative min-w-[200px] flex-1 max-w-sm">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
+                        aria-label="Search tools"
                         placeholder="Search tools by name, description, server..."
                         value={filters.search || ""}
                         onChange={(e) =>
-                            onChange({ ...filters, search: e.target.value || undefined, page: 1 })
+                            onChange({
+                                ...filters,
+                                search: e.target.value || undefined,
+                                page: 1,
+                            })
                         }
                         className="pl-8 h-9"
                     />
@@ -62,7 +67,7 @@ export function ToolFilterBar({ filters, onChange }: ToolFilterBarProps) {
                         })
                     }
                 >
-                    <SelectTrigger className="h-9 w-[180px]">
+                    <SelectTrigger className="h-9 w-[180px]" aria-label="Filter by server">
                         <SelectValue placeholder="All Servers" />
                     </SelectTrigger>
                     <SelectContent>
@@ -86,7 +91,7 @@ export function ToolFilterBar({ filters, onChange }: ToolFilterBarProps) {
                         })
                     }
                 >
-                    <SelectTrigger className="h-9 w-[150px]">
+                    <SelectTrigger className="h-9 w-[150px]" aria-label="Filter by status">
                         <SelectValue placeholder="Availability" />
                     </SelectTrigger>
                     <SelectContent>

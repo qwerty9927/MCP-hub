@@ -411,7 +411,12 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                                                 return (
                                                     <TableRow key={tool.id}>
                                                         <TableCell className="font-mono font-medium">
-                                                            {tool.name}
+                                                            <Link
+                                                                href={`/tools/${encodeURIComponent(tool.id)}`}
+                                                                className="hover:underline text-foreground hover:text-primary transition-colors"
+                                                            >
+                                                                {tool.name}
+                                                            </Link>
                                                         </TableCell>
                                                         <TableCell className="text-muted-foreground text-xs max-w-md">
                                                             {tool.description || "No description"}
