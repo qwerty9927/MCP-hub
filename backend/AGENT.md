@@ -78,8 +78,7 @@ backend/
 │   │   ├── core/
 │   │   │   ├── config.py                # Settings loaded strictly from .env (no in-code defaults)
 │   │   │   ├── exceptions.py            # Domain exception hierarchy (derived from AppError)
-│   │   │   ├── logging.py               # Structured correlation-ID logging & contextvars
-│   │   │   └── security.py              # Backward-compatible re-exports from helpers.security
+│   │   │   └── logging.py               # Structured correlation-ID logging & contextvars
 │   │   ├── domain/                      # Domain entities partitioned by entity responsibility
 │   │   │   ├── execution.py             # ExecutionEntity dataclass
 │   │   │   ├── server.py                # ServerEntity dataclass

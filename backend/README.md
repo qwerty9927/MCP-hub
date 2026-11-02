@@ -97,7 +97,6 @@ backend/
 │   │       └── system.py                # Liveness, readiness, and telemetry
 │   ├── core/
 │   │   ├── config.py                    # Pydantic v2 application settings
-│   │   ├── security.py                  # SSRF & command injection defenses
 │   │   ├── logging.py                   # Structured correlation-ID logging
 │   │   └── exceptions.py                # Domain exception hierarchy
 │   ├── helpers/
