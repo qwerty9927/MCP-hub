@@ -9,14 +9,14 @@ export const SERVERS_QUERY_KEY = ["servers"];
 export function useServers(params?: ServerFilterParams) {
     return useQuery({
         queryKey: [...SERVERS_QUERY_KEY, params],
-        queryFn: () => serversApi.list(params),
+        queryFn: ({ signal }) => serversApi.list(params, signal),
     });
 }
 
 export function useServer(serverId: string) {
     return useQuery({
         queryKey: [...SERVERS_QUERY_KEY, serverId],
-        queryFn: () => serversApi.getById(serverId),
+        queryFn: ({ signal }) => serversApi.getById(serverId, signal),
         enabled: Boolean(serverId),
     });
 }
@@ -24,7 +24,7 @@ export function useServer(serverId: string) {
 export function useServerTools(serverId: string, params?: ToolFilterParams) {
     return useQuery({
         queryKey: [...SERVERS_QUERY_KEY, serverId, "tools", params],
-        queryFn: () => serversApi.getTools(serverId, params),
+        queryFn: ({ signal }) => serversApi.getTools(serverId, params, signal),
         enabled: Boolean(serverId),
     });
 }

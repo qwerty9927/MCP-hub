@@ -12,7 +12,7 @@ import { ExecutionFilterBar } from "@/features/executions/components/ExecutionFi
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorAlert } from "@/components/common/ErrorAlert";
 import { PaginationControl } from "@/components/common/PaginationControl";
-import { Skeleton } from "@/components/ui/skeleton";
+import { TableSkeleton } from "@/components/common/TableSkeleton";
 
 export default function ExecutionsPage() {
     const [filters, setFilters] = useState<ExecutionFilterParams>({
@@ -53,12 +53,17 @@ export default function ExecutionsPage() {
             )}
 
             {isLoading ? (
-                <div className="space-y-3">
-                    <Skeleton className="h-10 w-full" />
-                    <Skeleton className="h-16 w-full" />
-                    <Skeleton className="h-16 w-full" />
-                    <Skeleton className="h-16 w-full" />
-                </div>
+                <TableSkeleton
+                    columns={[
+                        "Tool Name",
+                        "Server",
+                        "Status",
+                        "Duration",
+                        "Executed At",
+                        "Actions",
+                    ]}
+                    rowCount={(filters.page_size ?? 0 > 5) ? 5 : filters.page_size}
+                />
             ) : executions.length === 0 ? (
                 <EmptyState
                     icon={History}

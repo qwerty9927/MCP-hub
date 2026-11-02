@@ -7,14 +7,14 @@ export const EXECUTIONS_QUERY_KEY = ["executions"];
 export function useExecutions(params?: ExecutionFilterParams) {
     return useQuery({
         queryKey: [...EXECUTIONS_QUERY_KEY, params],
-        queryFn: () => executionsApi.list(params),
+        queryFn: ({ signal }) => executionsApi.list(params, signal),
     });
 }
 
 export function useExecution(executionId: string) {
     return useQuery({
         queryKey: [...EXECUTIONS_QUERY_KEY, executionId],
-        queryFn: () => executionsApi.getById(executionId),
+        queryFn: ({ signal }) => executionsApi.getById(executionId, signal),
         enabled: Boolean(executionId),
     });
 }

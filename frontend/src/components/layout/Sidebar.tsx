@@ -52,7 +52,7 @@ export function Sidebar({ onItemClick, className }: SidebarProps) {
     // Polling backend health probe every 30s
     const { data: health, isError } = useQuery({
         queryKey: ["system-health"],
-        queryFn: () => systemApi.health(),
+        queryFn: ({ signal }) => systemApi.health(signal),
         refetchInterval: 30000,
         retry: false,
     });

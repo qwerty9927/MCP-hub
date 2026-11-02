@@ -11,18 +11,23 @@ import {
 } from "@/types";
 
 export const serversApi = {
-    list: async (params?: ServerFilterParams): Promise<PaginatedResponse<ServerRead>> => {
+    list: async (
+        params?: ServerFilterParams,
+        signal?: AbortSignal
+    ): Promise<PaginatedResponse<ServerRead>> => {
         return apiClient<PaginatedResponse<ServerRead>>({
             url: "/servers",
             method: "GET",
             params,
+            signal,
         });
     },
 
-    getById: async (serverId: string): Promise<ServerRead> => {
+    getById: async (serverId: string, signal?: AbortSignal): Promise<ServerRead> => {
         return apiClient<ServerRead>({
             url: `/servers/${serverId}`,
             method: "GET",
+            signal,
         });
     },
 
@@ -79,12 +84,14 @@ export const serversApi = {
 
     getTools: async (
         serverId: string,
-        params?: ToolFilterParams
+        params?: ToolFilterParams,
+        signal?: AbortSignal
     ): Promise<PaginatedResponse<ToolRead>> => {
         return apiClient<PaginatedResponse<ToolRead>>({
             url: `/servers/${serverId}/tools`,
             method: "GET",
             params,
+            signal,
         });
     },
 };

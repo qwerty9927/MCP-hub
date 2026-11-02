@@ -57,6 +57,8 @@ import {
 import { ErrorAlert } from "@/components/common/ErrorAlert";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TableSkeleton } from "@/components/common/TableSkeleton";
+import { CardGridSkeleton } from "@/components/common/CardGridSkeleton";
 import { formatDate, formatDuration } from "@/lib/utils";
 import {
     useConnectServer,
@@ -116,12 +118,25 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
     if (isLoading) {
         return (
             <div className="space-y-6">
-                <Skeleton className="h-8 w-48" />
-                <Skeleton className="h-24 w-full" />
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <Skeleton className="h-48 w-full" />
-                    <Skeleton className="h-48 w-full" />
+                <div className="flex items-center gap-2">
+                    <Skeleton className="h-8 w-36 rounded-md" />
                 </div>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between pb-6 border-b border-border">
+                    <div className="space-y-2">
+                        <Skeleton className="h-8 w-48" />
+                        <Skeleton className="h-4 w-96 max-w-full" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Skeleton className="h-9 w-24 rounded-md" />
+                        <Skeleton className="h-9 w-24 rounded-md" />
+                    </div>
+                </div>
+                <CardGridSkeleton count={4} />
+                <TableSkeleton
+                    columns={["Tool Name", "Description", "Parameters", "Action"]}
+                    rowCount={4}
+                    showPagination={false}
+                />
             </div>
         );
     }

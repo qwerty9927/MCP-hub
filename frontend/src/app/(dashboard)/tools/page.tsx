@@ -12,7 +12,7 @@ import { ToolFilterBar } from "@/features/tools/components/ToolFilterBar";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorAlert } from "@/components/common/ErrorAlert";
 import { PaginationControl } from "@/components/common/PaginationControl";
-import { Skeleton } from "@/components/ui/skeleton";
+import { TableSkeleton } from "@/components/common/TableSkeleton";
 
 export default function ToolsCatalogPage() {
     const [filters, setFilters] = useState<ToolFilterParams>({
@@ -56,12 +56,18 @@ export default function ToolsCatalogPage() {
             )}
 
             {isLoading ? (
-                <div className="space-y-3">
-                    <Skeleton className="h-10 w-full" />
-                    <Skeleton className="h-16 w-full" />
-                    <Skeleton className="h-16 w-full" />
-                    <Skeleton className="h-16 w-full" />
-                </div>
+                <TableSkeleton
+                    columns={[
+                        "Tool Name",
+                        "Server",
+                        "Description",
+                        "Status",
+                        "Parameters",
+                        "Last Discovered",
+                        "Actions",
+                    ]}
+                    rowCount={(filters.page_size ?? 0 > 5) ? 5 : filters.page_size}
+                />
             ) : tools.length === 0 ? (
                 <EmptyState
                     icon={Wrench}

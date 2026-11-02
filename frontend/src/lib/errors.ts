@@ -29,6 +29,10 @@ export function normalizeApiError(error: unknown): AppApiError {
     }
 
     if (error instanceof AxiosError) {
+        if (error.code === "ERR_CANCELED" || error.name === "CanceledError") {
+            return new AppApiError("Request was canceled", "CANCELED_ERROR");
+        }
+
         const status = error.response?.status;
         const correlationId = error.response?.headers?.["x-correlation-id"] as string | undefined;
         const data = error.response?.data as ApiErrorResponse | undefined;

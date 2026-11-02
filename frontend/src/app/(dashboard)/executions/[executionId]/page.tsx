@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CardGridSkeleton } from "@/components/common/CardGridSkeleton";
 import { ErrorAlert } from "@/components/common/ErrorAlert";
 import { useExecution } from "@/features/executions/hooks/use-executions";
 import { formatDate, formatDuration } from "@/lib/utils";
@@ -44,9 +45,21 @@ export default function ExecutionDetailPage({ params }: ExecutionDetailPageProps
     if (isLoading) {
         return (
             <div className="space-y-6">
-                <Skeleton className="h-8 w-48" />
-                <Skeleton className="h-28 w-full" />
-                <Skeleton className="h-64 w-full" />
+                <div className="flex items-center gap-2">
+                    <Skeleton className="h-8 w-36 rounded-md" />
+                </div>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between pb-6 border-b border-border">
+                    <div className="space-y-2">
+                        <Skeleton className="h-8 w-48" />
+                        <Skeleton className="h-4 w-96 max-w-full" />
+                    </div>
+                    <Skeleton className="h-9 w-28 rounded-md" />
+                </div>
+                <CardGridSkeleton count={4} />
+                <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+                    <Skeleton className="h-6 w-36" />
+                    <Skeleton className="h-32 w-full rounded-md" />
+                </div>
             </div>
         );
     }

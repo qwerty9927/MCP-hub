@@ -9,14 +9,14 @@ export const TOOLS_QUERY_KEY = ["tools"];
 export function useTools(params?: ToolFilterParams) {
     return useQuery({
         queryKey: [...TOOLS_QUERY_KEY, params],
-        queryFn: () => toolsApi.list(params),
+        queryFn: ({ signal }) => toolsApi.list(params, signal),
     });
 }
 
 export function useTool(toolId: string) {
     return useQuery({
         queryKey: [...TOOLS_QUERY_KEY, toolId],
-        queryFn: () => toolsApi.getById(toolId),
+        queryFn: ({ signal }) => toolsApi.getById(toolId, signal),
         enabled: Boolean(toolId),
     });
 }

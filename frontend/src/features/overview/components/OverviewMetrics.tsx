@@ -22,33 +22,34 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { HealthBadge } from "@/components/common/HealthBadge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ListSkeleton } from "@/components/common/ListSkeleton";
 import { formatDate, formatDuration } from "@/lib/utils";
 
 export function OverviewDashboard() {
     // 1. System Metrics Telemetry
     const { data: metrics, isLoading: metricsLoading } = useQuery({
         queryKey: ["system-metrics"],
-        queryFn: () => systemApi.metrics(),
+        queryFn: ({ signal }) => systemApi.metrics(signal),
         refetchInterval: 15000,
     });
 
     // 2. Servers summary
     const { data: serversData, isLoading: serversLoading } = useQuery({
         queryKey: ["servers-summary"],
-        queryFn: () => serversApi.list({ page: 1, page_size: 100 }),
+        queryFn: ({ signal }) => serversApi.list({ page: 1, page_size: 100 }, signal),
         refetchInterval: 15000,
     });
 
     // 3. Tools summary
     const { data: toolsData, isLoading: toolsLoading } = useQuery({
         queryKey: ["tools-summary"],
-        queryFn: () => toolsApi.list({ page: 1, page_size: 1 }),
+        queryFn: ({ signal }) => toolsApi.list({ page: 1, page_size: 1 }, signal),
     });
 
     // 4. Recent Executions
     const { data: executionsData, isLoading: executionsLoading } = useQuery({
         queryKey: ["recent-executions"],
-        queryFn: () => executionsApi.list({ page: 1, page_size: 8 }),
+        queryFn: ({ signal }) => executionsApi.list({ page: 1, page_size: 8 }, signal),
         refetchInterval: 15000,
     });
 
@@ -198,11 +199,7 @@ export function OverviewDashboard() {
                     </CardHeader>
                     <CardContent>
                         {serversLoading ? (
-                            <div className="space-y-3">
-                                <Skeleton className="h-12 w-full" />
-                                <Skeleton className="h-12 w-full" />
-                                <Skeleton className="h-12 w-full" />
-                            </div>
+                            <ListSkeleton count={4} />
                         ) : servers.length === 0 ? (
                             <div className="flex flex-col items-center justify-center p-8 text-center text-muted-foreground">
                                 <Server className="h-8 w-8 opacity-40 mb-2" />
@@ -264,11 +261,7 @@ export function OverviewDashboard() {
                     </CardHeader>
                     <CardContent>
                         {executionsLoading ? (
-                            <div className="space-y-3">
-                                <Skeleton className="h-12 w-full" />
-                                <Skeleton className="h-12 w-full" />
-                                <Skeleton className="h-12 w-full" />
-                            </div>
+                            <ListSkeleton count={4} />
                         ) : executions.length === 0 ? (
                             <div className="flex flex-col items-center justify-center p-8 text-center text-muted-foreground">
                                 <Play className="h-8 w-8 opacity-40 mb-2" />

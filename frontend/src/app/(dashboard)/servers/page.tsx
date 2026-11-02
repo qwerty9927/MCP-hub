@@ -12,7 +12,7 @@ import { ServerFilterBar } from "@/features/servers/components/ServerFilterBar";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorAlert } from "@/components/common/ErrorAlert";
 import { PaginationControl } from "@/components/common/PaginationControl";
-import { Skeleton } from "@/components/ui/skeleton";
+import { TableSkeleton } from "@/components/common/TableSkeleton";
 
 export default function ServersPage() {
     const [filters, setFilters] = useState<ServerFilterParams>({
@@ -58,12 +58,17 @@ export default function ServersPage() {
             )}
 
             {isLoading ? (
-                <div className="space-y-3">
-                    <Skeleton className="h-10 w-full" />
-                    <Skeleton className="h-16 w-full" />
-                    <Skeleton className="h-16 w-full" />
-                    <Skeleton className="h-16 w-full" />
-                </div>
+                <TableSkeleton
+                    columns={[
+                        "Server Name",
+                        "Transport",
+                        "Health Status",
+                        "Discovered Tools",
+                        "Last Connected",
+                        "Actions",
+                    ]}
+                    rowCount={(filters.page_size ?? 0 > 5) ? 5 : filters.page_size}
+                />
             ) : servers.length === 0 ? (
                 <EmptyState
                     icon={ServerIcon}

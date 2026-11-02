@@ -1,9 +1,10 @@
-import React from "react";
+import React, { Suspense } from "react";
 import Link from "next/link";
 import { Plus, Terminal } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { OverviewDashboard } from "@/features/overview/components/OverviewMetrics";
+import { CardGridSkeleton } from "@/components/common/CardGridSkeleton";
 
 export default function OverviewPage() {
     return (
@@ -29,7 +30,9 @@ export default function OverviewPage() {
                 }
             />
 
-            <OverviewDashboard />
+            <Suspense fallback={<CardGridSkeleton count={4} />}>
+                <OverviewDashboard />
+            </Suspense>
         </div>
     );
 }

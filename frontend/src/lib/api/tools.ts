@@ -8,18 +8,23 @@ import {
 } from "@/types";
 
 export const toolsApi = {
-    list: async (params?: ToolFilterParams): Promise<PaginatedResponse<ToolRead>> => {
+    list: async (
+        params?: ToolFilterParams,
+        signal?: AbortSignal
+    ): Promise<PaginatedResponse<ToolRead>> => {
         return apiClient<PaginatedResponse<ToolRead>>({
             url: "/tools",
             method: "GET",
             params,
+            signal,
         });
     },
 
-    getById: async (toolId: string): Promise<ToolRead> => {
+    getById: async (toolId: string, signal?: AbortSignal): Promise<ToolRead> => {
         return apiClient<ToolRead>({
             url: `/tools/${encodeURIComponent(toolId)}`,
             method: "GET",
+            signal,
         });
     },
 

@@ -28,6 +28,8 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TableSkeleton } from "@/components/common/TableSkeleton";
+import { CardGridSkeleton } from "@/components/common/CardGridSkeleton";
 import { ErrorAlert } from "@/components/common/ErrorAlert";
 import { useTool } from "@/features/tools/hooks/use-tools";
 import { formatDate } from "@/lib/utils";
@@ -61,9 +63,22 @@ export default function ToolDetailPage({ params }: ToolDetailPageProps) {
     if (isLoading) {
         return (
             <div className="space-y-6">
-                <Skeleton className="h-8 w-48" />
-                <Skeleton className="h-28 w-full" />
-                <Skeleton className="h-64 w-full" />
+                <div className="flex items-center gap-2">
+                    <Skeleton className="h-8 w-36 rounded-md" />
+                </div>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between pb-6 border-b border-border">
+                    <div className="space-y-2">
+                        <Skeleton className="h-8 w-48" />
+                        <Skeleton className="h-4 w-96 max-w-full" />
+                    </div>
+                    <Skeleton className="h-9 w-36 rounded-md" />
+                </div>
+                <CardGridSkeleton count={4} />
+                <TableSkeleton
+                    columns={["Field", "Type", "Required", "Default", "Description & Constraints"]}
+                    rowCount={3}
+                    showPagination={false}
+                />
             </div>
         );
     }

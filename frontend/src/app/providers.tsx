@@ -13,11 +13,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
                     queries: {
                         staleTime: 30 * 1000,
                         retry: (failureCount, error: any) => {
-                            // Don't retry on 404 or 400 client errors
+                            // Don't retry on client errors or canceled requests
                             if (
                                 error?.status === 404 ||
                                 error?.status === 400 ||
-                                error?.status === 422
+                                error?.status === 422 ||
+                                error?.code === "CANCELED_ERROR"
                             ) {
                                 return false;
                             }

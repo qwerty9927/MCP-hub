@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { systemApi } from "@/lib/api";
 import { toast } from "sonner";
@@ -33,7 +34,7 @@ export default function SettingsPage() {
         refetch: refetchReady,
     } = useQuery({
         queryKey: ["settings-ready"],
-        queryFn: () => systemApi.readiness(),
+        queryFn: ({ signal }) => systemApi.readiness(signal),
     });
 
     // System health probe
@@ -43,7 +44,7 @@ export default function SettingsPage() {
         refetch: refetchHealth,
     } = useQuery({
         queryKey: ["settings-health"],
-        queryFn: () => systemApi.health(),
+        queryFn: ({ signal }) => systemApi.health(signal),
     });
 
     const [authToken, setAuthToken] = useState<string>(() => {
@@ -125,7 +126,9 @@ export default function SettingsPage() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                             <div className="flex items-center justify-between p-2.5 rounded bg-background border border-border">
                                 <span className="text-muted-foreground font-mono">GET /health</span>
-                                {health?.status === "ok" ? (
+                                {healthLoading ? (
+                                    <Skeleton className="h-5 w-20" />
+                                ) : health?.status === "ok" ? (
                                     <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
                                         <CheckCircle2 className="h-3.5 w-3.5" />
                                         OK (v{health.version})
@@ -140,7 +143,9 @@ export default function SettingsPage() {
 
                             <div className="flex items-center justify-between p-2.5 rounded bg-background border border-border">
                                 <span className="text-muted-foreground font-mono">GET /ready</span>
-                                {readiness?.status === "ready" ? (
+                                {readyLoading ? (
+                                    <Skeleton className="h-5 w-20" />
+                                ) : readiness?.status === "ready" ? (
                                     <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
                                         <CheckCircle2 className="h-3.5 w-3.5" />
                                         Ready (checks passing)
