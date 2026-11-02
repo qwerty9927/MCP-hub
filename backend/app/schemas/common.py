@@ -19,6 +19,9 @@ class ErrorDetail(BaseModel):
     code: str = Field(description="Machine-readable error code")
     message: str = Field(description="Human-readable error description")
     details: dict | list | str | None = Field(default=None, description="Optional error metadata")
+    correlation_id: str | None = Field(
+        default=None, description="Request correlation ID for tracing"
+    )
 
 
 class ErrorResponse(BaseModel):

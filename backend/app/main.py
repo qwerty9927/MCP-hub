@@ -1,7 +1,5 @@
 """Main FastAPI application entry point for MCP Hub Backend."""
 
-import time
-import uuid
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -9,6 +7,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.routing import Route
 
 from app.api.dependencies import get_connection_manager, get_mcp_gateway, get_tool_catalog
@@ -18,8 +17,9 @@ from app.api.v1.system import router as system_router
 from app.api.v1.tools import router as tools_router
 from app.core.config import get_settings
 from app.core.exceptions import AppException
-from app.core.logging import get_correlation_id, logger, set_correlation_id, setup_logging
+from app.core.logging import get_correlation_id, logger, setup_logging
 from app.infrastructure.database import init_db
+from app.middlewares import CorrelationAndLoggingMiddleware
 from app.schemas.common import ErrorDetail, ErrorResponse
 
 
@@ -48,48 +48,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Graceful shutdown complete.")
 
 
-class CorrelationAndLoggingMiddleware:
-    """Pure ASGI middleware for correlation IDs and request timing without taskgroup conflicts."""
-
-    def __init__(self, app) -> None:
-        self.app = app
-
-    async def __call__(self, scope, receive, send):
-        if scope["type"] != "http":
-            await self.app(scope, receive, send)
-            return
-
-        headers = dict(scope.get("headers", []))
-        corr_id = headers.get(b"x-correlation-id", b"").decode("latin1")
-        if not corr_id:
-            corr_id = str(uuid.uuid4())
-        set_correlation_id(corr_id)
-
-        start_time = time.perf_counter()
-        method = scope.get("method", "")
-        path = scope.get("path", "")
-        logger.info(f"Started {method} {path}")
-
-        async def send_wrapper(message):
-            if message["type"] == "http.response.start":
-                resp_headers = list(message.get("headers", []))
-                resp_headers.append((b"x-correlation-id", corr_id.encode("latin1")))
-                message["headers"] = resp_headers
-            await send(message)
-
-        try:
-            await self.app(scope, receive, send_wrapper)
-            duration_ms = (time.perf_counter() - start_time) * 1000
-            logger.info(f"Finished {method} {path} in {duration_ms:.2f}ms")
-        except Exception as exc:
-            duration_ms = (time.perf_counter() - start_time) * 1000
-            logger.error(
-                f"Failed {method} {path} after {duration_ms:.2f}ms: {exc}",
-                exc_info=True,
-            )
-            raise
-
-
 def create_app() -> FastAPI:
     """Create and configure FastAPI application."""
     settings = get_settings()
@@ -107,9 +65,6 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # Pure ASGI middleware for correlation IDs
-    app.add_middleware(CorrelationAndLoggingMiddleware)
-
     # CORS configuration
     app.add_middleware(
         CORSMiddleware,
@@ -117,28 +72,35 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["X-Correlation-ID", "x-correlation-id"],
     )
+
+    # Pure ASGI middleware for correlation IDs (outermost layer to trace all incoming requests)
+    app.add_middleware(CorrelationAndLoggingMiddleware)
 
     # Custom Exception Handlers
     @app.exception_handler(AppException)
     async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
+        corr_id = get_correlation_id()
         error_response = ErrorResponse(
             error=ErrorDetail(
                 code=exc.__class__.__name__,
                 message=exc.message,
                 details=exc.details,
+                correlation_id=corr_id,
             )
         )
         return JSONResponse(
             status_code=exc.status_code,
             content=error_response.model_dump(),
-            headers={"X-Correlation-ID": get_correlation_id()},
+            headers={"X-Correlation-ID": corr_id},
         )
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(
         request: Request, exc: RequestValidationError
     ) -> JSONResponse:
+        corr_id = get_correlation_id()
         errors = [
             {
                 "loc": list(err.get("loc", [])),
@@ -152,28 +114,47 @@ def create_app() -> FastAPI:
                 code="ValidationError",
                 message="Request validation failed",
                 details=errors,
+                correlation_id=corr_id,
             )
         )
         return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             content=error_response.model_dump(),
-            headers={"X-Correlation-ID": get_correlation_id()},
+            headers={"X-Correlation-ID": corr_id},
+        )
+
+    @app.exception_handler(StarletteHTTPException)
+    async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+        corr_id = get_correlation_id()
+        error_response = ErrorResponse(
+            error=ErrorDetail(
+                code=f"HTTP_{exc.status_code}",
+                message=str(exc.detail),
+                correlation_id=corr_id,
+            )
+        )
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=error_response.model_dump(),
+            headers={"X-Correlation-ID": corr_id},
         )
 
     @app.exception_handler(Exception)
     async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+        corr_id = get_correlation_id()
         logger.error(f"Unhandled server error: {exc}", exc_info=True)
         error_response = ErrorResponse(
             error=ErrorDetail(
                 code="InternalServerError",
                 message="An unexpected internal error occurred. Please try again later.",
-                details={"correlation_id": get_correlation_id()},
+                details={"correlation_id": corr_id},
+                correlation_id=corr_id,
             )
         )
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content=error_response.model_dump(),
-            headers={"X-Correlation-ID": get_correlation_id()},
+            headers={"X-Correlation-ID": corr_id},
         )
 
     # Mount System probes at Root (/health, /ready, /metrics)

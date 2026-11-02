@@ -55,3 +55,6 @@ class ToolExecuteResponse(BaseModel):
     structured_content: Any | None = None
     duration_ms: float
     executed_at: datetime
+    correlation_id: str | None = Field(
+        default=None, description="Request correlation ID for execution tracing"
+    )
