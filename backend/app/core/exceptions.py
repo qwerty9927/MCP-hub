@@ -3,7 +3,7 @@
 from typing import Any
 
 
-class AppException(Exception):
+class AppError(Exception):
     """Base exception for all application errors."""
 
     def __init__(self, message: str, status_code: int = 500, details: Any = None):
@@ -13,7 +13,11 @@ class AppException(Exception):
         self.details = details or {}
 
 
-class NotFoundError(AppException):
+# Backward-compatible alias
+AppException = AppError
+
+
+class NotFoundError(AppError):
     """Raised when a requested resource is not found."""
 
     def __init__(self, message: str, details: Any = None):
@@ -52,7 +56,7 @@ class ExecutionNotFoundError(NotFoundError):
         )
 
 
-class ConflictError(AppException):
+class ConflictError(AppError):
     """Raised when a resource already exists or conflict occurs."""
 
     def __init__(self, message: str, details: Any = None):
@@ -69,14 +73,14 @@ class ServerAlreadyExistsError(ConflictError):
         )
 
 
-class AppValidationError(AppException):
+class AppValidationError(AppError):
     """Raised when validation fails."""
 
     def __init__(self, message: str, details: Any = None):
         super().__init__(message=message, status_code=422, details=details)
 
 
-class SecurityViolationError(AppException):
+class SecurityViolationError(AppError):
     """Raised when a security policy is violated."""
 
     def __init__(self, message: str, details: Any = None):
@@ -103,7 +107,7 @@ class SSRFSecurityError(SecurityViolationError):
         )
 
 
-class ServerDisabledError(AppException):
+class ServerDisabledError(AppError):
     """Raised when an action is attempted on a disabled server."""
 
     def __init__(self, server_id: str):
@@ -114,7 +118,7 @@ class ServerDisabledError(AppException):
         )
 
 
-class ServerConnectionError(AppException):
+class ServerConnectionError(AppError):
     """Raised when connection to an MCP server fails."""
 
     def __init__(self, server_id: str, reason: str):
@@ -125,7 +129,7 @@ class ServerConnectionError(AppException):
         )
 
 
-class ExecutionTimeoutError(AppException):
+class ExecutionTimeoutError(AppError):
     """Raised when tool execution exceeds timeout limit."""
 
     def __init__(self, tool_name: str, timeout_seconds: float):
@@ -136,7 +140,7 @@ class ExecutionTimeoutError(AppException):
         )
 
 
-class ToolExecutionError(AppException):
+class ToolExecutionError(AppError):
     """Raised when tool execution encounters an error."""
 
     def __init__(self, tool_name: str, reason: str, details: Any = None):

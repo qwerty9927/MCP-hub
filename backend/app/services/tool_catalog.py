@@ -8,7 +8,8 @@ from uuid import UUID
 
 from app.core.exceptions import ToolNotFoundError
 from app.core.logging import logger
-from app.domain.entities import ServerEntity, ToolEntity
+from app.domain.server import ServerEntity
+from app.domain.tool import ToolEntity
 from app.infrastructure.repositories.base import ToolRepositoryBase
 from app.schemas.common import PaginatedResponse
 from app.schemas.tool import ToolRead

@@ -7,7 +7,7 @@ from uuid import UUID
 from sqlalchemy import JSON, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.domain.entities import ToolEntity
+from app.domain.tool import ToolEntity
 from app.infrastructure.database import Base
 
 

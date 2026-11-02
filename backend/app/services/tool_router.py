@@ -12,7 +12,7 @@ from app.core.exceptions import (
     ToolNotFoundError,
 )
 from app.core.logging import get_correlation_id
-from app.domain.entities import ExecutionEntity
+from app.domain.execution import ExecutionEntity
 from app.helpers.validation import validate_tool_arguments
 from app.infrastructure.repositories.base import ExecutionRepositoryBase
 from app.schemas.tool import ToolExecuteResponse

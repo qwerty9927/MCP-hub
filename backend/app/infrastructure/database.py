@@ -20,19 +20,19 @@ class Base(AsyncAttrs, DeclarativeBase):
     pass
 
 
-settings = get_settings()
+_settings = get_settings()
 
-connect_args = {}
-if settings.DATABASE_URL.startswith("sqlite"):
-    connect_args["check_same_thread"] = False
+_connect_args: dict[str, bool] = {}
+if _settings.DATABASE_URL.startswith("sqlite"):
+    _connect_args["check_same_thread"] = False
 
 engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=settings.DEBUG,
-    connect_args=connect_args,
+    _settings.DATABASE_URL,
+    echo=_settings.DEBUG,
+    connect_args=_connect_args,
 )
 
-if settings.DATABASE_URL.startswith("sqlite"):
+if _settings.DATABASE_URL.startswith("sqlite"):
 
     @event.listens_for(engine.sync_engine, "connect")
     def set_sqlite_pragma(dbapi_connection, connection_record) -> None:

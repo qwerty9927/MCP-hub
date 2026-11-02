@@ -6,7 +6,7 @@ import mcp.types as mcp_types
 import pytest
 
 from app.core.exceptions import AppValidationError, ServerDisabledError
-from app.domain.entities import ServerEntity
+from app.domain.server import ServerEntity
 from app.infrastructure.repositories.memory import (
     InMemoryExecutionRepository,
     InMemoryServerRepository,

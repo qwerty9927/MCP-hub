@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from app.domain.entities import ExecutionEntity, ServerEntity, ToolEntity
+from app.domain import ExecutionEntity, ServerEntity, ToolEntity
 from app.infrastructure.database import async_session_factory
 from app.infrastructure.repositories.base import (
     ExecutionRepositoryBase,

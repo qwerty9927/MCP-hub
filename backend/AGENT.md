@@ -80,8 +80,10 @@ backend/
 │   │   │   ├── exceptions.py            # Domain exception hierarchy (derived from AppException)
 │   │   │   ├── logging.py               # Structured correlation-ID logging & contextvars
 │   │   │   └── security.py              # Backward-compatible re-exports from helpers.security
-│   │   ├── domain/
-│   │   │   └── entities.py              # Pure domain dataclasses (ServerEntity, ToolEntity, etc.)
+│   │   ├── domain/                      # Domain entities partitioned by entity responsibility
+│   │   │   ├── execution.py             # ExecutionEntity dataclass
+│   │   │   ├── server.py                # ServerEntity dataclass
+│   │   │   └── tool.py                  # ToolEntity dataclass
 │   │   ├── helpers/                     # Reusable utilities partitioned by responsibility
 │   │   │   ├── errors.py                # MCP error & ExceptionGroup unwrapping (format_mcp_error)
 │   │   │   ├── security.py              # Shell injection, SSRF, env sanitization, header masking
@@ -90,6 +92,8 @@ backend/
 │   │   ├── infrastructure/
 │   │   │   ├── database.py              # Async SQLAlchemy engine, session maker, SQLite pragmas
 │   │   │   └── repositories/            # Repository contracts (base.py) & SQLite impl (sqlite.py)
+│   │   ├── middlewares/                 # ASGI middleware components
+│   │   │   └── correlation.py           # CorrelationAndLoggingMiddleware (request tracing)
 │   │   ├── models/                      # SQLAlchemy 2.0 ORM models (ServerModel, ToolModel, ExecutionModel)
 │   │   ├── schemas/                     # Pydantic v2 request/response schemas
 │   │   └── services/                    # Business logic & orchestrators

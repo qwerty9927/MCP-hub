@@ -8,28 +8,29 @@ from contextvars import ContextVar
 from app.core.config import get_settings
 
 # ContextVar for request correlation ID
-correlation_id_ctx: ContextVar[str] = ContextVar("correlation_id", default="")
+_correlation_id_ctx: ContextVar[str] = ContextVar("correlation_id", default="")
+correlation_id_ctx = _correlation_id_ctx  # Backward-compatible alias
 
 
 def get_correlation_id() -> str:
     """Retrieve current correlation ID or generate a default one."""
-    cid = correlation_id_ctx.get()
+    cid = _correlation_id_ctx.get()
     if not cid:
         cid = str(uuid.uuid4())
-        correlation_id_ctx.set(cid)
+        _correlation_id_ctx.set(cid)
     return cid
 
 
 def set_correlation_id(correlation_id: str) -> None:
     """Set the correlation ID for the current context."""
-    correlation_id_ctx.set(correlation_id)
+    _correlation_id_ctx.set(correlation_id)
 
 
 class CorrelationIdFilter(logging.Filter):
     """Logging filter that injects the correlation_id into log records."""
 
     def filter(self, record: logging.LogRecord) -> bool:
-        record.correlation_id = correlation_id_ctx.get() or "-"
+        record.correlation_id = _correlation_id_ctx.get() or "-"
         return True
 
 

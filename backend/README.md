@@ -107,7 +107,11 @@ backend/
 │   │   ├── text.py                      # String & slugification utilities
 │   │   └── validation.py                # JSON schema & tool argument validation
 │   ├── domain/
-│   │   └── entities.py                  # Domain dataclasses & entities
+│   │   ├── server.py                    # ServerEntity dataclass
+│   │   ├── tool.py                      # ToolEntity dataclass
+│   │   └── execution.py                 # ExecutionEntity dataclass
+│   ├── middlewares/
+│   │   └── correlation.py               # Pure ASGI correlation ID & request logger
 │   ├── schemas/
 │   │   ├── common.py                    # Paginated envelopes & Error responses
 │   │   ├── server.py                    # Server models & validation

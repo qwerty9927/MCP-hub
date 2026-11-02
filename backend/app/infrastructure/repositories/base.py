@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from uuid import UUID
 
-from app.domain.entities import ExecutionEntity, ServerEntity, ToolEntity
+from app.domain import ExecutionEntity, ServerEntity, ToolEntity
 from app.schemas.server import ServerHealthStatus, TransportType
 
 

@@ -6,7 +6,7 @@ import mcp.types as mcp_types
 import pytest
 
 from app.core.exceptions import ToolNotFoundError
-from app.domain.entities import ServerEntity
+from app.domain.server import ServerEntity
 from app.schemas.server import TransportType
 from app.services.connection_manager import ConnectionManager
 from app.services.tool_catalog import ToolCatalogService

@@ -20,7 +20,7 @@ from app.core.exceptions import (
     ToolExecutionError,
 )
 from app.core.logging import logger
-from app.domain.entities import ServerEntity
+from app.domain.server import ServerEntity
 from app.helpers.errors import format_mcp_error
 from app.helpers.security import sanitize_environment, validate_http_url, validate_stdio_command
 from app.schemas.server import TransportType

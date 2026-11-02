@@ -6,7 +6,7 @@ from uuid import UUID
 
 from app.core.exceptions import ServerAlreadyExistsError, ServerNotFoundError
 from app.core.logging import logger
-from app.domain.entities import ServerEntity
+from app.domain.server import ServerEntity
 from app.infrastructure.repositories.base import ServerRepositoryBase
 from app.schemas.common import PaginatedResponse
 from app.schemas.server import (

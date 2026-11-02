@@ -4,7 +4,7 @@ import asyncio
 from datetime import UTC, datetime
 from uuid import UUID
 
-from app.domain.entities import ExecutionEntity, ServerEntity, ToolEntity
+from app.domain import ExecutionEntity, ServerEntity, ToolEntity
 from app.infrastructure.repositories.base import (
     ExecutionRepositoryBase,
     ServerRepositoryBase,
