@@ -77,7 +77,7 @@ backend/
 │   │   │   └── v1/                      # API Routers (/servers, /tools, /executions, /system)
 │   │   ├── core/
 │   │   │   ├── config.py                # Settings loaded strictly from .env (no in-code defaults)
-│   │   │   ├── exceptions.py            # Domain exception hierarchy (derived from AppException)
+│   │   │   ├── exceptions.py            # Domain exception hierarchy (derived from AppError)
 │   │   │   ├── logging.py               # Structured correlation-ID logging & contextvars
 │   │   │   └── security.py              # Backward-compatible re-exports from helpers.security
 │   │   ├── domain/                      # Domain entities partitioned by entity responsibility
@@ -140,7 +140,7 @@ Strict unidirectional dependency flow:
 - **Credential Masking**: Sensitive headers (`Authorization`, `x-api-key`, etc.) must always pass through `mask_sensitive_headers()` before serialization in API responses.
 
 ### Error Handling & Exception Groups
-- Custom domain exceptions must inherit from `AppException` (`app/core/exceptions.py`), defining a distinct `status_code` and `message`.
+- Custom domain exceptions must inherit from `AppError` (`app/core/exceptions.py`), defining a distinct `status_code` and `message`.
 - AnyIO and TaskGroups wrap downstream MCP exceptions in nested `ExceptionGroup` objects. Always use `format_mcp_error(exc)` from `app.helpers.errors` to extract clean, actionable error strings for logging and API responses.
 
 ---

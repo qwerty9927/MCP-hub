@@ -208,8 +208,8 @@ async def test_correlation_id_exposed_on_422_validation_error(client: AsyncClien
 
 
 @pytest.mark.asyncio
-async def test_correlation_id_exposed_on_app_exception(client: AsyncClient):
-    """Domain/AppException error exposes x-correlation-id header and body."""
+async def test_correlation_id_exposed_on_app_error(client: AsyncClient):
+    """Domain/AppError error exposes x-correlation-id header and body."""
     random_uuid = str(uuid.uuid4())
     response = await client.get(f"/api/v1/servers/{random_uuid}")
     assert response.status_code == 404

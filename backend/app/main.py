@@ -16,7 +16,7 @@ from app.api.v1.servers import router as servers_router
 from app.api.v1.system import router as system_router
 from app.api.v1.tools import router as tools_router
 from app.core.config import get_settings
-from app.core.exceptions import AppException
+from app.core.exceptions import AppError
 from app.core.logging import get_correlation_id, logger, setup_logging
 from app.infrastructure.database import init_db
 from app.middlewares import CorrelationAndLoggingMiddleware
@@ -79,8 +79,8 @@ def create_app() -> FastAPI:
     app.add_middleware(CorrelationAndLoggingMiddleware)
 
     # Custom Exception Handlers
-    @app.exception_handler(AppException)
-    async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
+    @app.exception_handler(AppError)
+    async def app_exception_handler(request: Request, exc: AppError) -> JSONResponse:
         corr_id = get_correlation_id()
         error_response = ErrorResponse(
             error=ErrorDetail(

@@ -13,10 +13,6 @@ class AppError(Exception):
         self.details = details or {}
 
 
-# Backward-compatible alias
-AppException = AppError
-
-
 class NotFoundError(AppError):
     """Raised when a requested resource is not found."""
 

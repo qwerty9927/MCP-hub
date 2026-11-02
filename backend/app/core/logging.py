@@ -9,7 +9,6 @@ from app.core.config import get_settings
 
 # ContextVar for request correlation ID
 _correlation_id_ctx: ContextVar[str] = ContextVar("correlation_id", default="")
-correlation_id_ctx = _correlation_id_ctx  # Backward-compatible alias
 
 
 def get_correlation_id() -> str:
