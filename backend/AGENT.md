@@ -90,7 +90,11 @@ backend/
 │   │   │   └── validation.py            # Tool arguments JSON-schema validation
 │   │   ├── infrastructure/
 │   │   │   ├── database.py              # Async SQLAlchemy engine, session maker, SQLite pragmas
-│   │   │   └── repositories/            # Repository contracts (base.py) & SQLite impl (sqlite.py)
+│   │   │   └── repositories/            # Domain repository modules (interfaces & SQLite/memory implementations)
+│   │   │       ├── server_repo.py       # ServerRepositoryAbstract, SqliteServerRepository, InMemoryServerRepository
+│   │   │       ├── tool_repo.py         # ToolRepositoryAbstract, SqliteToolRepository, InMemoryToolRepository
+│   │   │       └── execution_repo.py    # ExecutionRepositoryAbstract, SqliteExecutionRepository, InMemoryExecutionRepository
+│   │   ├── mcp/                         # MCP protocol extensions & components
 │   │   ├── middlewares/                 # ASGI middleware components
 │   │   │   └── correlation.py           # CorrelationAndLoggingMiddleware (request tracing)
 │   │   ├── models/                      # SQLAlchemy 2.0 ORM models (ServerModel, ToolModel, ExecutionModel)
@@ -119,7 +123,7 @@ Strict unidirectional dependency flow:
 `API Routers (app/api/v1/)` $\rightarrow$ `Services (app/services/)` $\rightarrow$ `Repositories (app/infrastructure/repositories/)` $\rightarrow$ `Database Models (app/models/)`.
 - **Routers**: Handle HTTP parameter parsing, status codes, and call services. No business logic in routers.
 - **Services**: Contain domain workflows, coordination, validations, and downstream interactions.
-- **Repositories**: Abstract all SQL/persistence operations behind `ServerRepositoryBase`, `ToolRepositoryBase`, and `ExecutionRepositoryBase`.
+- **Repositories**: Abstract all SQL/persistence operations behind `ServerRepositoryAbstract`, `ToolRepositoryAbstract`, and `ExecutionRepositoryAbstract`.
 - **Domain Entities**: Transfer state between services and repositories without leaking SQLAlchemy models into external layers.
 
 ### AnyIO Cancel Scope Rule & `SessionWorker`

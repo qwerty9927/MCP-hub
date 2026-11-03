@@ -7,7 +7,7 @@ from uuid import UUID
 from app.core.exceptions import ServerAlreadyExistsError, ServerNotFoundError
 from app.core.logging import logger
 from app.domain.server import ServerEntity
-from app.infrastructure.repositories.base import ServerRepositoryBase
+from app.infrastructure.repositories import ServerRepositoryAbstract
 from app.schemas.common import PaginatedResponse
 from app.schemas.server import (
     ServerCreate,
@@ -21,7 +21,7 @@ from app.schemas.server import (
 class ServerRegistryService:
     """Manages MCP server registrations, updates, and persistence."""
 
-    def __init__(self, repository: ServerRepositoryBase) -> None:
+    def __init__(self, repository: ServerRepositoryAbstract) -> None:
         self.repository = repository
 
     async def create_server(self, data: ServerCreate) -> ServerRead:

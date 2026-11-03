@@ -9,6 +9,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.api.dependencies import get_tool_router_service
+from app.core.config import get_settings
 from app.main import app
 from app.schemas.tool import ToolExecuteResponse
 
@@ -115,10 +116,12 @@ async def test_correlation_id_exposed_on_successful_crud_lifecycle(client: Async
 @pytest.mark.asyncio
 async def test_correlation_id_exposed_on_preflight_options(client: AsyncClient):
     """OPTIONS CORS preflight requests expose x-correlation-id header."""
+    settings = get_settings()
+    origin = settings.CORS_ORIGINS[0] if settings.CORS_ORIGINS else "http://localhost:3000"
     response = await client.options(
         "/api/v1/servers",
         headers={
-            "Origin": "http://localhost:3000",
+            "Origin": origin,
             "Access-Control-Request-Method": "POST",
         },
     )
@@ -129,9 +132,11 @@ async def test_correlation_id_exposed_on_preflight_options(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_cors_exposes_correlation_id_on_actual_request(client: AsyncClient):
     """Actual cross-origin request includes Access-Control-Expose-Headers for x-correlation-id."""
+    settings = get_settings()
+    origin = settings.CORS_ORIGINS[0] if settings.CORS_ORIGINS else "http://localhost:3000"
     response = await client.get(
         "/health",
-        headers={"Origin": "http://localhost:3000"},
+        headers={"Origin": origin},
     )
     assert response.status_code == 200
     _assert_valid_correlation_id(response)

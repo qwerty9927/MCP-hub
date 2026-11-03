@@ -123,10 +123,14 @@ backend/
 │   │   ├── tool_catalog.py              # Cross-server tool aggregation cache
 │   │   ├── tool_router.py               # Input validation & execution router
 │   │   └── mcp_gateway.py               # MCP Gateway server & Streamable HTTP transport
+│   ├── mcp/                             # MCP protocol helpers & extensions
 │   └── infrastructure/
+│       ├── database.py                  # Database connection & session setup
 │       └── repositories/
-│           ├── base.py                  # Abstract repository contracts
-│           └── memory.py                # Thread-safe in-memory repositories
+│           ├── __init__.py              # Centralized repository exports
+│           ├── server_repo.py           # ServerRepositoryAbstract, Sqlite & InMemory implementations
+│           ├── tool_repo.py             # ToolRepositoryAbstract, Sqlite & InMemory implementations
+│           └── execution_repo.py        # ExecutionRepositoryAbstract, Sqlite & InMemory implementations
 ├── demo_server/
 │   └── server.py                        # Built-in demo MCP server (3 tools)
 ├── docs/

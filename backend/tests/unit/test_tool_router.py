@@ -7,7 +7,7 @@ import pytest
 
 from app.core.exceptions import AppValidationError, ServerDisabledError
 from app.domain.server import ServerEntity
-from app.infrastructure.repositories.memory import (
+from app.infrastructure.repositories import (
     InMemoryExecutionRepository,
     InMemoryServerRepository,
 )

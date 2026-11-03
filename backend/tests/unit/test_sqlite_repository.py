@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from app.domain import ExecutionEntity, ServerEntity, ToolEntity
-from app.infrastructure.repositories.sqlite import (
+from app.infrastructure.repositories import (
     SqliteExecutionRepository,
     SqliteServerRepository,
     SqliteToolRepository,

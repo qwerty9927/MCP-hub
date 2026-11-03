@@ -3,7 +3,7 @@
 import pytest
 
 from app.core.exceptions import ServerAlreadyExistsError, ServerNotFoundError
-from app.infrastructure.repositories.memory import InMemoryServerRepository
+from app.infrastructure.repositories import InMemoryServerRepository
 from app.schemas.server import (
     ServerCreate,
     ServerHealthStatus,

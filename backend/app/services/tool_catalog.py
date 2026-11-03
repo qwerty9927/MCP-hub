@@ -10,7 +10,7 @@ from app.core.exceptions import ToolNotFoundError
 from app.core.logging import logger
 from app.domain.server import ServerEntity
 from app.domain.tool import ToolEntity
-from app.infrastructure.repositories.base import ToolRepositoryBase
+from app.infrastructure.repositories import ToolRepositoryAbstract
 from app.schemas.common import PaginatedResponse
 from app.schemas.tool import ToolRead
 from app.services.connection_manager import ConnectionManager
@@ -19,7 +19,7 @@ from app.services.connection_manager import ConnectionManager
 class ToolCatalogService:
     """Aggregates, caches, and indexes tools discovered across MCP servers with database persistence."""
 
-    def __init__(self, repository: ToolRepositoryBase | None = None) -> None:
+    def __init__(self, repository: ToolRepositoryAbstract | None = None) -> None:
         self.repository = repository
         # Cache key: "{server_id}:{tool_name}"
         self._tools: dict[str, ToolEntity] = {}

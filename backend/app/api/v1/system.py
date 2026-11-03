@@ -12,7 +12,7 @@ from app.api.dependencies import (
     get_server_repository,
 )
 from app.core.config import get_settings
-from app.infrastructure.repositories.base import ExecutionRepositoryBase, ServerRepositoryBase
+from app.infrastructure.repositories import ExecutionRepositoryAbstract, ServerRepositoryAbstract
 from app.schemas.server import ServerHealthStatus
 from app.schemas.system import HealthResponse, MetricsResponse, ReadyResponse
 from app.services.connection_manager import ConnectionManager
@@ -43,7 +43,7 @@ async def health() -> HealthResponse:
     summary="Readiness probe",
 )
 async def readiness(
-    server_repo: Annotated[ServerRepositoryBase, Depends(get_server_repository)],
+    server_repo: Annotated[ServerRepositoryAbstract, Depends(get_server_repository)],
     connection_mgr: Annotated[ConnectionManager, Depends(get_connection_manager)],
 ) -> ReadyResponse:
     """Readiness probe checking operational dependencies."""
@@ -64,8 +64,8 @@ async def readiness(
     summary="Application metrics",
 )
 async def metrics(
-    server_repo: Annotated[ServerRepositoryBase, Depends(get_server_repository)],
-    exec_repo: Annotated[ExecutionRepositoryBase, Depends(get_execution_repository)],
+    server_repo: Annotated[ServerRepositoryAbstract, Depends(get_server_repository)],
+    exec_repo: Annotated[ExecutionRepositoryAbstract, Depends(get_execution_repository)],
     connection_mgr: Annotated[ConnectionManager, Depends(get_connection_manager)],
 ) -> MetricsResponse:
     """Telemetry metrics including active sessions, server health counts, and execution totals."""

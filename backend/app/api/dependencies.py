@@ -1,14 +1,12 @@
 """Dependency injection providers for FastAPI routes."""
 
-from app.infrastructure.repositories.base import (
-    ExecutionRepositoryBase,
-    ServerRepositoryBase,
-    ToolRepositoryBase,
-)
-from app.infrastructure.repositories.sqlite import (
+from app.infrastructure.repositories import (
+    ExecutionRepositoryAbstract,
+    ServerRepositoryAbstract,
     SqliteExecutionRepository,
     SqliteServerRepository,
     SqliteToolRepository,
+    ToolRepositoryAbstract,
 )
 from app.services.connection_manager import ConnectionManager
 from app.services.mcp_gateway import MCPGatewayService
@@ -17,25 +15,25 @@ from app.services.tool_catalog import ToolCatalogService
 from app.services.tool_router import ToolRouterService
 
 # Singleton instances for SQLite repositories and managers
-_server_repo: ServerRepositoryBase = SqliteServerRepository()
-_tool_repo: ToolRepositoryBase = SqliteToolRepository()
-_execution_repo: ExecutionRepositoryBase = SqliteExecutionRepository()
+_server_repo: ServerRepositoryAbstract = SqliteServerRepository()
+_tool_repo: ToolRepositoryAbstract = SqliteToolRepository()
+_execution_repo: ExecutionRepositoryAbstract = SqliteExecutionRepository()
 _connection_manager = ConnectionManager()
 _tool_catalog = ToolCatalogService(repository=_tool_repo)
 _mcp_gateway: MCPGatewayService | None = None
 
 
-def get_server_repository() -> ServerRepositoryBase:
+def get_server_repository() -> ServerRepositoryAbstract:
     """Return server repository instance."""
     return _server_repo
 
 
-def get_tool_repository() -> ToolRepositoryBase:
+def get_tool_repository() -> ToolRepositoryAbstract:
     """Return tool repository instance."""
     return _tool_repo
 
 
-def get_execution_repository() -> ExecutionRepositoryBase:
+def get_execution_repository() -> ExecutionRepositoryAbstract:
     """Return execution repository instance."""
     return _execution_repo
 

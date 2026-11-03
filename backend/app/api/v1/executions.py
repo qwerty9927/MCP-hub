@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies import get_execution_repository
 from app.core.exceptions import ExecutionNotFoundError
-from app.infrastructure.repositories.base import ExecutionRepositoryBase
+from app.infrastructure.repositories import ExecutionRepositoryAbstract
 from app.schemas.common import PaginatedResponse
 from app.schemas.execution import ExecutionRecord
 
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/executions", tags=["Executions"])
     summary="List tool execution history",
 )
 async def list_executions(
-    repo: Annotated[ExecutionRepositoryBase, Depends(get_execution_repository)],
+    repo: Annotated[ExecutionRepositoryAbstract, Depends(get_execution_repository)],
     server_id: UUID | None = Query(default=None, description="Filter by server UUID"),
     tool_name: str | None = Query(default=None, description="Filter by tool name"),
     is_error: bool | None = Query(default=None, description="Filter by success/failure"),
@@ -70,7 +70,7 @@ async def list_executions(
 )
 async def get_execution(
     execution_id: UUID,
-    repo: Annotated[ExecutionRepositoryBase, Depends(get_execution_repository)],
+    repo: Annotated[ExecutionRepositoryAbstract, Depends(get_execution_repository)],
 ) -> ExecutionRecord:
     """Retrieve a specific tool execution log entry by its UUID."""
     record = await repo.get_by_id(execution_id)
