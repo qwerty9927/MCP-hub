@@ -80,9 +80,9 @@ backend/
 │   │   │   ├── exceptions.py            # Domain exception hierarchy (derived from AppError)
 │   │   │   └── logging.py               # Structured correlation-ID logging & contextvars
 │   │   ├── domain/                      # Domain entities partitioned by entity responsibility
-│   │   │   ├── execution.py             # ExecutionEntity dataclass
-│   │   │   ├── server.py                # ServerEntity dataclass
-│   │   │   └── tool.py                  # ToolEntity dataclass
+│   │   │   ├── execution_entity.py      # ExecutionEntity dataclass
+│   │   │   ├── server_entity.py         # ServerEntity dataclass
+│   │   │   └── tool_entity.py           # ToolEntity dataclass
 │   │   ├── helpers/                     # Reusable utilities partitioned by responsibility
 │   │   │   ├── errors.py                # MCP error & ExceptionGroup unwrapping (format_mcp_error)
 │   │   │   ├── security.py              # Shell injection, SSRF, env sanitization, header masking
@@ -97,7 +97,11 @@ backend/
 │   │   ├── mcp/                         # MCP protocol extensions & components
 │   │   ├── middlewares/                 # ASGI middleware components
 │   │   │   └── correlation.py           # CorrelationAndLoggingMiddleware (request tracing)
-│   │   ├── models/                      # SQLAlchemy 2.0 ORM models (ServerModel, ToolModel, ExecutionModel)
+│   │   ├── models/                      # SQLAlchemy 2.0 ORM models
+│   │   │   ├── base_model.py            # Base declarative class
+│   │   │   ├── execution_model.py       # ExecutionModel ORM mapping
+│   │   │   ├── server_model.py          # ServerModel ORM mapping
+│   │   │   └── tool_model.py            # ToolModel ORM mapping
 │   │   ├── schemas/                     # Pydantic v2 request/response schemas
 │   │   └── services/                    # Business logic & orchestrators
 │   │       ├── connection_manager.py    # Downstream MCP client session lifecycle (SessionWorker)
@@ -162,6 +166,9 @@ Strict unidirectional dependency flow:
   - Declarative models use `Mapped[T]` and `mapped_column(...)`.
   - Use async execution: `await session.execute(select(...))`.
   - Enforce foreign key constraints via SQLite pragma `PRAGMA foreign_keys=ON`.
+- **Import Style & Package Invariant**:
+  - All `__init__.py` files across `app/` are pure package markers (empty, containing 0 re-exports or logic).
+  - Internal imports must be explicit and direct to the defining submodule (e.g. `from app.domain.server_entity import ServerEntity`, `from app.infrastructure.repositories.server_repo import ServerRepositoryAbstract`).
 - **Ruff Configuration**:
   - Max line length: `100`.
   - Selected linters: `E` (Pycodestyle errors), `F` (Pyflakes), `I` (isort imports), `UP` (pyupgrade), `B` (flake8-bugbear), `SIM` (flake8-simplify).

@@ -5,9 +5,9 @@ from uuid import UUID
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from app.domain import ToolEntity
+from app.domain.tool_entity import ToolEntity
 from app.infrastructure.database import async_session_factory
-from app.models.tool import ToolModel
+from app.models.tool_model import ToolModel
 
 
 class ToolRepositoryAbstract(ABC):

@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies import get_execution_repository
 from app.core.exceptions import NotFoundError
-from app.infrastructure.repositories import ExecutionRepositoryAbstract
+from app.infrastructure.repositories.execution_repo import ExecutionRepositoryAbstract
 from app.schemas.common import PaginatedResponse
 from app.schemas.execution import ExecutionRecord
 

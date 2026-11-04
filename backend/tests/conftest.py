@@ -23,9 +23,9 @@ from app.api.dependencies import (  # noqa: E402
 )
 from app.infrastructure.database import async_session_factory, init_db  # noqa: E402
 from app.main import app  # noqa: E402
-from app.models.execution import ExecutionModel  # noqa: E402
-from app.models.server import ServerModel  # noqa: E402
-from app.models.tool import ToolModel  # noqa: E402
+from app.models.execution_model import ExecutionModel  # noqa: E402
+from app.models.server_model import ServerModel  # noqa: E402
+from app.models.tool_model import ToolModel  # noqa: E402
 
 
 @pytest.fixture(autouse=True)

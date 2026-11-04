@@ -6,8 +6,8 @@ from uuid import UUID
 
 from app.core.exceptions import ConflictError, NotFoundError
 from app.core.logging import logger
-from app.domain.server import ServerEntity
-from app.infrastructure.repositories import ServerRepositoryAbstract
+from app.domain.server_entity import ServerEntity
+from app.infrastructure.repositories.server_repo import ServerRepositoryAbstract
 from app.schemas.common import PaginatedResponse
 from app.schemas.server import (
     ServerCreate,

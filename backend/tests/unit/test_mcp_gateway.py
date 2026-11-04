@@ -8,7 +8,7 @@ import mcp.types as types
 import pytest
 
 from app.core.exceptions import ValidationError
-from app.domain.server import ServerEntity
+from app.domain.server_entity import ServerEntity
 from app.helpers.text import slugify
 from app.schemas.common import PaginatedResponse
 from app.schemas.server import ServerHealthStatus, ServerRead, TransportType

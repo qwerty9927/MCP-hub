@@ -3,15 +3,9 @@
 import pytest
 
 from app.core.exceptions import ValidationError
-from app.helpers import (
-    format_mcp_error,
-    mask_sensitive_headers,
-    sanitize_environment,
-    slugify,
-    validate_http_url,
-    validate_stdio_command,
-    validate_tool_arguments,
-)
+from app.helpers.errors import format_mcp_error
+from app.helpers.text import slugify
+from app.helpers.validation import validate_tool_arguments
 
 
 def test_text_slugify():
@@ -75,14 +69,3 @@ def test_validation_validate_tool_arguments():
     # No schema or empty schema
     validate_tool_arguments({"anything": True}, None, "no_schema_tool")
     validate_tool_arguments({"anything": True}, {}, "empty_schema_tool")
-
-
-def test_helpers_package_exports():
-    """Verify top-level app.helpers exports all expected helpers."""
-    assert callable(slugify)
-    assert callable(format_mcp_error)
-    assert callable(validate_tool_arguments)
-    assert callable(validate_stdio_command)
-    assert callable(validate_http_url)
-    assert callable(sanitize_environment)
-    assert callable(mask_sensitive_headers)

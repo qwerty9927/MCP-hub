@@ -19,7 +19,7 @@ from app.core.config import get_settings
 from app.core.exceptions import AppError
 from app.core.logging import get_correlation_id, logger, setup_logging
 from app.infrastructure.database import init_db
-from app.middlewares import CorrelationAndLoggingMiddleware
+from app.middlewares.correlation import CorrelationAndLoggingMiddleware
 from app.schemas.common import ErrorDetail, ErrorResponse
 
 

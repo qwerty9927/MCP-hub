@@ -3,7 +3,7 @@
 import pytest
 
 from app.core.exceptions import ConflictError, NotFoundError
-from app.infrastructure.repositories import InMemoryServerRepository
+from app.infrastructure.repositories.server_repo import InMemoryServerRepository
 from app.schemas.server import (
     ServerCreate,
     ServerHealthStatus,

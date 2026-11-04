@@ -5,9 +5,9 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from app.domain import ExecutionEntity
+from app.domain.execution_entity import ExecutionEntity
 from app.infrastructure.database import async_session_factory
-from app.models.execution import ExecutionModel
+from app.models.execution_model import ExecutionModel
 
 
 class ExecutionRepositoryAbstract(ABC):

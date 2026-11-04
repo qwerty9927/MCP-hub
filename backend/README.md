@@ -100,17 +100,21 @@ backend/
 │   │   ├── logging.py                   # Structured correlation-ID logging
 │   │   └── exceptions.py                # Domain exception hierarchy
 │   ├── helpers/
-│   │   ├── __init__.py                  # Unified helpers interface
 │   │   ├── errors.py                    # MCP error & ExceptionGroup unwrapping
 │   │   ├── security.py                  # Command, URL & environment sanitization
 │   │   ├── text.py                      # String & slugification utilities
 │   │   └── validation.py                # JSON schema & tool argument validation
 │   ├── domain/
-│   │   ├── server.py                    # ServerEntity dataclass
-│   │   ├── tool.py                      # ToolEntity dataclass
-│   │   └── execution.py                 # ExecutionEntity dataclass
+│   │   ├── server_entity.py             # ServerEntity dataclass
+│   │   ├── tool_entity.py               # ToolEntity dataclass
+│   │   └── execution_entity.py          # ExecutionEntity dataclass
 │   ├── middlewares/
 │   │   └── correlation.py               # Pure ASGI correlation ID & request logger
+│   ├── models/
+│   │   ├── base_model.py                # Base declarative model class
+│   │   ├── server_model.py              # ServerModel ORM mapping
+│   │   ├── tool_model.py                # ToolModel ORM mapping
+│   │   └── execution_model.py           # ExecutionModel ORM mapping
 │   ├── schemas/
 │   │   ├── common.py                    # Paginated envelopes & Error responses
 │   │   ├── server.py                    # Server models & validation
@@ -127,7 +131,6 @@ backend/
 │   └── infrastructure/
 │       ├── database.py                  # Database connection & session setup
 │       └── repositories/
-│           ├── __init__.py              # Centralized repository exports
 │           ├── server_repo.py           # ServerRepositoryAbstract, Sqlite & InMemory implementations
 │           ├── tool_repo.py             # ToolRepositoryAbstract, Sqlite & InMemory implementations
 │           └── execution_repo.py        # ExecutionRepositoryAbstract, Sqlite & InMemory implementations

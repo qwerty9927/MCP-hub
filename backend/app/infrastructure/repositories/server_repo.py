@@ -6,9 +6,9 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from app.domain import ServerEntity
+from app.domain.server_entity import ServerEntity
 from app.infrastructure.database import async_session_factory
-from app.models.server import ServerModel
+from app.models.server_model import ServerModel
 from app.schemas.server import ServerHealthStatus, TransportType
 
 

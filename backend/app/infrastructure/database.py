@@ -4,21 +4,16 @@ from collections.abc import AsyncGenerator
 
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import (
-    AsyncAttrs,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.orm import DeclarativeBase
 
 from app.core.config import get_settings
-
-
-class Base(AsyncAttrs, DeclarativeBase):
-    """Base declarative model class."""
-
-    pass
-
+from app.models.base_model import Base
+from app.models.execution_model import ExecutionModel  # noqa: F401 - metadata discovery
+from app.models.server_model import ServerModel  # noqa: F401 - metadata discovery
+from app.models.tool_model import ToolModel  # noqa: F401 - metadata discovery
 
 _settings = get_settings()
 

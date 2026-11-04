@@ -8,9 +8,9 @@ from uuid import UUID
 
 from app.core.exceptions import NotFoundError
 from app.core.logging import logger
-from app.domain.server import ServerEntity
-from app.domain.tool import ToolEntity
-from app.infrastructure.repositories import ToolRepositoryAbstract
+from app.domain.server_entity import ServerEntity
+from app.domain.tool_entity import ToolEntity
+from app.infrastructure.repositories.tool_repo import ToolRepositoryAbstract
 from app.schemas.common import PaginatedResponse
 from app.schemas.tool import ToolRead
 from app.services.connection_manager import ConnectionManager

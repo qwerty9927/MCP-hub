@@ -1,10 +1,14 @@
 """Dependency injection providers for FastAPI routes."""
 
-from app.infrastructure.repositories import (
+from app.infrastructure.repositories.execution_repo import (
     ExecutionRepositoryAbstract,
-    ServerRepositoryAbstract,
     SqliteExecutionRepository,
+)
+from app.infrastructure.repositories.server_repo import (
+    ServerRepositoryAbstract,
     SqliteServerRepository,
+)
+from app.infrastructure.repositories.tool_repo import (
     SqliteToolRepository,
     ToolRepositoryAbstract,
 )

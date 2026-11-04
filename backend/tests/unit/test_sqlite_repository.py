@@ -3,12 +3,12 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from app.domain import ExecutionEntity, ServerEntity, ToolEntity
-from app.infrastructure.repositories import (
-    SqliteExecutionRepository,
-    SqliteServerRepository,
-    SqliteToolRepository,
-)
+from app.domain.execution_entity import ExecutionEntity
+from app.domain.server_entity import ServerEntity
+from app.domain.tool_entity import ToolEntity
+from app.infrastructure.repositories.execution_repo import SqliteExecutionRepository
+from app.infrastructure.repositories.server_repo import SqliteServerRepository
+from app.infrastructure.repositories.tool_repo import SqliteToolRepository
 from app.schemas.server import ServerHealthStatus, StdioConfig, TransportType
 
 
