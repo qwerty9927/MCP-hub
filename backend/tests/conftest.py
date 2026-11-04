@@ -7,12 +7,15 @@ from pathlib import Path
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.pool import NullPool
 
 # Add backend directory to sys.path
 backend_dir = Path(__file__).resolve().parent.parent
 if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
+import app.infrastructure.database as db_module  # noqa: E402
 from app.api.dependencies import (  # noqa: E402
     _connection_manager,
     _execution_repo,
@@ -21,17 +24,27 @@ from app.api.dependencies import (  # noqa: E402
     _tool_repo,
     get_mcp_gateway,
 )
-from app.infrastructure.database import async_session_factory, init_db  # noqa: E402
+from app.core.config import get_settings  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models.execution_model import ExecutionModel  # noqa: E402
 from app.models.server_model import ServerModel  # noqa: E402
 from app.models.tool_model import ToolModel  # noqa: E402
 
+# Configure test engine with NullPool to prevent event loop cross-task issues in pytest-asyncio
+_settings = get_settings()
+db_module.engine = db_module.create_database_engine(_settings.DATABASE_URL, poolclass=NullPool)
+db_module.async_session_factory = async_sessionmaker(
+    bind=db_module.engine,
+    autoflush=False,
+    expire_on_commit=False,
+    class_=AsyncSession,
+)
+
 
 @pytest.fixture(autouse=True)
 async def cleanup_dependencies():
     """Ensure clean state before and after each test."""
-    await init_db()
+    await db_module.init_db()
     yield
     # Cleanup state
     await _connection_manager.shutdown()
@@ -39,7 +52,7 @@ async def cleanup_dependencies():
     if hasattr(_server_repo, "_servers"):
         _server_repo._servers.clear()
     else:
-        async with async_session_factory() as session:
+        async with db_module.async_session_factory() as session:
             await session.execute(delete(ToolModel))
             await session.execute(delete(ExecutionModel))
             await session.execute(delete(ServerModel))
@@ -56,6 +69,8 @@ async def cleanup_dependencies():
     gateway = get_mcp_gateway()
     gateway._tool_map.clear()
     gateway._active_sessions.clear()
+
+    await db_module.engine.dispose()
 
 
 @pytest.fixture

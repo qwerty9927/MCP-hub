@@ -30,7 +30,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     settings = get_settings()
     logger.info(f"Starting {settings.PROJECT_NAME} v{settings.VERSION} [{settings.ENVIRONMENT}]")
 
-    # Initialize SQLite database schema
+    # Initialize database schema
     await init_db()
 
     # Preload discovered tools into catalog cache

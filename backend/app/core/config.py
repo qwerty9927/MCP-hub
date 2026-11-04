@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     # Security: SSRF Protection
     ALLOW_PRIVATE_NETWORK_HTTP: bool
 
-    # Database (SQLite with aiosqlite)
+    # Database (PostgreSQL with asyncpg)
     DATABASE_URL: str
 
     # Observability

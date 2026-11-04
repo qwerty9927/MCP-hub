@@ -5,8 +5,8 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+import app.infrastructure.database as db_module
 from app.domain.execution_entity import ExecutionEntity
-from app.infrastructure.database import async_session_factory
 from app.models.execution_model import ExecutionModel
 
 
@@ -36,11 +36,19 @@ class ExecutionRepositoryAbstract(ABC):
         pass
 
 
-class SqliteExecutionRepository(ExecutionRepositoryAbstract):
-    """SQLite implementation of ExecutionRepositoryAbstract using SQLAlchemy."""
+class PostgresExecutionRepository(ExecutionRepositoryAbstract):
+    """PostgreSQL implementation of ExecutionRepositoryAbstract using SQLAlchemy."""
 
     def __init__(self, session_factory: async_sessionmaker | None = None) -> None:
-        self.session_factory = session_factory or async_session_factory
+        self._session_factory = session_factory
+
+    @property
+    def session_factory(self) -> async_sessionmaker:
+        return self._session_factory or db_module.async_session_factory
+
+    @session_factory.setter
+    def session_factory(self, factory: async_sessionmaker | None) -> None:
+        self._session_factory = factory
 
     async def create(self, execution: ExecutionEntity) -> ExecutionEntity:
         async with self.session_factory() as session:

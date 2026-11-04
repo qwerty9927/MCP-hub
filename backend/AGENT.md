@@ -2,7 +2,7 @@
 
 ## 1. Project Overview
 - **Purpose:** MCP Hub is a production-grade orchestration service that manages multiple Model Context Protocol (MCP) downstream servers (`stdio` and `streamable-http`), aggregates their tools into a unified catalog, and acts as both a REST API hub and an upstream MCP Gateway Server (`POST /mcp`).
-- **Tech Stack:** Python 3.12+, FastAPI 0.115+, Model Context Protocol SDK (`mcp` 2.3+), SQLite with `aiosqlite` + SQLAlchemy 2.0 (Asyncio) + Alembic, Pydantic v2 & `pydantic-settings`.
+- **Tech Stack:** Python 3.12+, FastAPI 0.115+, Model Context Protocol SDK (`mcp` 2.3+), PostgreSQL with `asyncpg` + SQLAlchemy 2.0 (Asyncio) + Alembic, Pydantic v2 & `pydantic-settings`.
 - **Package Manager:** `uv` (virtual environment in `backend/.venv`). Monorepo contains Next.js 15 frontend in `frontend/`.
 
 ---
@@ -89,11 +89,11 @@ backend/
 │   │   │   ├── text.py                  # Slugification & string manipulation (slugify)
 │   │   │   └── validation.py            # Tool arguments JSON-schema validation
 │   │   ├── infrastructure/
-│   │   │   ├── database.py              # Async SQLAlchemy engine, session maker, SQLite pragmas
-│   │   │   └── repositories/            # Domain repository modules (interfaces & SQLite/memory implementations)
-│   │   │       ├── server_repo.py       # ServerRepositoryAbstract, SqliteServerRepository, InMemoryServerRepository
-│   │   │       ├── tool_repo.py         # ToolRepositoryAbstract, SqliteToolRepository, InMemoryToolRepository
-│   │   │       └── execution_repo.py    # ExecutionRepositoryAbstract, SqliteExecutionRepository, InMemoryExecutionRepository
+│   │   │   ├── database.py              # Async SQLAlchemy engine, session maker, connection pooling
+│   │   │   └── repositories/            # Domain repository modules (interfaces, Postgres implementations)
+│   │   │       ├── server_repo.py       # ServerRepositoryAbstract, PostgresServerRepository, InMemoryServerRepository
+│   │   │       ├── tool_repo.py         # ToolRepositoryAbstract, PostgresToolRepository, InMemoryToolRepository
+│   │   │       └── execution_repo.py    # ExecutionRepositoryAbstract, PostgresExecutionRepository, InMemoryExecutionRepository
 │   │   ├── mcp/                         # MCP protocol extensions & components
 │   │   ├── middlewares/                 # ASGI middleware components
 │   │   │   └── correlation.py           # CorrelationAndLoggingMiddleware (request tracing)
@@ -114,7 +114,7 @@ backend/
 └── tests/
     ├── conftest.py                      # Pytest async fixtures, test DB cleanup, async_client
     ├── unit/                            # Fast unit tests (services, helpers, catalog, registry)
-    ├── integration/                     # Multi-server aggregation, E2E gateway, SQLite CRUD
+    ├── integration/                     # Multi-server aggregation, E2E gateway, database CRUD
     └── security/                        # SSRF, command injection, executable allowlist tests
 ```
 
@@ -165,7 +165,7 @@ Strict unidirectional dependency flow:
 - **SQLAlchemy 2.0**:
   - Declarative models use `Mapped[T]` and `mapped_column(...)`.
   - Use async execution: `await session.execute(select(...))`.
-  - Enforce foreign key constraints via SQLite pragma `PRAGMA foreign_keys=ON`.
+  - Native foreign key constraints and cascade deletion in PostgreSQL.
 - **Import Style & Package Invariant**:
   - All `__init__.py` files across `app/` are pure package markers (empty, containing 0 re-exports or logic).
   - Internal imports must be explicit and direct to the defining submodule (e.g. `from app.domain.server_entity import ServerEntity`, `from app.infrastructure.repositories.server_repo import ServerRepositoryAbstract`).
@@ -180,17 +180,17 @@ Strict unidirectional dependency flow:
 
 - **Runner**: `pytest` with `pytest-asyncio` in auto mode (`asyncio_mode = "auto"`).
 - **Test Isolation**: Every test automatically runs the `cleanup_dependencies` fixture in `tests/conftest.py`, which:
-  1. Initializes the SQLite schema (`init_db()`).
+  1. Initializes the database schema (`init_db()`).
   2. Shuts down active connections in `_connection_manager`.
-  3. Purges all rows from `mcp_tools`, `tool_executions`, and `mcp_servers`.
+  3. Purges all rows from `discovered_tools`, `tool_executions`, and `mcp_servers`.
   4. Clears in-memory caches and MCP gateway mappings.
 - **Test Client**: Use the `async_client` fixture (`httpx.AsyncClient` with `ASGITransport(app=app)`) for API testing.
 - **Test Categories**:
-  - `tests/unit/`: Test individual services and helpers with mock repositories.
-  - `tests/integration/`: Test multi-server orchestration, gateway lifecycle, and real SQLite persistence.
+  - `tests/unit/`: Test individual services, repositories (`test_repository.py`), and helpers.
+  - `tests/integration/`: Test multi-server orchestration, gateway lifecycle, and real database persistence.
   - `tests/security/`: Test command injection attempts, SSRF blocking, and credential masking.
 
 ---
 
 ## 7. Open Questions
-- **Database Path in Containers vs. Local**: `.env.example` specifies `DATABASE_URL="sqlite+aiosqlite:///./mcp_hub.db"` (relative path). In `docker-compose.yml`, it points to `sqlite+aiosqlite:///data/mcp_hub.db`. When creating scripts outside of `backend/`, always ensure the working directory is set to `backend/` or use an absolute database path to prevent creating orphan `.db` files.
+- **Database Configuration**: Default configuration uses PostgreSQL (`postgresql+asyncpg://postgres:postgres@localhost:5432/mcp_hub`). In `docker-compose.yml`, `backend` connects to the `postgres` container service (`postgresql+asyncpg://postgres:postgres@postgres:5432/mcp_hub`).

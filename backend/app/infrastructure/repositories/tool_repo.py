@@ -5,8 +5,8 @@ from uuid import UUID
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+import app.infrastructure.database as db_module
 from app.domain.tool_entity import ToolEntity
-from app.infrastructure.database import async_session_factory
 from app.models.tool_model import ToolModel
 
 
@@ -56,11 +56,19 @@ class ToolRepositoryAbstract(ABC):
         pass
 
 
-class SqliteToolRepository(ToolRepositoryAbstract):
-    """SQLite implementation of ToolRepositoryAbstract using SQLAlchemy."""
+class PostgresToolRepository(ToolRepositoryAbstract):
+    """PostgreSQL implementation of ToolRepositoryAbstract using SQLAlchemy."""
 
     def __init__(self, session_factory: async_sessionmaker | None = None) -> None:
-        self.session_factory = session_factory or async_session_factory
+        self._session_factory = session_factory
+
+    @property
+    def session_factory(self) -> async_sessionmaker:
+        return self._session_factory or db_module.async_session_factory
+
+    @session_factory.setter
+    def session_factory(self, factory: async_sessionmaker | None) -> None:
+        self._session_factory = factory
 
     async def save_server_tools(
         self,

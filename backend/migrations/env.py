@@ -61,10 +61,6 @@ def do_run_migrations(connection: Connection) -> None:
 
 async def run_async_migrations() -> None:
     """Create an Engine and associate a connection with the context."""
-    connect_args = {}
-    if settings.DATABASE_URL.startswith("sqlite"):
-        connect_args["check_same_thread"] = False
-
     configuration = config.get_section(config.config_ini_section, {})
     configuration["sqlalchemy.url"] = settings.DATABASE_URL
 
@@ -72,7 +68,6 @@ async def run_async_migrations() -> None:
         configuration,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
-        connect_args=connect_args,
     )
 
     async with connectable.connect() as connection:

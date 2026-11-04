@@ -2,14 +2,14 @@
 
 from app.infrastructure.repositories.execution_repo import (
     ExecutionRepositoryAbstract,
-    SqliteExecutionRepository,
+    PostgresExecutionRepository,
 )
 from app.infrastructure.repositories.server_repo import (
+    PostgresServerRepository,
     ServerRepositoryAbstract,
-    SqliteServerRepository,
 )
 from app.infrastructure.repositories.tool_repo import (
-    SqliteToolRepository,
+    PostgresToolRepository,
     ToolRepositoryAbstract,
 )
 from app.services.connection_manager import ConnectionManager
@@ -18,10 +18,10 @@ from app.services.server_registry import ServerRegistryService
 from app.services.tool_catalog import ToolCatalogService
 from app.services.tool_router import ToolRouterService
 
-# Singleton instances for SQLite repositories and managers
-_server_repo: ServerRepositoryAbstract = SqliteServerRepository()
-_tool_repo: ToolRepositoryAbstract = SqliteToolRepository()
-_execution_repo: ExecutionRepositoryAbstract = SqliteExecutionRepository()
+# Singleton instances for PostgreSQL repositories and managers
+_server_repo: ServerRepositoryAbstract = PostgresServerRepository()
+_tool_repo: ToolRepositoryAbstract = PostgresToolRepository()
+_execution_repo: ExecutionRepositoryAbstract = PostgresExecutionRepository()
 _connection_manager = ConnectionManager()
 _tool_catalog = ToolCatalogService(repository=_tool_repo)
 _mcp_gateway: MCPGatewayService | None = None

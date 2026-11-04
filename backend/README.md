@@ -40,9 +40,9 @@ flowchart TD
         end
         
         subgraph Repositories & Storage
-            ServerRepo[("SQLite Server Repository")]
-            ToolRepo[("SQLite Tool Repository")]
-            ExecRepo[("SQLite Execution Repository")]
+            ServerRepo[("PostgreSQL Server Repository")]
+            ToolRepo[("PostgreSQL Tool Repository")]
+            ExecRepo[("PostgreSQL Execution Repository")]
         end
     end
     
@@ -72,7 +72,7 @@ flowchart TD
 1. **MCP Gateway (Hub as Server)**: The hub acts as both an MCP client (connecting downstream) and an MCP server exposing aggregated tools through a single Streamable HTTP endpoint (`/mcp`). Downstream tools are dynamically discovered, namespaced (`{server_slug}__{tool_name}`), collision-proofed, and forwarded with full fidelity.
 2. **SessionWorker Isolation**: MCP client sessions use AnyIO cancel scopes internally. To prevent cross-task cancel scope errors in asynchronous web servers, each active MCP connection runs inside a dedicated `SessionWorker` task. The worker enters and exits its `AsyncExitStack` within the same task while concurrently processing requests via asyncio queues and synchronization primitives.
 3. **Multi-Transport Support**: First-class support for both `stdio` (subprocess pipelines) and `streamable-http` (HTTP streaming endpoints) using the official `mcp` 2.x SDK.
-4. **Unified Tool Catalog**: Tools discovered from heterogeneous MCP servers are indexed into a consolidated catalog with persistent SQLite storage and caching. Cross-server naming collisions are resolved using server-qualified identifiers (`{server_id}:{tool_name}`) in REST and namespaced slugs in MCP Gateway.
+4. **Unified Tool Catalog**: Tools discovered from heterogeneous MCP servers are indexed into a consolidated catalog with persistent PostgreSQL storage and caching. Cross-server naming collisions are resolved using server-qualified identifiers (`{server_id}:{tool_name}`) in REST and namespaced slugs in MCP Gateway.
 5. **Defense-in-Depth Security**:
    - Stdio commands restricted to an approved executable allowlist (`python`, `uv`, `node`, `npx`, `docker`).
    - Command injection defense and argument validation.
@@ -131,9 +131,9 @@ backend/
 │   └── infrastructure/
 │       ├── database.py                  # Database connection & session setup
 │       └── repositories/
-│           ├── server_repo.py           # ServerRepositoryAbstract, Sqlite & InMemory implementations
-│           ├── tool_repo.py             # ToolRepositoryAbstract, Sqlite & InMemory implementations
-│           └── execution_repo.py        # ExecutionRepositoryAbstract, Sqlite & InMemory implementations
+│           ├── server_repo.py           # ServerRepositoryAbstract, Postgres & InMemory implementations
+│           ├── tool_repo.py             # ToolRepositoryAbstract, Postgres & InMemory implementations
+│           └── execution_repo.py        # ExecutionRepositoryAbstract, Postgres & InMemory implementations
 ├── demo_server/
 │   └── server.py                        # Built-in demo MCP server (3 tools)
 ├── docs/
@@ -201,7 +201,7 @@ ALLOW_PRIVATE_NETWORK_HTTP=true
 
 ### 3. Run Database Migrations (Alembic)
 
-Initialize or upgrade the SQLite database schema:
+Initialize or upgrade the PostgreSQL database schema:
 
 ```bash
 alembic upgrade head
@@ -224,7 +224,7 @@ Once running:
 
 ## Running with Docker Compose
 
-To launch the containerized backend with SQLite persistent volume:
+To launch the containerized backend with PostgreSQL (`postgres:16-alpine`):
 
 ```bash
 cd backend

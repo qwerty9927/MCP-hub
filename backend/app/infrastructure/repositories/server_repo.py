@@ -6,8 +6,8 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+import app.infrastructure.database as db_module
 from app.domain.server_entity import ServerEntity
-from app.infrastructure.database import async_session_factory
 from app.models.server_model import ServerModel
 from app.schemas.server import ServerHealthStatus, TransportType
 
@@ -56,11 +56,19 @@ class ServerRepositoryAbstract(ABC):
         pass
 
 
-class SqliteServerRepository(ServerRepositoryAbstract):
-    """SQLite implementation of ServerRepositoryAbstract using SQLAlchemy."""
+class PostgresServerRepository(ServerRepositoryAbstract):
+    """PostgreSQL implementation of ServerRepositoryAbstract using SQLAlchemy."""
 
     def __init__(self, session_factory: async_sessionmaker | None = None) -> None:
-        self.session_factory = session_factory or async_session_factory
+        self._session_factory = session_factory
+
+    @property
+    def session_factory(self) -> async_sessionmaker:
+        return self._session_factory or db_module.async_session_factory
+
+    @session_factory.setter
+    def session_factory(self, factory: async_sessionmaker | None) -> None:
+        self._session_factory = factory
 
     async def create(self, server: ServerEntity) -> ServerEntity:
         async with self.session_factory() as session:

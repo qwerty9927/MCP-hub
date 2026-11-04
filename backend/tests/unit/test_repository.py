@@ -1,4 +1,4 @@
-"""Unit tests for SQLite repository implementations."""
+"""Unit tests for repository implementations."""
 
 from datetime import UTC, datetime
 from uuid import uuid4
@@ -6,19 +6,19 @@ from uuid import uuid4
 from app.domain.execution_entity import ExecutionEntity
 from app.domain.server_entity import ServerEntity
 from app.domain.tool_entity import ToolEntity
-from app.infrastructure.repositories.execution_repo import SqliteExecutionRepository
-from app.infrastructure.repositories.server_repo import SqliteServerRepository
-from app.infrastructure.repositories.tool_repo import SqliteToolRepository
+from app.infrastructure.repositories.execution_repo import PostgresExecutionRepository
+from app.infrastructure.repositories.server_repo import PostgresServerRepository
+from app.infrastructure.repositories.tool_repo import PostgresToolRepository
 from app.schemas.server import ServerHealthStatus, StdioConfig, TransportType
 
 
-async def test_sqlite_server_repository_crud():
-    repo = SqliteServerRepository()
+async def test_server_repository_crud():
+    repo = PostgresServerRepository()
     server_id = uuid4()
     server = ServerEntity(
         id=server_id,
-        name="sqlite-test-server",
-        description="Testing SQLite storage",
+        name="test-server",
+        description="Testing repository storage",
         transport=TransportType.STDIO,
         stdio_config=StdioConfig(command="python3", args=["test.py"]),
         enabled=True,
@@ -28,22 +28,22 @@ async def test_sqlite_server_repository_crud():
     # 1. Create
     created = await repo.create(server)
     assert created.id == server_id
-    assert created.name == "sqlite-test-server"
+    assert created.name == "test-server"
 
     # 2. Get by ID
     fetched = await repo.get_by_id(server_id)
     assert fetched is not None
-    assert fetched.name == "sqlite-test-server"
+    assert fetched.name == "test-server"
     assert fetched.stdio_config is not None
     assert fetched.stdio_config.command == "python3"
 
     # 3. Get by Name
-    fetched_by_name = await repo.get_by_name("SQLITE-TEST-SERVER")
+    fetched_by_name = await repo.get_by_name("TEST-SERVER")
     assert fetched_by_name is not None
     assert fetched_by_name.id == server_id
 
     # 4. List with filter
-    items, total = await repo.list(search="sqlite-test", enabled=True)
+    items, total = await repo.list(search="test-server", enabled=True)
     assert total == 1
     assert len(items) == 1
 
@@ -62,9 +62,9 @@ async def test_sqlite_server_repository_crud():
     assert await repo.get_by_id(server_id) is None
 
 
-async def test_sqlite_tool_repository_crud_and_cascade():
-    server_repo = SqliteServerRepository()
-    tool_repo = SqliteToolRepository()
+async def test_tool_repository_crud_and_cascade():
+    server_repo = PostgresServerRepository()
+    tool_repo = PostgresToolRepository()
     server_id = uuid4()
 
     # Create server first (foreign key target)
@@ -125,9 +125,9 @@ async def test_sqlite_tool_repository_crud_and_cascade():
     assert remaining_total == 0
 
 
-async def test_sqlite_execution_repository_crud():
-    server_repo = SqliteServerRepository()
-    exec_repo = SqliteExecutionRepository()
+async def test_execution_repository_crud():
+    server_repo = PostgresServerRepository()
+    exec_repo = PostgresExecutionRepository()
     exec_id = uuid4()
     server_id = uuid4()
 

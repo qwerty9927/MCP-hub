@@ -1,9 +1,9 @@
-"""Database configuration and session management for SQLite."""
+"""Database configuration and session management for PostgreSQL."""
 
 from collections.abc import AsyncGenerator
 
-from sqlalchemy import event
 from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
@@ -17,25 +17,25 @@ from app.models.tool_model import ToolModel  # noqa: F401 - metadata discovery
 
 _settings = get_settings()
 
-_connect_args: dict[str, bool] = {}
-if _settings.DATABASE_URL.startswith("sqlite"):
-    _connect_args["check_same_thread"] = False
 
-engine = create_async_engine(
-    _settings.DATABASE_URL,
-    echo=_settings.DEBUG,
-    connect_args=_connect_args,
-)
+def create_database_engine(
+    url: str,
+    debug: bool = False,
+    poolclass: type | None = None,
+) -> AsyncEngine:
+    """Create a configured async database engine for PostgreSQL."""
+    if poolclass is not None:
+        return create_async_engine(url, echo=debug, poolclass=poolclass)
+    return create_async_engine(
+        url,
+        echo=debug,
+        pool_size=10,
+        max_overflow=20,
+        pool_pre_ping=True,
+    )
 
-if _settings.DATABASE_URL.startswith("sqlite"):
 
-    @event.listens_for(engine.sync_engine, "connect")
-    def set_sqlite_pragma(dbapi_connection, connection_record) -> None:
-        """Enforce foreign key cascade constraints in SQLite."""
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
-
+engine = create_database_engine(_settings.DATABASE_URL, _settings.DEBUG)
 
 async_session_factory = async_sessionmaker(
     bind=engine,
@@ -56,7 +56,8 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
             raise
 
 
-async def init_db() -> None:
+async def init_db(target_engine: AsyncEngine | None = None) -> None:
     """Initialize database tables."""
-    async with engine.begin() as conn:
+    eng = target_engine or engine
+    async with eng.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
