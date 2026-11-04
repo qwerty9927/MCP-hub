@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.core.exceptions import DisallowedExecutableError, SecurityViolationError, SSRFSecurityError
+from app.core.exceptions import ForbiddenError
 from app.helpers.security import (
     mask_sensitive_headers,
     sanitize_environment,
@@ -19,32 +19,32 @@ def test_validate_stdio_command_allowed():
 
 
 def test_validate_stdio_command_disallowed():
-    """Unapproved executables should raise DisallowedExecutableError."""
-    with pytest.raises(DisallowedExecutableError):
+    """Unapproved executables should raise ForbiddenError."""
+    with pytest.raises(ForbiddenError):
         validate_stdio_command("rm", ["-rf", "/"])
 
-    with pytest.raises(DisallowedExecutableError):
+    with pytest.raises(ForbiddenError):
         validate_stdio_command("/bin/bash", ["-c", "whoami"])
 
-    with pytest.raises(DisallowedExecutableError):
+    with pytest.raises(ForbiddenError):
         validate_stdio_command("nc", ["-e", "/bin/sh"])
 
 
 def test_validate_stdio_command_injection_chars():
-    """Dangerous characters in the executable command should raise SecurityViolationError."""
-    with pytest.raises(SecurityViolationError):
+    """Dangerous characters in the executable command should raise ForbiddenError."""
+    with pytest.raises(ForbiddenError):
         validate_stdio_command("python3; rm -rf /")
 
-    with pytest.raises(SecurityViolationError):
+    with pytest.raises(ForbiddenError):
         validate_stdio_command("python3 | cat")
 
-    with pytest.raises(SecurityViolationError):
+    with pytest.raises(ForbiddenError):
         validate_stdio_command("python3`whoami`")
 
 
 def test_validate_stdio_null_byte_in_args():
     """Null bytes in args must be rejected."""
-    with pytest.raises(SecurityViolationError):
+    with pytest.raises(ForbiddenError):
         validate_stdio_command("python3", ["arg1\0evil"])
 
 
@@ -64,28 +64,28 @@ def test_validate_http_url_valid():
 
 def test_validate_http_url_invalid_scheme():
     """Non-HTTP schemes should be rejected."""
-    with pytest.raises(SSRFSecurityError):
+    with pytest.raises(ForbiddenError):
         validate_http_url("file:///etc/passwd")
 
-    with pytest.raises(SSRFSecurityError):
+    with pytest.raises(ForbiddenError):
         validate_http_url("gopher://127.0.0.1:70")
 
-    with pytest.raises(SSRFSecurityError):
+    with pytest.raises(ForbiddenError):
         validate_http_url("ftp://example.com/data")
 
 
 def test_validate_http_url_ssrf_protection():
     """Private IP ranges and localhost should be blocked when allow_private=False."""
-    with pytest.raises(SSRFSecurityError):
+    with pytest.raises(ForbiddenError):
         validate_http_url("http://127.0.0.1:8000/mcp", allow_private=False)
 
-    with pytest.raises(SSRFSecurityError):
+    with pytest.raises(ForbiddenError):
         validate_http_url("http://localhost:8080", allow_private=False)
 
-    with pytest.raises(SSRFSecurityError):
+    with pytest.raises(ForbiddenError):
         validate_http_url("http://169.254.169.254/latest/meta-data", allow_private=False)
 
-    with pytest.raises(SSRFSecurityError):
+    with pytest.raises(ForbiddenError):
         validate_http_url("http://192.168.1.10/admin", allow_private=False)
 
 

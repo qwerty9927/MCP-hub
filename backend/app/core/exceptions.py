@@ -6,142 +6,77 @@ from typing import Any
 class AppError(Exception):
     """Base exception for all application errors."""
 
-    def __init__(self, message: str, status_code: int = 500, details: Any = None):
+    def __init__(
+        self,
+        message: str = "An unexpected error occurred",
+        status_code: int = 500,
+        details: Any = None,
+    ):
         super().__init__(message)
         self.message = message
         self.status_code = status_code
         self.details = details or {}
 
 
-class NotFoundError(AppError):
-    """Raised when a requested resource is not found."""
+class BadRequestError(AppError):
+    """Raised when a request is invalid or cannot be processed in the current state (HTTP 400)."""
 
-    def __init__(self, message: str, details: Any = None):
-        super().__init__(message=message, status_code=404, details=details)
-
-
-class ServerNotFoundError(NotFoundError):
-    """Raised when an MCP server configuration is not found."""
-
-    def __init__(self, server_id: str):
-        super().__init__(
-            message=f"Server with id '{server_id}' not found",
-            details={"server_id": server_id},
-        )
+    def __init__(self, message: str = "Bad request", details: Any = None):
+        super().__init__(message=message, status_code=400, details=details)
 
 
-class ToolNotFoundError(NotFoundError):
-    """Raised when a requested tool is not found."""
+class ForbiddenError(AppError):
+    """Raised when an operation is forbidden or violates security policy (HTTP 403)."""
 
-    def __init__(self, tool_name: str, server_id: str | None = None):
-        msg = (
-            f"Tool '{tool_name}' not found on server '{server_id}'"
-            if server_id
-            else f"Tool '{tool_name}' not found"
-        )
-        super().__init__(message=msg, details={"tool_name": tool_name, "server_id": server_id})
-
-
-class ExecutionNotFoundError(NotFoundError):
-    """Raised when an execution history record is not found."""
-
-    def __init__(self, execution_id: str):
-        super().__init__(
-            message=f"Execution with id '{execution_id}' not found",
-            details={"execution_id": execution_id},
-        )
-
-
-class ConflictError(AppError):
-    """Raised when a resource already exists or conflict occurs."""
-
-    def __init__(self, message: str, details: Any = None):
-        super().__init__(message=message, status_code=409, details=details)
-
-
-class ServerAlreadyExistsError(ConflictError):
-    """Raised when a server with the same name already exists."""
-
-    def __init__(self, name: str):
-        super().__init__(
-            message=f"A server with name '{name}' already exists",
-            details={"name": name},
-        )
-
-
-class AppValidationError(AppError):
-    """Raised when validation fails."""
-
-    def __init__(self, message: str, details: Any = None):
-        super().__init__(message=message, status_code=422, details=details)
-
-
-class SecurityViolationError(AppError):
-    """Raised when a security policy is violated."""
-
-    def __init__(self, message: str, details: Any = None):
+    def __init__(self, message: str = "Access forbidden", details: Any = None):
         super().__init__(message=message, status_code=403, details=details)
 
 
-class DisallowedExecutableError(SecurityViolationError):
-    """Raised when an unapproved executable is requested for stdio transport."""
+class NotFoundError(AppError):
+    """Raised when a requested resource is not found (HTTP 404)."""
 
-    def __init__(self, executable: str):
-        super().__init__(
-            message=f"Executable '{executable}' is not in the approved stdio allowlist",
-            details={"executable": executable},
-        )
+    def __init__(self, message: str = "Resource not found", details: Any = None):
+        super().__init__(message=message, status_code=404, details=details)
 
 
-class SSRFSecurityError(SecurityViolationError):
-    """Raised when a remote URL targets a restricted network destination."""
+class ConflictError(AppError):
+    """Raised when a resource conflict occurs (HTTP 409)."""
 
-    def __init__(self, url: str, reason: str):
-        super().__init__(
-            message=f"SSRF Protection: URL '{url}' is restricted: {reason}",
-            details={"url": url, "reason": reason},
-        )
+    def __init__(self, message: str = "Resource conflict", details: Any = None):
+        super().__init__(message=message, status_code=409, details=details)
 
 
-class ServerDisabledError(AppError):
-    """Raised when an action is attempted on a disabled server."""
+class ValidationError(AppError):
+    """Raised when request or payload validation fails (HTTP 422)."""
 
-    def __init__(self, server_id: str):
-        super().__init__(
-            message=f"Server '{server_id}' is disabled. Enable it before performing this operation.",
-            status_code=400,
-            details={"server_id": server_id},
-        )
+    def __init__(self, message: str = "Validation failed", details: Any = None):
+        super().__init__(message=message, status_code=422, details=details)
 
 
-class ServerConnectionError(AppError):
-    """Raised when connection to an MCP server fails."""
+class InternalServerError(AppError):
+    """Raised when an internal error or execution failure occurs (HTTP 500)."""
 
-    def __init__(self, server_id: str, reason: str):
-        super().__init__(
-            message=f"Failed to connect to server '{server_id}': {reason}",
-            status_code=502,
-            details={"server_id": server_id, "reason": reason},
-        )
+    def __init__(self, message: str = "Internal server error", details: Any = None):
+        super().__init__(message=message, status_code=500, details=details)
 
 
-class ExecutionTimeoutError(AppError):
-    """Raised when tool execution exceeds timeout limit."""
+class BadGatewayError(AppError):
+    """Raised when an upstream service connection or communication fails (HTTP 502)."""
 
-    def __init__(self, tool_name: str, timeout_seconds: float):
-        super().__init__(
-            message=f"Tool '{tool_name}' execution timed out after {timeout_seconds} seconds",
-            status_code=504,
-            details={"tool_name": tool_name, "timeout_seconds": timeout_seconds},
-        )
+    def __init__(
+        self,
+        message: str = "Bad gateway or upstream connection failed",
+        details: Any = None,
+    ):
+        super().__init__(message=message, status_code=502, details=details)
 
 
-class ToolExecutionError(AppError):
-    """Raised when tool execution encounters an error."""
+class GatewayTimeoutError(AppError):
+    """Raised when an upstream service or operation exceeds timeout limit (HTTP 504)."""
 
-    def __init__(self, tool_name: str, reason: str, details: Any = None):
-        super().__init__(
-            message=f"Execution error for tool '{tool_name}': {reason}",
-            status_code=500,
-            details=details or {"tool_name": tool_name, "reason": reason},
-        )
+    def __init__(
+        self,
+        message: str = "Gateway timeout or operation timed out",
+        details: Any = None,
+    ):
+        super().__init__(message=message, status_code=504, details=details)

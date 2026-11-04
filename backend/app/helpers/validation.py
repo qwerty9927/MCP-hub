@@ -5,7 +5,7 @@ from typing import Any
 import jsonschema
 from jsonschema.exceptions import ValidationError as JSONSchemaValidationError
 
-from app.core.exceptions import AppValidationError
+from app.core.exceptions import ValidationError
 
 
 def validate_tool_arguments(
@@ -22,7 +22,7 @@ def validate_tool_arguments(
         try:
             jsonschema.validate(instance=arguments, schema=input_schema)
         except JSONSchemaValidationError as val_err:
-            raise AppValidationError(
+            raise ValidationError(
                 f"Invalid arguments for tool '{tool_name}': {val_err.message}",
                 details={"path": list(val_err.path), "schema_error": val_err.message},
             ) from val_err

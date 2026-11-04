@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from app.core.exceptions import ToolNotFoundError
+from app.core.exceptions import NotFoundError
 from app.core.logging import logger
 from app.domain.server import ServerEntity
 from app.domain.tool import ToolEntity
@@ -198,4 +198,15 @@ class ToolCatalogService:
                     self._tools[db_tool.id] = db_tool
                 return db_tool
 
-        raise ToolNotFoundError(tool_id_or_name, str(server_id) if server_id else None)
+        msg = (
+            f"Tool '{tool_id_or_name}' not found on server '{server_id}'"
+            if server_id
+            else f"Tool '{tool_id_or_name}' not found"
+        )
+        raise NotFoundError(
+            msg,
+            details={
+                "tool_name": tool_id_or_name,
+                "server_id": str(server_id) if server_id else None,
+            },
+        )

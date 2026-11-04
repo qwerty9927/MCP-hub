@@ -8,8 +8,8 @@ from uuid import UUID, uuid4
 import mcp.types as mcp_types
 
 from app.core.exceptions import (
-    ServerDisabledError,
-    ToolNotFoundError,
+    BadRequestError,
+    NotFoundError,
 )
 from app.core.logging import get_correlation_id
 from app.domain.execution import ExecutionEntity
@@ -52,12 +52,15 @@ class ToolRouterService:
         # 1. Validate target server
         server = await self.server_registry.get_server_entity(server_id)
         if not server.enabled:
-            raise ServerDisabledError(str(server_id))
+            raise BadRequestError(
+                f"Server '{server_id}' is disabled. Enable it before performing this operation.",
+                details={"server_id": str(server_id)},
+            )
 
         # 2. Validate tool presence (try cache or refresh if needed)
         try:
             tool = await self.tool_catalog.get_tool(tool_name, server_id=server_id)
-        except ToolNotFoundError:
+        except NotFoundError:
             # Refresh server tools in case it's newly connected
             refreshed = await self.tool_catalog.refresh_server_tools(
                 server, self.connection_manager

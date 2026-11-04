@@ -223,7 +223,7 @@ async def test_correlation_id_exposed_on_app_error(client: AsyncClient):
     data = response.json()
     assert "error" in data
     assert data["error"]["correlation_id"] == corr_id
-    assert data["error"]["code"] == "ServerNotFoundError"
+    assert data["error"]["code"] == "404"
 
 
 # --- 3. INTERNAL GENERATION INTEGRITY ---

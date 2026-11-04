@@ -143,7 +143,9 @@ Strict unidirectional dependency flow:
 - **Credential Masking**: Sensitive headers (`Authorization`, `x-api-key`, etc.) must always pass through `mask_sensitive_headers()` before serialization in API responses.
 
 ### Error Handling & Exception Groups
-- Custom domain exceptions must inherit from `AppError` (`app/core/exceptions.py`), defining a distinct `status_code` and `message`.
+- Domain exceptions use a strict 2-level hierarchy inheriting directly from `AppError` (`app/core/exceptions.py`), defining service-agnostic category names (`NotFoundError`, `BadRequestError`, `ConflictError`, `ForbiddenError`, `ValidationError`, `BadGatewayError`, `GatewayTimeoutError`, `InternalServerError`).
+- Contextual details (e.g. `server_id`, `tool_name`) are passed through `__init__` parameters rather than defining 3rd-level subclasses.
+- Global exception handling in `app/main.py` populates `ErrorDetail.code` with `str(exc.status_code)`.
 - AnyIO and TaskGroups wrap downstream MCP exceptions in nested `ExceptionGroup` objects. Always use `format_mcp_error(exc)` from `app.helpers.errors` to extract clean, actionable error strings for logging and API responses.
 
 ---

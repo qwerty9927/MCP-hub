@@ -4,7 +4,7 @@ import math
 from datetime import UTC, datetime
 from uuid import UUID
 
-from app.core.exceptions import ServerAlreadyExistsError, ServerNotFoundError
+from app.core.exceptions import ConflictError, NotFoundError
 from app.core.logging import logger
 from app.domain.server import ServerEntity
 from app.infrastructure.repositories import ServerRepositoryAbstract
@@ -28,7 +28,10 @@ class ServerRegistryService:
         """Register a new MCP server configuration."""
         existing = await self.repository.get_by_name(data.name)
         if existing:
-            raise ServerAlreadyExistsError(data.name)
+            raise ConflictError(
+                f"A server with name '{data.name}' already exists",
+                details={"name": data.name},
+            )
 
         server = ServerEntity(
             name=data.name,
@@ -47,7 +50,7 @@ class ServerRegistryService:
         return ServerRead.from_domain(saved)
 
     async def get_server(self, server_id: UUID) -> ServerRead:
-        """Retrieve server by ID or raise ServerNotFoundError."""
+        """Retrieve server by ID or raise NotFoundError."""
         entity = await self.get_server_entity(server_id)
         return ServerRead.from_domain(entity)
 
@@ -55,7 +58,10 @@ class ServerRegistryService:
         """Internal helper to get raw domain entity."""
         server = await self.repository.get_by_id(server_id)
         if not server:
-            raise ServerNotFoundError(str(server_id))
+            raise NotFoundError(
+                f"Server with id '{server_id}' not found",
+                details={"server_id": str(server_id)},
+            )
         return server
 
     async def list_servers(
@@ -100,7 +106,10 @@ class ServerRegistryService:
         if data.name and data.name.lower() != server.name.lower():
             existing = await self.repository.get_by_name(data.name)
             if existing and existing.id != server_id:
-                raise ServerAlreadyExistsError(data.name)
+                raise ConflictError(
+                    f"A server with name '{data.name}' already exists",
+                    details={"name": data.name},
+                )
             server.name = data.name
 
         if data.description is not None:
@@ -143,5 +152,5 @@ class ServerRegistryService:
             if discovered_tool_count is not None:
                 server.discovered_tool_count = discovered_tool_count
             await self.repository.update(server)
-        except ServerNotFoundError:
+        except NotFoundError:
             pass

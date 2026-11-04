@@ -11,6 +11,14 @@ from app.core.config import get_settings
 _correlation_id_ctx: ContextVar[str] = ContextVar("correlation_id", default="")
 
 
+class CorrelationIdFilter(logging.Filter):
+    """Logging filter that injects the correlation_id into log records."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.correlation_id = _correlation_id_ctx.get() or "-"
+        return True
+
+
 def get_correlation_id() -> str:
     """Retrieve current correlation ID or generate a default one."""
     cid = _correlation_id_ctx.get()
@@ -23,14 +31,6 @@ def get_correlation_id() -> str:
 def set_correlation_id(correlation_id: str) -> None:
     """Set the correlation ID for the current context."""
     _correlation_id_ctx.set(correlation_id)
-
-
-class CorrelationIdFilter(logging.Filter):
-    """Logging filter that injects the correlation_id into log records."""
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        record.correlation_id = _correlation_id_ctx.get() or "-"
-        return True
 
 
 def setup_logging() -> None:

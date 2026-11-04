@@ -14,10 +14,10 @@ from mcp.client.streamable_http import create_mcp_http_client, streamable_http_c
 
 from app.core.config import Settings, get_settings
 from app.core.exceptions import (
-    ExecutionTimeoutError,
-    ServerConnectionError,
-    ServerDisabledError,
-    ToolExecutionError,
+    BadGatewayError,
+    BadRequestError,
+    GatewayTimeoutError,
+    InternalServerError,
 )
 from app.core.logging import logger
 from app.domain.server import ServerEntity
@@ -128,17 +128,31 @@ class SessionWorker:
             await asyncio.wait_for(self.ready_event.wait(), timeout=connect_timeout + 2.0)
         except TimeoutError as exc:
             await self.stop()
-            raise ServerConnectionError(
-                str(self.server.id), f"Connection timed out after {connect_timeout}s"
+            raise BadGatewayError(
+                f"Failed to connect to server '{self.server.id}': Connection timed out after {connect_timeout}s",
+                details={
+                    "server_id": str(self.server.id),
+                    "reason": f"Connection timed out after {connect_timeout}s",
+                },
             ) from exc
 
         if self.error:
             await self.stop()
-            raise ServerConnectionError(str(self.server.id), format_mcp_error(self.error))
+            error_str = format_mcp_error(self.error)
+            raise BadGatewayError(
+                f"Failed to connect to server '{self.server.id}': {error_str}",
+                details={"server_id": str(self.server.id), "reason": error_str},
+            )
 
         if not self.session:
             await self.stop()
-            raise ServerConnectionError(str(self.server.id), "Session failed to initialize")
+            raise BadGatewayError(
+                f"Failed to connect to server '{self.server.id}': Session failed to initialize",
+                details={
+                    "server_id": str(self.server.id),
+                    "reason": "Session failed to initialize",
+                },
+            )
 
         return self.session
 
@@ -168,7 +182,10 @@ class ConnectionManager:
     ) -> ClientSession:
         """Get an existing healthy session or create a new one."""
         if not server.enabled:
-            raise ServerDisabledError(str(server.id))
+            raise BadRequestError(
+                f"Server '{server.id}' is disabled. Enable it before performing this operation.",
+                details={"server_id": str(server.id)},
+            )
 
         async with self._lock:
             existing = self._workers.get(server.id)
@@ -242,12 +259,16 @@ class ConnectionManager:
             res = await asyncio.wait_for(session.list_tools(), timeout=fetch_timeout)
             return res.tools
         except TimeoutError as exc:
-            raise ExecutionTimeoutError("list_tools", fetch_timeout) from exc
+            raise GatewayTimeoutError(
+                f"Operation 'list_tools' timed out after {fetch_timeout} seconds",
+                details={"operation": "list_tools", "timeout_seconds": fetch_timeout},
+            ) from exc
         except Exception as exc:
             await self.disconnect(server.id)
             error_msg = format_mcp_error(exc)
-            raise ServerConnectionError(
-                str(server.id), f"Failed to list tools: {error_msg}"
+            raise BadGatewayError(
+                f"Failed to list tools from server '{server.id}': {error_msg}",
+                details={"server_id": str(server.id), "reason": error_msg},
             ) from exc
 
     async def call_tool(
@@ -272,10 +293,19 @@ class ConnectionManager:
                 )
                 if isinstance(result, mcp_types.CallToolResult):
                     return result
-                raise ToolExecutionError(tool_name, f"Unexpected tool result type: {type(result)}")
+                raise InternalServerError(
+                    f"Execution error for tool '{tool_name}': Unexpected tool result type: {type(result)}",
+                    details={
+                        "tool_name": tool_name,
+                        "reason": f"Unexpected tool result type: {type(result)}",
+                    },
+                )
             except TimeoutError as exc:
                 logger.error(f"Execution of tool '{tool_name}' timed out after {exec_timeout}s")
-                raise ExecutionTimeoutError(tool_name, exec_timeout) from exc
+                raise GatewayTimeoutError(
+                    f"Tool '{tool_name}' execution timed out after {exec_timeout} seconds",
+                    details={"tool_name": tool_name, "timeout_seconds": exec_timeout},
+                ) from exc
             except Exception as exc:
                 logger.error(f"Error executing tool '{tool_name}' on server '{server.name}': {exc}")
                 if (
@@ -284,7 +314,10 @@ class ConnectionManager:
                     or "stream" in str(exc).lower()
                 ):
                     await self.disconnect(server.id)
-                raise ToolExecutionError(tool_name, str(exc)) from exc
+                raise InternalServerError(
+                    f"Execution error for tool '{tool_name}': {exc}",
+                    details={"tool_name": tool_name, "reason": str(exc)},
+                ) from exc
 
     def get_active_session_count(self) -> int:
         """Return the number of currently active sessions."""

@@ -84,7 +84,7 @@ def create_app() -> FastAPI:
         corr_id = get_correlation_id()
         error_response = ErrorResponse(
             error=ErrorDetail(
-                code=exc.__class__.__name__,
+                code=str(exc.status_code),
                 message=exc.message,
                 details=exc.details,
                 correlation_id=corr_id,

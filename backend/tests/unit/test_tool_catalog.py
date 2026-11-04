@@ -5,7 +5,7 @@ from uuid import uuid4
 import mcp.types as mcp_types
 import pytest
 
-from app.core.exceptions import ToolNotFoundError
+from app.core.exceptions import NotFoundError
 from app.domain.server import ServerEntity
 from app.schemas.server import TransportType
 from app.services.connection_manager import ConnectionManager
@@ -83,5 +83,5 @@ async def test_duplicate_tool_names_across_servers(catalog_service: ToolCatalogS
 
 
 async def test_get_tool_not_found(catalog_service: ToolCatalogService):
-    with pytest.raises(ToolNotFoundError):
+    with pytest.raises(NotFoundError):
         await catalog_service.get_tool("nonexistent_tool")

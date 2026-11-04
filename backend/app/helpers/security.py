@@ -7,7 +7,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from app.core.config import get_settings
-from app.core.exceptions import DisallowedExecutableError, SecurityViolationError, SSRFSecurityError
+from app.core.exceptions import ForbiddenError
 
 # Sensitive environment variable keywords to mask or block
 SENSITIVE_ENV_PATTERNS = [
@@ -41,14 +41,14 @@ def validate_stdio_command(command: str, args: list[str] | None = None) -> None:
     settings = get_settings()
 
     if not command or not command.strip():
-        raise SecurityViolationError("Executable command cannot be empty")
+        raise ForbiddenError("Executable command cannot be empty")
 
     cmd_stripped = command.strip()
 
     # Disallow dangerous shell characters in the command binary itself
     for char in DANGEROUS_SHELL_CHARS:
         if char in cmd_stripped:
-            raise SecurityViolationError(f"Command binary contains disallowed character: {char!r}")
+            raise ForbiddenError(f"Command binary contains disallowed character: {char!r}")
 
     # Extract base name (e.g. '/opt/homebrew/bin/python3' -> 'python3')
     cmd_name = Path(cmd_stripped).name
@@ -57,13 +57,16 @@ def validate_stdio_command(command: str, args: list[str] | None = None) -> None:
     allowed = set(settings.ALLOWED_STDIO_EXECUTABLES)
     # Check both full command and basename
     if cmd_stripped not in allowed and cmd_name not in allowed:
-        raise DisallowedExecutableError(cmd_stripped)
+        raise ForbiddenError(
+            f"Executable '{cmd_stripped}' is not in the approved stdio allowlist",
+            details={"executable": cmd_stripped},
+        )
 
     # Validate arguments for null bytes or suspicious characters
     if args:
         for arg in args:
             if "\0" in arg:
-                raise SecurityViolationError("Argument contains illegal null byte")
+                raise ForbiddenError("Argument contains illegal null byte")
 
 
 def sanitize_environment(
@@ -97,41 +100,48 @@ def validate_http_url(url: str, allow_private: bool | None = None) -> str:
         allow_private = get_settings().ALLOW_PRIVATE_NETWORK_HTTP
 
     if not url or not url.strip():
-        raise SSRFSecurityError(url, "URL cannot be empty")
+        raise ForbiddenError("URL cannot be empty", details={"url": url})
 
     parsed = urlparse(url.strip())
 
     if parsed.scheme not in {"http", "https"}:
-        raise SSRFSecurityError(
-            url, f"Invalid scheme '{parsed.scheme}'. Only http and https are allowed"
+        raise ForbiddenError(
+            f"Invalid scheme '{parsed.scheme}'. Only http and https are allowed",
+            details={"url": url, "scheme": parsed.scheme},
         )
 
     if not parsed.hostname:
-        raise SSRFSecurityError(url, "Hostname is missing in URL")
+        raise ForbiddenError("Hostname is missing in URL", details={"url": url})
 
     hostname = parsed.hostname.lower()
 
     if not allow_private:
         # Check for localhost / loopback
         if hostname in {"localhost", "127.0.0.1", "::1"}:
-            raise SSRFSecurityError(
-                url, "Access to localhost/loopback is forbidden in production mode"
+            raise ForbiddenError(
+                "Access to localhost/loopback is forbidden in production mode",
+                details={"url": url},
             )
 
         # Check for IP address private ranges & cloud metadata
         try:
             ip = ipaddress.ip_address(hostname)
             if ip.is_private or ip.is_loopback or ip.is_link_local:
-                raise SSRFSecurityError(url, f"Access to private/local IP range {ip} is prohibited")
+                raise ForbiddenError(
+                    f"Access to private/local IP range {ip} is prohibited",
+                    details={"url": url, "ip": str(ip)},
+                )
             if str(ip) == "169.254.169.254":
-                raise SSRFSecurityError(
-                    url, "Access to cloud instance metadata endpoint is prohibited"
+                raise ForbiddenError(
+                    "Access to cloud instance metadata endpoint is prohibited",
+                    details={"url": url},
                 )
         except ValueError:
             # Not a literal IP, it's a domain name
             if hostname.endswith(".local") or hostname.endswith(".internal"):
-                raise SSRFSecurityError(
-                    url, "Access to internal domain names is prohibited"
+                raise ForbiddenError(
+                    "Access to internal domain names is prohibited",
+                    details={"url": url},
                 ) from None
 
     return url.strip()

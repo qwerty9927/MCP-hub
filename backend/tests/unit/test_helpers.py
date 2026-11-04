@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.core.exceptions import AppValidationError
+from app.core.exceptions import ValidationError
 from app.helpers import (
     format_mcp_error,
     mask_sensitive_headers,
@@ -63,13 +63,13 @@ def test_validation_validate_tool_arguments():
     validate_tool_arguments({"query": "search term", "limit": 10}, schema, "search_tool")
 
     # Missing required field
-    with pytest.raises(AppValidationError) as exc_info:
+    with pytest.raises(ValidationError) as exc_info:
         validate_tool_arguments({"limit": 5}, schema, "search_tool")
     assert "Invalid arguments for tool 'search_tool'" in str(exc_info.value)
     assert "details" in exc_info.value.__dict__
 
     # Wrong type
-    with pytest.raises(AppValidationError):
+    with pytest.raises(ValidationError):
         validate_tool_arguments({"query": 12345}, schema, "search_tool")
 
     # No schema or empty schema

@@ -186,7 +186,7 @@ async def test_server_disabled_blocks_execution(async_client: AsyncClient):
     assert patch_res.status_code == 200
     assert patch_res.json()["enabled"] is False
 
-    # Attempt to execute tool on disabled server -> 400 ServerDisabledError
+    # Attempt to execute tool on disabled server -> 400 BadRequestError
     exec_res = await async_client.post(
         f"/api/v1/servers/{server_id}/tools/echo/execute",
         json={"arguments": {"message": "should fail"}},

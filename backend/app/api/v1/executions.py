@@ -7,7 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies import get_execution_repository
-from app.core.exceptions import ExecutionNotFoundError
+from app.core.exceptions import NotFoundError
 from app.infrastructure.repositories import ExecutionRepositoryAbstract
 from app.schemas.common import PaginatedResponse
 from app.schemas.execution import ExecutionRecord
@@ -75,7 +75,10 @@ async def get_execution(
     """Retrieve a specific tool execution log entry by its UUID."""
     record = await repo.get_by_id(execution_id)
     if not record:
-        raise ExecutionNotFoundError(str(execution_id))
+        raise NotFoundError(
+            f"Execution with id '{execution_id}' not found",
+            details={"execution_id": str(execution_id)},
+        )
 
     return ExecutionRecord(
         id=record.id,

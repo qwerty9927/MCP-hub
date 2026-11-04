@@ -17,7 +17,7 @@ from mcp.server.streamable_http_manager import (
 )
 
 from app.core.config import get_settings
-from app.core.exceptions import AppValidationError, ServerDisabledError, ToolNotFoundError
+from app.core.exceptions import BadRequestError, NotFoundError, ValidationError
 from app.core.logging import logger
 from app.helpers.text import slugify
 from app.services.connection_manager import ConnectionManager
@@ -304,7 +304,7 @@ class MCPGatewayService:
             )
             return result
 
-        except AppValidationError as err:
+        except ValidationError as err:
             logger.warning(f"Validation failure executing '{params.name}': {err.message}")
             return types.CallToolResult(
                 is_error=True,
@@ -314,7 +314,7 @@ class MCPGatewayService:
                     )
                 ],
             )
-        except ServerDisabledError:
+        except BadRequestError:
             return types.CallToolResult(
                 is_error=True,
                 content=[
@@ -323,7 +323,7 @@ class MCPGatewayService:
                     )
                 ],
             )
-        except ToolNotFoundError:
+        except NotFoundError:
             return types.CallToolResult(
                 is_error=True,
                 content=[

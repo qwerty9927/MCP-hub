@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.core.exceptions import ServerAlreadyExistsError, ServerNotFoundError
+from app.core.exceptions import ConflictError, NotFoundError
 from app.infrastructure.repositories import InMemoryServerRepository
 from app.schemas.server import (
     ServerCreate,
@@ -44,14 +44,14 @@ async def test_create_server_duplicate_name(registry_service: ServerRegistryServ
     await registry_service.create_server(payload)
 
     # Attempt duplicate creation
-    with pytest.raises(ServerAlreadyExistsError):
+    with pytest.raises(ConflictError):
         await registry_service.create_server(payload)
 
 
 async def test_get_server_not_found(registry_service: ServerRegistryService):
     from uuid import uuid4
 
-    with pytest.raises(ServerNotFoundError):
+    with pytest.raises(NotFoundError):
         await registry_service.get_server(uuid4())
 
 
@@ -106,5 +106,5 @@ async def test_delete_server(registry_service: ServerRegistryService):
     success = await registry_service.delete_server(server.id)
     assert success is True
 
-    with pytest.raises(ServerNotFoundError):
+    with pytest.raises(NotFoundError):
         await registry_service.get_server(server.id)

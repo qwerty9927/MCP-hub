@@ -7,7 +7,7 @@ from uuid import uuid4
 import mcp.types as types
 import pytest
 
-from app.core.exceptions import AppValidationError
+from app.core.exceptions import ValidationError
 from app.domain.server import ServerEntity
 from app.helpers.text import slugify
 from app.schemas.common import PaginatedResponse
@@ -296,9 +296,7 @@ async def test_handle_call_tool_validation_error(gateway_service, mock_registry,
         enabled=True,
     )
     mock_registry.get_server_entity.return_value = mock_server
-    mock_tool_router.execute_mcp_tool.side_effect = AppValidationError(
-        "Missing required property 'a'"
-    )
+    mock_tool_router.execute_mcp_tool.side_effect = ValidationError("Missing required property 'a'")
 
     ctx = MagicMock()
     params = types.CallToolRequestParams(name="math__add", arguments={})

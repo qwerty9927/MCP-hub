@@ -35,7 +35,7 @@ All errors adhere to this consistent envelope:
 ```json
 {
   "error": {
-    "code": "ServerNotFoundError",
+    "code": "404",
     "message": "Server with id '54c5dce7-c9af-40c6-b822-450131216549' not found",
     "details": {
       "server_id": "54c5dce7-c9af-40c6-b822-450131216549"

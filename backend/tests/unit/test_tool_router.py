@@ -5,7 +5,7 @@ from uuid import uuid4
 import mcp.types as mcp_types
 import pytest
 
-from app.core.exceptions import AppValidationError, ServerDisabledError
+from app.core.exceptions import BadRequestError, ValidationError
 from app.domain.server import ServerEntity
 from app.infrastructure.repositories import (
     InMemoryExecutionRepository,
@@ -110,7 +110,7 @@ async def test_execute_tool_argument_validation_failure(tool_router_fixture):
     router, server, _ = tool_router_fixture
 
     # Missing required argument 'b'
-    with pytest.raises(AppValidationError) as exc_info:
+    with pytest.raises(ValidationError) as exc_info:
         await router.execute_tool(
             server_id=server.id,
             tool_name="add",
@@ -123,7 +123,7 @@ async def test_execute_tool_on_disabled_server(tool_router_fixture):
     router, server, _ = tool_router_fixture
     server.enabled = False
 
-    with pytest.raises(ServerDisabledError):
+    with pytest.raises(BadRequestError):
         await router.execute_tool(
             server_id=server.id,
             tool_name="add",
