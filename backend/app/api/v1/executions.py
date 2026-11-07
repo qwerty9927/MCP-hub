@@ -48,6 +48,7 @@ async def list_executions(
             error_message=e.error_message,
             duration_ms=e.duration_ms,
             executed_at=e.executed_at,
+            response=e.response,
         )
         for e in items
     ]
@@ -90,4 +91,5 @@ async def get_execution(
         error_message=record.error_message,
         duration_ms=record.duration_ms,
         executed_at=record.executed_at,
+        response=record.response,
     )

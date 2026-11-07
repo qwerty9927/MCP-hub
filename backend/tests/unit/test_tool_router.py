@@ -102,6 +102,10 @@ async def test_execute_tool_success(tool_router_fixture):
     assert total == 1
     assert executions[0].tool_name == "add"
     assert executions[0].is_error is False
+    assert executions[0].response == {
+        "content": [{"type": "text", "text": "35"}],
+        "structured_content": {"result": 35},
+    }
 
 
 async def test_execute_tool_argument_validation_failure(tool_router_fixture):

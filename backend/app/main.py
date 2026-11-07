@@ -18,7 +18,6 @@ from app.api.v1.tools import router as tools_router
 from app.core.config import get_settings
 from app.core.exceptions import AppError
 from app.core.logging import get_correlation_id, logger, setup_logging
-from app.infrastructure.database import init_db
 from app.middlewares.correlation import CorrelationAndLoggingMiddleware
 from app.schemas.common import ErrorDetail, ErrorResponse
 
@@ -29,11 +28,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     setup_logging()
     settings = get_settings()
     logger.info(f"Starting {settings.PROJECT_NAME} v{settings.VERSION} [{settings.ENVIRONMENT}]")
-
-    # Initialize database schema in non-production environments.
-    # In production, migrations must be executed via Alembic ('alembic upgrade head').
-    # if settings.ENVIRONMENT != "production":
-    #     await init_db()
 
     # Preload discovered tools into catalog cache
     tool_catalog = get_tool_catalog()

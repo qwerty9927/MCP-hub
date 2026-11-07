@@ -376,7 +376,15 @@ Invokes an MCP tool on the server with argument validation and audit logging.
       "is_error": false,
       "error_message": null,
       "duration_ms": 14.52,
-      "executed_at": "2026-10-24T15:05:00Z"
+      "executed_at": "2026-10-24T15:05:00Z",
+      "response": {
+        "content": [
+          {
+            "type": "text",
+            "text": "20"
+          }
+        ]
+      }
     }
   ],
   "total": 1,

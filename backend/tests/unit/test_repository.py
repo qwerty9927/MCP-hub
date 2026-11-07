@@ -148,17 +148,20 @@ async def test_execution_repository_crud():
         is_error=False,
         duration_ms=12.5,
         executed_at=datetime.now(UTC),
+        response={"content": [{"type": "text", "text": "3"}]},
     )
 
     # 1. Create
     created = await exec_repo.create(record)
     assert created.id == exec_id
     assert created.tool_name == "add"
+    assert created.response == {"content": [{"type": "text", "text": "3"}]}
 
     # 2. Get by ID
     fetched = await exec_repo.get_by_id(exec_id)
     assert fetched is not None
     assert fetched.arguments == {"a": 1, "b": 2}
+    assert fetched.response == {"content": [{"type": "text", "text": "3"}]}
 
     # 3. List
     items, total = await exec_repo.list(server_id=server_id)

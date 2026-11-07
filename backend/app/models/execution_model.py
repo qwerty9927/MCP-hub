@@ -35,6 +35,7 @@ class ExecutionModel(Base):
         index=True,
         nullable=False,
     )
+    response: Mapped[dict[str, Any] | list[Any] | None] = mapped_column(JSON, nullable=True)
 
     # Relationship to parent server
     server = relationship("ServerModel", back_populates="executions")
@@ -51,6 +52,7 @@ class ExecutionModel(Base):
             error_message=self.error_message,
             duration_ms=self.duration_ms,
             executed_at=self.executed_at,
+            response=self.response,
         )
 
     @classmethod
@@ -66,4 +68,5 @@ class ExecutionModel(Base):
             error_message=entity.error_message,
             duration_ms=entity.duration_ms,
             executed_at=entity.executed_at,
+            response=entity.response,
         )

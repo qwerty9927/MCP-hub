@@ -19,3 +19,4 @@ class ExecutionEntity:
     duration_ms: float
     executed_at: datetime
     error_message: str | None = None
+    response: dict[str, Any] | list[Any] | None = None

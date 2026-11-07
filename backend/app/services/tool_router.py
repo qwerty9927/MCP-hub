@@ -21,6 +21,25 @@ from app.services.server_registry import ServerRegistryService
 from app.services.tool_catalog import ToolCatalogService
 
 
+def _extract_response_content(result: mcp_types.CallToolResult) -> dict[str, Any]:
+    """Format CallToolResult content and structured data into a JSON-serializable dictionary."""
+    content_items: list[dict[str, Any]] = []
+    if result.content:
+        for block in result.content:
+            if hasattr(block, "model_dump"):
+                content_items.append(block.model_dump(exclude_none=True))
+            elif isinstance(block, dict):
+                content_items.append(block)
+            else:
+                content_items.append({"type": "text", "text": str(block)})
+
+    payload: dict[str, Any] = {"content": content_items}
+    structured = getattr(result, "structured_content", None)
+    if structured is not None:
+        payload["structured_content"] = structured
+    return payload
+
+
 class ToolRouterService:
     """Validates, routes, and executes MCP tools across registered servers."""
 
@@ -82,6 +101,7 @@ class ToolRouterService:
                 timeout=timeout,
             )
             duration_ms = (time.perf_counter() - start_time) * 1000
+            response_payload = _extract_response_content(result)
 
             # Record successful execution log
             log_record = ExecutionEntity(
@@ -94,6 +114,7 @@ class ToolRouterService:
                 duration_ms=round(duration_ms, 2),
                 executed_at=now,
                 error_message=None,
+                response=response_payload,
             )
             await self.execution_repository.create(log_record)
             return result
@@ -110,6 +131,7 @@ class ToolRouterService:
                 duration_ms=round(duration_ms, 2),
                 executed_at=now,
                 error_message=str(exc),
+                response=None,
             )
             await self.execution_repository.create(log_record)
             raise
@@ -135,27 +157,15 @@ class ToolRouterService:
         )
 
         duration_ms = (time.perf_counter() - start_time) * 1000
-
-        # Extract content blocks for REST API response
-        content_items: list[dict[str, Any]] = []
-        if result.content:
-            for block in result.content:
-                if hasattr(block, "model_dump"):
-                    content_items.append(block.model_dump())
-                elif isinstance(block, dict):
-                    content_items.append(block)
-                else:
-                    content_items.append({"type": "text", "text": str(block)})
-
-        structured_content = getattr(result, "structured_content", None)
+        response_payload = _extract_response_content(result)
 
         return ToolExecuteResponse(
             execution_id=execution_id,
             server_id=server_id,
             tool_name=tool_name,
             is_error=bool(result.is_error),
-            content=content_items,
-            structured_content=structured_content,
+            content=response_payload.get("content", []),
+            structured_content=response_payload.get("structured_content"),
             duration_ms=round(duration_ms, 2),
             executed_at=now,
             correlation_id=get_correlation_id(),

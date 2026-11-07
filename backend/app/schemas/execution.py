@@ -19,3 +19,7 @@ class ExecutionRecord(BaseModel):
     error_message: str | None = None
     duration_ms: float
     executed_at: datetime
+    response: dict[str, Any] | list[Any] | None = Field(
+        default=None,
+        description="Response payload returned by the downstream tool execution",
+    )
