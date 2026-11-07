@@ -103,7 +103,18 @@ class ToolRouterService:
             duration_ms = (time.perf_counter() - start_time) * 1000
             response_payload = _extract_response_content(result)
 
-            # Record successful execution log
+            # Record execution log
+            error_msg = None
+            if result.is_error:
+                text_blocks = [
+                    item.get("text")
+                    for item in response_payload.get("content", [])
+                    if item.get("type") == "text" and item.get("text")
+                ]
+                error_msg = (
+                    "\n".join(text_blocks) if text_blocks else "Tool execution reported an error"
+                )
+
             log_record = ExecutionEntity(
                 id=exec_id,
                 server_id=server.id,
@@ -113,7 +124,7 @@ class ToolRouterService:
                 is_error=bool(result.is_error),
                 duration_ms=round(duration_ms, 2),
                 executed_at=now,
-                error_message=None,
+                error_message=error_msg,
                 response=response_payload,
             )
             await self.execution_repository.create(log_record)

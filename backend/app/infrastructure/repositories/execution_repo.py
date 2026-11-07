@@ -79,7 +79,7 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
             if server_id is not None:
                 stmt = stmt.where(ExecutionModel.server_id == str(server_id))
             if tool_name is not None:
-                stmt = stmt.where(func.lower(ExecutionModel.tool_name) == tool_name.lower())
+                stmt = stmt.where(ExecutionModel.tool_name.ilike(f"%{tool_name}%"))
             if is_error is not None:
                 stmt = stmt.where(ExecutionModel.is_error == is_error)
 
@@ -128,7 +128,7 @@ class InMemoryExecutionRepository(ExecutionRepositoryAbstract):
         if server_id is not None:
             items = [e for e in items if e.server_id == server_id]
         if tool_name is not None:
-            items = [e for e in items if e.tool_name.lower() == tool_name.lower()]
+            items = [e for e in items if tool_name.lower() in e.tool_name.lower()]
         if is_error is not None:
             items = [e for e in items if e.is_error == is_error]
 
