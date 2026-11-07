@@ -19,8 +19,11 @@ export default function ExecutionsPage() {
         page: 1,
         page_size: 20,
     });
+    const [autoRefresh, setAutoRefresh] = useState(false);
 
-    const { data, isLoading, isError, error, refetch } = useExecutions(filters);
+    const { data, isLoading, isFetching, isError, error, refetch } = useExecutions(filters, {
+        refetchInterval: autoRefresh ? 10000 : false,
+    });
 
     const executions = data?.items || [];
     const total = data?.total || 0;
@@ -41,7 +44,14 @@ export default function ExecutionsPage() {
                 }
             />
 
-            <ExecutionFilterBar filters={filters} onChange={setFilters} />
+            <ExecutionFilterBar
+                filters={filters}
+                onChange={setFilters}
+                onRefresh={() => refetch()}
+                isRefreshing={isFetching}
+                autoRefresh={autoRefresh}
+                onToggleAutoRefresh={setAutoRefresh}
+            />
 
             {isError && (
                 <ErrorAlert
@@ -55,9 +65,10 @@ export default function ExecutionsPage() {
             {isLoading ? (
                 <TableSkeleton
                     columns={[
+                        "Status",
                         "Tool Name",
                         "Server",
-                        "Status",
+                        "Arguments",
                         "Duration",
                         "Executed At",
                         "Actions",

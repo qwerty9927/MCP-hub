@@ -1,9 +1,10 @@
 "use client";
 
 import React from "react";
-import { Search, X } from "lucide-react";
+import { Search, X, RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import {
     Select,
     SelectContent,
@@ -13,13 +14,25 @@ import {
 } from "@/components/ui/select";
 import { ExecutionFilterParams } from "@/types";
 import { useServers } from "@/features/servers/hooks/use-servers";
+import { cn } from "@/lib/utils";
 
 interface ExecutionFilterBarProps {
     filters: ExecutionFilterParams;
     onChange: (updated: ExecutionFilterParams) => void;
+    onRefresh?: () => void;
+    isRefreshing?: boolean;
+    autoRefresh?: boolean;
+    onToggleAutoRefresh?: (enabled: boolean) => void;
 }
 
-export function ExecutionFilterBar({ filters, onChange }: ExecutionFilterBarProps) {
+export function ExecutionFilterBar({
+    filters,
+    onChange,
+    onRefresh,
+    isRefreshing = false,
+    autoRefresh = false,
+    onToggleAutoRefresh,
+}: ExecutionFilterBarProps) {
     const { data: serversData } = useServers({ page: 1, page_size: 100 });
     const servers = serversData?.items || [];
 
@@ -117,6 +130,52 @@ export function ExecutionFilterBar({ filters, onChange }: ExecutionFilterBarProp
                     >
                         <X className="mr-1 h-3.5 w-3.5" />
                         Reset
+                    </Button>
+                )}
+            </div>
+
+            {/* Live refresh controls */}
+            <div className="flex items-center gap-3">
+                {onToggleAutoRefresh && (
+                    <div className="flex items-center gap-2">
+                        <Switch
+                            id="auto-refresh-toggle"
+                            checked={autoRefresh}
+                            onCheckedChange={onToggleAutoRefresh}
+                            aria-label="Toggle auto refresh"
+                        />
+                        <label
+                            htmlFor="auto-refresh-toggle"
+                            className="text-xs text-muted-foreground cursor-pointer select-none flex items-center gap-1.5"
+                        >
+                            <span
+                                className={cn(
+                                    "h-1.5 w-1.5 rounded-full transition-colors",
+                                    autoRefresh
+                                        ? "bg-emerald-500 animate-pulse"
+                                        : "bg-muted-foreground/40"
+                                )}
+                            />
+                            Live (10s)
+                        </label>
+                    </div>
+                )}
+
+                {onRefresh && (
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={onRefresh}
+                        disabled={isRefreshing}
+                        className="h-9 gap-1.5 text-xs"
+                    >
+                        <RefreshCw
+                            className={cn(
+                                "h-3.5 w-3.5",
+                                isRefreshing && "animate-spin text-primary"
+                            )}
+                        />
+                        Refresh
                     </Button>
                 )}
             </div>

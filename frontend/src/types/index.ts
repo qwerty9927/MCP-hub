@@ -126,6 +126,12 @@ export interface ToolExecuteResponse {
     executed_at: string;
 }
 
+export interface ExecutionResponsePayload {
+    content?: ToolContentItem[];
+    structured_content?: any;
+    [key: string]: any;
+}
+
 export interface ExecutionRecord {
     id: string;
     server_id: string;
@@ -136,6 +142,7 @@ export interface ExecutionRecord {
     error_message?: string | null;
     duration_ms: number;
     executed_at: string;
+    response?: ExecutionResponsePayload | null;
 }
 
 export interface ExecutionFilterParams {

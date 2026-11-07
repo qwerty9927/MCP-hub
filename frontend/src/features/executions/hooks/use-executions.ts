@@ -4,10 +4,14 @@ import { ExecutionFilterParams } from "@/types";
 
 export const EXECUTIONS_QUERY_KEY = ["executions"];
 
-export function useExecutions(params?: ExecutionFilterParams) {
+export function useExecutions(
+    params?: ExecutionFilterParams,
+    options?: { refetchInterval?: number | false }
+) {
     return useQuery({
         queryKey: [...EXECUTIONS_QUERY_KEY, params],
         queryFn: ({ signal }) => executionsApi.list(params, signal),
+        refetchInterval: options?.refetchInterval,
     });
 }
 
