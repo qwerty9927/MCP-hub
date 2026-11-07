@@ -6,10 +6,11 @@ from uuid import uuid4
 import mcp.types as types
 import pytest
 
-from app.constants.meta_tools import (
+from app.core.constants.meta_tools import (
     MULTI_EXECUTE_TOOLS_NAME,
     SEARCH_TOOLS_NAME,
 )
+from app.core.enums.server_enum import TransportType
 from app.core.exceptions import ValidationError
 from app.domain.server_entity import ServerEntity
 from app.mcp.multi_execute_tools import (
@@ -17,7 +18,6 @@ from app.mcp.multi_execute_tools import (
     get_multi_execute_tool_definition,
     handle_multi_execute_tools,
 )
-from app.schemas.server import TransportType
 from app.services.mcp_gateway import GatewayToolMapping
 
 

@@ -12,3 +12,4 @@ htmlcov/
 *.sqlite3
 mcp_hub.db
 .zed
+.DS_Store

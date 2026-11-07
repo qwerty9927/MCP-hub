@@ -1,47 +1,14 @@
 """MCP Server configuration and status schemas."""
 
 from datetime import datetime
-from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.core.enums.server_enum import ServerHealthStatus, TransportType
 from app.helpers.security import mask_sensitive_headers, validate_http_url, validate_stdio_command
-
-
-class TransportType(StrEnum):
-    """Supported MCP transport protocols."""
-
-    STDIO = "stdio"
-    STREAMABLE_HTTP = "streamable-http"
-
-
-class ServerHealthStatus(StrEnum):
-    """MCP server connectivity and health statuses."""
-
-    UNKNOWN = "UNKNOWN"
-    HEALTHY = "HEALTHY"
-    UNHEALTHY = "UNHEALTHY"
-    CONNECTING = "CONNECTING"
-    DISCONNECTED = "DISCONNECTED"
-
-
-class StdioConfig(BaseModel):
-    """Configuration for local subprocess stdio transport."""
-
-    command: str = Field(..., description="Executable name or path (e.g. 'python', 'node')")
-    args: list[str] = Field(default_factory=list, description="Command-line arguments")
-    env: dict[str, str] = Field(default_factory=dict, description="Environment variables")
-
-
-class HttpConfig(BaseModel):
-    """Configuration for remote Streamable HTTP transport."""
-
-    url: str = Field(
-        ..., description="Full Streamable HTTP endpoint URL (e.g. 'http://localhost:8000/mcp')"
-    )
-    headers: dict[str, str] = Field(default_factory=dict, description="Custom HTTP headers")
+from app.schemas.connection import ConnectionConfigRead, HttpConfig, StdioConfig
 
 
 class ServerBase(BaseModel):
@@ -105,16 +72,7 @@ class ServerUpdate(BaseModel):
         return self
 
 
-class ConnectionConfigRead(BaseModel):
-    """Sanitized transport configuration for API responses (no secrets)."""
-
-    command: str | None = None
-    args: list[str] | None = None
-    url: str | None = None
-    headers: dict[str, str] | None = None
-
-
-class ServerRead(BaseModel):
+class ServerResponse(BaseModel):
     """Server representation returned in API responses."""
 
     id: UUID
@@ -131,8 +89,8 @@ class ServerRead(BaseModel):
     updated_at: datetime
 
     @classmethod
-    def from_domain(cls, server: Any) -> "ServerRead":
-        """Convert a server domain entity or dictionary into ServerRead with masked headers."""
+    def from_domain(cls, server: Any) -> "ServerResponse":
+        """Convert a server domain entity or dictionary into ServerResponse with masked headers."""
         if isinstance(server, dict):
             transport = server["transport"]
             stdio_cfg = server.get("stdio_config") or {}

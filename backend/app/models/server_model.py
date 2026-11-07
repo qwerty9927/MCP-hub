@@ -7,9 +7,10 @@ from uuid import UUID
 from sqlalchemy import JSON, Boolean, DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.enums.server_enum import ServerHealthStatus, TransportType
 from app.domain.server_entity import ServerEntity
 from app.models.base_model import Base
-from app.schemas.server import HttpConfig, ServerHealthStatus, StdioConfig, TransportType
+from app.schemas.connection import HttpConfig, StdioConfig
 
 
 class ServerModel(Base):

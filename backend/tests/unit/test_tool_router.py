@@ -5,11 +5,12 @@ from uuid import uuid4
 import mcp.types as mcp_types
 import pytest
 
+from app.core.enums.server_enum import ServerHealthStatus, TransportType
 from app.core.exceptions import BadRequestError, ValidationError
 from app.domain.server_entity import ServerEntity
 from app.infrastructure.repositories.execution_repo import InMemoryExecutionRepository
 from app.infrastructure.repositories.server_repo import InMemoryServerRepository
-from app.schemas.server import ServerHealthStatus, StdioConfig, TransportType
+from app.schemas.connection import StdioConfig
 from app.services.connection_manager import ConnectionManager
 from app.services.server_registry import ServerRegistryService
 from app.services.tool_catalog import ToolCatalogService

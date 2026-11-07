@@ -3,13 +3,14 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from app.core.enums.server_enum import ServerHealthStatus, TransportType
 from app.domain.execution_entity import ExecutionEntity
 from app.domain.server_entity import ServerEntity
 from app.domain.tool_entity import ToolEntity
 from app.infrastructure.repositories.execution_repo import PostgresExecutionRepository
 from app.infrastructure.repositories.server_repo import PostgresServerRepository
 from app.infrastructure.repositories.tool_repo import PostgresToolRepository
-from app.schemas.server import ServerHealthStatus, StdioConfig, TransportType
+from app.schemas.connection import StdioConfig
 
 
 async def test_server_repository_crud():

@@ -4,6 +4,7 @@ import math
 from datetime import UTC, datetime
 from uuid import UUID
 
+from app.core.enums.server_enum import ServerHealthStatus, TransportType
 from app.core.exceptions import ConflictError, NotFoundError
 from app.core.logging import logger
 from app.domain.server_entity import ServerEntity
@@ -11,10 +12,8 @@ from app.infrastructure.repositories.server_repo import ServerRepositoryAbstract
 from app.schemas.common import PaginatedResponse
 from app.schemas.server import (
     ServerCreate,
-    ServerHealthStatus,
-    ServerRead,
+    ServerResponse,
     ServerUpdate,
-    TransportType,
 )
 
 
@@ -24,7 +23,7 @@ class ServerRegistryService:
     def __init__(self, repository: ServerRepositoryAbstract) -> None:
         self.repository = repository
 
-    async def create_server(self, data: ServerCreate) -> ServerRead:
+    async def create_server(self, data: ServerCreate) -> ServerResponse:
         """Register a new MCP server configuration."""
         existing = await self.repository.get_by_name(data.name)
         if existing:
@@ -47,12 +46,12 @@ class ServerRegistryService:
         logger.info(
             f"Registered MCP server '{saved.name}' (id: {saved.id}, transport: {saved.transport})"
         )
-        return ServerRead.from_domain(saved)
+        return ServerResponse.from_domain(saved)
 
-    async def get_server(self, server_id: UUID) -> ServerRead:
+    async def get_server(self, server_id: UUID) -> ServerResponse:
         """Retrieve server by ID or raise NotFoundError."""
         entity = await self.get_server_entity(server_id)
-        return ServerRead.from_domain(entity)
+        return ServerResponse.from_domain(entity)
 
     async def get_server_entity(self, server_id: UUID) -> ServerEntity:
         """Internal helper to get raw domain entity."""
@@ -74,7 +73,7 @@ class ServerRegistryService:
         search: str | None = None,
         sort_by: str = "created_at",
         sort_order: str = "desc",
-    ) -> PaginatedResponse[ServerRead]:
+    ) -> PaginatedResponse[ServerResponse]:
         """List servers with pagination, filtering, and sorting."""
         items, total = await self.repository.list(
             page=page,
@@ -87,10 +86,10 @@ class ServerRegistryService:
             sort_order=sort_order,
         )
 
-        read_items = [ServerRead.from_domain(s) for s in items]
+        read_items = [ServerResponse.from_domain(s) for s in items]
         total_pages = math.ceil(total / page_size) if total > 0 else 0
 
-        return PaginatedResponse[ServerRead](
+        return PaginatedResponse[ServerResponse](
             items=read_items,
             total=total,
             page=page,
@@ -98,7 +97,7 @@ class ServerRegistryService:
             total_pages=total_pages,
         )
 
-    async def update_server(self, server_id: UUID, data: ServerUpdate) -> ServerRead:
+    async def update_server(self, server_id: UUID, data: ServerUpdate) -> ServerResponse:
         """Update an existing server's configuration."""
         server = await self.get_server_entity(server_id)
 
@@ -126,7 +125,7 @@ class ServerRegistryService:
         server.updated_at = datetime.now(UTC)
         updated = await self.repository.update(server)
         logger.info(f"Updated MCP server '{updated.name}' (id: {updated.id})")
-        return ServerRead.from_domain(updated)
+        return ServerResponse.from_domain(updated)
 
     async def delete_server(self, server_id: UUID) -> bool:
         """Delete an MCP server from the registry."""

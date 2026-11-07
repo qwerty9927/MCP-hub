@@ -8,18 +8,19 @@ from uuid import uuid4
 import mcp.types as types
 import pytest
 
-from app.constants.meta_tools import (
+from app.core.constants.meta_tools import (
     MULTI_EXECUTE_TOOLS_NAME,
     SEARCH_TOOLS_NAME,
 )
+from app.core.enums.server_enum import ServerHealthStatus, TransportType
 from app.core.exceptions import ValidationError
 from app.domain.server_entity import ServerEntity
 from app.helpers.text import slugify
 from app.mcp.multi_execute_tools import MULTI_EXECUTE_TOOLS_SCHEMA
 from app.mcp.search_tools import SEARCH_TOOLS_SCHEMA
 from app.schemas.common import PaginatedResponse
-from app.schemas.server import ServerHealthStatus, ServerRead, TransportType
-from app.schemas.tool import ToolRead
+from app.schemas.server import ServerResponse
+from app.schemas.tool import ToolResponse
 from app.services.mcp_gateway import GatewayToolMapping, MCPGatewayService
 
 
@@ -66,9 +67,9 @@ async def test_refresh_tool_mappings_aggregation(gateway_service, mock_registry,
     server2_id = uuid4()
     now = datetime.now(UTC)
 
-    mock_registry.list_servers.return_value = PaginatedResponse[ServerRead](
+    mock_registry.list_servers.return_value = PaginatedResponse[ServerResponse](
         items=[
-            ServerRead(
+            ServerResponse(
                 id=server1_id,
                 name="Math Server",
                 transport=TransportType.STDIO,
@@ -78,7 +79,7 @@ async def test_refresh_tool_mappings_aggregation(gateway_service, mock_registry,
                 created_at=now,
                 updated_at=now,
             ),
-            ServerRead(
+            ServerResponse(
                 id=server2_id,
                 name="Text Server",
                 transport=TransportType.STDIO,
@@ -88,7 +89,7 @@ async def test_refresh_tool_mappings_aggregation(gateway_service, mock_registry,
                 created_at=now,
                 updated_at=now,
             ),
-            ServerRead(
+            ServerResponse(
                 id=uuid4(),
                 name="Disabled Server",
                 transport=TransportType.STDIO,
@@ -106,9 +107,9 @@ async def test_refresh_tool_mappings_aggregation(gateway_service, mock_registry,
     )
 
     mock_tool_catalog.list_tools.side_effect = [
-        PaginatedResponse[ToolRead](
+        PaginatedResponse[ToolResponse](
             items=[
-                ToolRead(
+                ToolResponse(
                     id=f"{server1_id}:calculate",
                     name="calculate",
                     description="Perform math",
@@ -124,9 +125,9 @@ async def test_refresh_tool_mappings_aggregation(gateway_service, mock_registry,
             page_size=10,
             total_pages=1,
         ),
-        PaginatedResponse[ToolRead](
+        PaginatedResponse[ToolResponse](
             items=[
-                ToolRead(
+                ToolResponse(
                     id=f"{server2_id}:calculate",
                     name="calculate",
                     description="Duplicate calculate",
@@ -136,7 +137,7 @@ async def test_refresh_tool_mappings_aggregation(gateway_service, mock_registry,
                     availability_status="AVAILABLE",
                     last_discovered_at=MagicMock(),
                 ),
-                ToolRead(
+                ToolResponse(
                     id=f"{server2_id}:transform",
                     name="transform",
                     description="Transform text",
@@ -170,9 +171,9 @@ async def test_refresh_tool_mappings_collision_handling(
     srv2_id = uuid4()
     now = datetime.now(UTC)
 
-    mock_registry.list_servers.return_value = PaginatedResponse[ServerRead](
+    mock_registry.list_servers.return_value = PaginatedResponse[ServerResponse](
         items=[
-            ServerRead(
+            ServerResponse(
                 id=srv1_id,
                 name="Postgres",
                 transport=TransportType.STDIO,
@@ -182,7 +183,7 @@ async def test_refresh_tool_mappings_collision_handling(
                 created_at=now,
                 updated_at=now,
             ),
-            ServerRead(
+            ServerResponse(
                 id=srv2_id,
                 name="Postgres",
                 transport=TransportType.STDIO,
@@ -200,9 +201,9 @@ async def test_refresh_tool_mappings_collision_handling(
     )
 
     mock_tool_catalog.list_tools.side_effect = [
-        PaginatedResponse[ToolRead](
+        PaginatedResponse[ToolResponse](
             items=[
-                ToolRead(
+                ToolResponse(
                     id=f"{srv1_id}:query",
                     name="query",
                     description="Run query",
@@ -218,9 +219,9 @@ async def test_refresh_tool_mappings_collision_handling(
             page_size=10,
             total_pages=1,
         ),
-        PaginatedResponse[ToolRead](
+        PaginatedResponse[ToolResponse](
             items=[
-                ToolRead(
+                ToolResponse(
                     id=f"{srv2_id}:query",
                     name="query",
                     description="Run query",
@@ -353,10 +354,10 @@ async def test_handle_call_tool_success(gateway_service, mock_registry, mock_too
 async def test_handle_list_tools_includes_meta_tools(
     gateway_service, mock_registry, mock_tool_catalog
 ):
-    mock_registry.list_servers.return_value = PaginatedResponse[ServerRead](
+    mock_registry.list_servers.return_value = PaginatedResponse[ServerResponse](
         items=[], total=0, page=1, page_size=10, total_pages=0
     )
-    mock_tool_catalog.list_tools.return_value = PaginatedResponse[ToolRead](
+    mock_tool_catalog.list_tools.return_value = PaginatedResponse[ToolResponse](
         items=[], total=0, page=1, page_size=10, total_pages=0
     )
 
@@ -380,7 +381,7 @@ def test_get_tool_input_schema_meta_tools(gateway_service):
 @pytest.mark.asyncio
 async def test_handle_call_tool_search_tools(gateway_service, mock_registry, mock_tool_catalog):
     server_id = uuid4()
-    mock_registry.list_servers.return_value = PaginatedResponse[ServerRead](
+    mock_registry.list_servers.return_value = PaginatedResponse[ServerResponse](
         items=[], total=0, page=1, page_size=10, total_pages=0
     )
     gateway_service._tool_map["math__calculate"] = GatewayToolMapping(
@@ -411,7 +412,7 @@ async def test_handle_call_tool_multi_execute_tools(
     gateway_service, mock_registry, mock_tool_router
 ):
     server_id = uuid4()
-    mock_registry.list_servers.return_value = PaginatedResponse[ServerRead](
+    mock_registry.list_servers.return_value = PaginatedResponse[ServerResponse](
         items=[], total=0, page=1, page_size=10, total_pages=0
     )
     gateway_service._tool_map["math__calculate"] = GatewayToolMapping(

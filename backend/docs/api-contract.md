@@ -174,7 +174,7 @@ Registers a new MCP server. Validates command against the security allowlist or 
 `GET /api/v1/servers/{server_id}`
 
 #### Response (`200 OK`):
-Returns the single `ServerRead` object matching the UUID.
+Returns the single `ServerResponse` object matching the UUID.
 
 ---
 
@@ -209,7 +209,7 @@ Terminates active sessions, deletes server configuration, and purges tools from 
 Initializes the MCP client session, performs protocol handshake, discovers tools, and sets health status to `HEALTHY`.
 
 #### Response (`200 OK`):
-Returns updated `ServerRead` object with `health_status: "HEALTHY"`.
+Returns updated `ServerResponse` object with `health_status: "HEALTHY"`.
 
 ---
 
@@ -219,7 +219,7 @@ Returns updated `ServerRead` object with `health_status: "HEALTHY"`.
 Gracefully closes active client session and releases subprocess or HTTP stream resources.
 
 #### Response (`200 OK`):
-Returns updated `ServerRead` object with `health_status: "DISCONNECTED"`.
+Returns updated `ServerResponse` object with `health_status: "DISCONNECTED"`.
 
 ---
 
@@ -246,7 +246,7 @@ Performs an ephemeral test connection and tool discovery to verify connectivity 
 Refreshes discovered tools from the server and updates catalog cache.
 
 #### Response (`200 OK`):
-Returns array of `ToolRead` items.
+Returns array of `ToolResponse` items.
 
 ---
 
@@ -399,7 +399,7 @@ Invokes an MCP tool on the server with argument validation and audit logging.
 ### 4.2 Get Execution Details
 `GET /api/v1/executions/{execution_id}`
 
-Returns a single `ExecutionRecord` by its UUID.
+Returns a single `ExecutionResponse` by its UUID.
 
 ---
 

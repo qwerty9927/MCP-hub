@@ -4,7 +4,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from app.schemas.server import HttpConfig, ServerHealthStatus, StdioConfig, TransportType
+from app.core.enums.server_enum import ServerHealthStatus, TransportType
+from app.schemas.connection import HttpConfig, StdioConfig
 
 
 @dataclass

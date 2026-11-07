@@ -7,7 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 
-class ExecutionRecord(BaseModel):
+class ExecutionResponse(BaseModel):
     """Record of a tool execution."""
 
     id: UUID

@@ -7,9 +7,9 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 import app.infrastructure.database as db_module
+from app.core.enums.server_enum import ServerHealthStatus, TransportType
 from app.domain.server_entity import ServerEntity
 from app.models.server_model import ServerModel
-from app.schemas.server import ServerHealthStatus, TransportType
 
 
 class ServerRepositoryAbstract(ABC):

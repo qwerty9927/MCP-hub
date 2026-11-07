@@ -4,7 +4,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.constants.meta_tools import (
+from app.core.constants.meta_tools import (
     MULTI_EXECUTE_TOOLS_NAME,
     SEARCH_TOOLS_NAME,
 )

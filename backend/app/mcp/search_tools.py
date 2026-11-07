@@ -8,7 +8,7 @@ import mcp.types as types
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from pydantic import ValidationError as PydanticValidationError
 
-from app.constants.meta_tools import META_TOOL_NAMES, SEARCH_TOOLS_NAME
+from app.core.constants.meta_tools import META_TOOL_NAMES, SEARCH_TOOLS_NAME
 from app.core.exceptions import ValidationError
 
 SEARCH_TOOLS_SCHEMA: dict[str, Any] = {

@@ -12,7 +12,7 @@ from app.domain.server_entity import ServerEntity
 from app.domain.tool_entity import ToolEntity
 from app.infrastructure.repositories.tool_repo import ToolRepositoryAbstract
 from app.schemas.common import PaginatedResponse
-from app.schemas.tool import ToolRead
+from app.schemas.tool import ToolResponse
 from app.services.connection_manager import ConnectionManager
 
 
@@ -107,7 +107,7 @@ class ToolCatalogService:
         search: str | None = None,
         page: int = 1,
         page_size: int = 20,
-    ) -> PaginatedResponse[ToolRead]:
+    ) -> PaginatedResponse[ToolResponse]:
         """Search and list tools with filtering and pagination across persistent storage."""
         if self.repository:
             items, total = await self.repository.list_tools(
@@ -147,7 +147,7 @@ class ToolCatalogService:
             items = raw_items[start:end]
 
         read_items = [
-            ToolRead(
+            ToolResponse(
                 id=t.id,
                 name=t.name,
                 description=t.description,
@@ -162,7 +162,7 @@ class ToolCatalogService:
 
         total_pages = math.ceil(total / page_size) if total > 0 else 0
 
-        return PaginatedResponse[ToolRead](
+        return PaginatedResponse[ToolResponse](
             items=read_items,
             total=total,
             page=page,

@@ -5,9 +5,9 @@ from uuid import uuid4
 import mcp.types as mcp_types
 import pytest
 
+from app.core.enums.server_enum import TransportType
 from app.core.exceptions import NotFoundError
 from app.domain.server_entity import ServerEntity
-from app.schemas.server import TransportType
 from app.services.connection_manager import ConnectionManager
 from app.services.tool_catalog import ToolCatalogService
 

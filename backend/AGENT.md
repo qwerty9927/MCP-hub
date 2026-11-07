@@ -75,10 +75,16 @@ backend/
 │   │   ├── api/
 │   │   │   ├── dependencies.py          # Centralized dependency injection providers
 │   │   │   └── v1/                      # API Routers (/servers, /tools, /executions, /system)
-│   │   ├── constants/                   # Application constants partitioned by domain
-│   │   │   └── meta_tools.py            # Meta-tool identifiers (SEARCH_TOOLS, MULTI_EXECUTE_TOOLS)
+│   │   │       ├── executions_route.py  # Execution audit log endpoints
+│   │   │       ├── servers_route.py     # MCP Server registration & lifecycle
+│   │   │       ├── system_route.py      # Liveness, readiness, and telemetry
+│   │   │       └── tools_route.py       # Tool discovery & execution router
 │   │   ├── core/
 │   │   │   ├── config.py                # Settings loaded strictly from .env (no in-code defaults)
+│   │   │   ├── constants/               # Application constants partitioned by domain
+│   │   │   │   └── meta_tools.py        # Meta-tool identifiers (SEARCH_TOOLS, MULTI_EXECUTE_TOOLS)
+│   │   │   ├── enums/                   # Core enumerations partitioned by domain (no __init__.py)
+│   │   │   │   └── server_enum.py       # TransportType, ServerHealthStatus
 │   │   │   ├── exceptions.py            # Domain exception hierarchy (derived from AppError)
 │   │   │   └── logging.py               # Structured correlation-ID logging & contextvars
 │   │   ├── domain/                      # Domain entities partitioned by entity responsibility
@@ -107,6 +113,12 @@ backend/
 │   │   │   ├── server_model.py          # ServerModel ORM mapping
 │   │   │   └── tool_model.py            # ToolModel ORM mapping
 │   │   ├── schemas/                     # Pydantic v2 request/response schemas
+│   │   │   ├── common.py                # Paginated envelopes & Error responses
+│   │   │   ├── connection.py            # Stdio & HTTP transport connection schemas
+│   │   │   ├── execution.py             # Execution audit models
+│   │   │   ├── server.py                # Server models & validation
+│   │   │   ├── system.py                # Health & metrics models
+│   │   │   └── tool.py                  # Tool discovery & execution schemas
 │   │   └── services/                    # Business logic & orchestrators
 │   │       ├── connection_manager.py    # Downstream MCP client session lifecycle (SessionWorker)
 │   │       ├── mcp_gateway.py           # Hub as upstream MCP Server (/mcp Streamable HTTP)
@@ -136,6 +148,8 @@ Strict unidirectional dependency flow:
 - **Services**: Contain domain workflows, coordination, validations, and downstream interactions.
 - **Repositories**: Abstract all SQL/persistence operations behind `ServerRepositoryAbstract`, `ToolRepositoryAbstract`, and `ExecutionRepositoryAbstract`.
 - **Domain Entities**: Transfer state between services and repositories without leaking SQLAlchemy models into external layers.
+- **Core Primitives & Enums**: Enums (`app/core/enums/server_enum.py`) and constants (`app/core/constants/meta_tools.py`) reside in `app/core/` to prevent inverted dependencies from domain/model layers into API schemas.
+- **Connection Schemas**: Transport configurations (`StdioConfig`, `HttpConfig`, `ConnectionConfigRead`) are isolated in `app/schemas/connection.py`.
 
 ### AnyIO Cancel Scope Rule & `SessionWorker`
 - The MCP Python SDK uses AnyIO cancel scopes internally.
@@ -179,7 +193,7 @@ Strict unidirectional dependency flow:
   - Preserves argument validation and `ExecutionRepositoryAbstract` audit logging.
   - Strictly isolates failures per execution item (`"status": "success" | "validation_error" | "error"`).
   - Explicitly rejects recursive calls to `META_TOOL_NAMES`.
-- **Decoupled Constants (`app/constants/meta_tools.py`)**:
+- **Decoupled Constants (`app/core/constants/meta_tools.py`)**:
   - `SEARCH_TOOLS_NAME`, `MULTI_EXECUTE_TOOLS_NAME`, and `META_TOOL_NAMES = frozenset(...)` decouple tool modules and avoid circular dependencies.
 
 ### Error Handling & Exception Groups

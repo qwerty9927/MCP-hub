@@ -11,16 +11,15 @@ from app.api.dependencies import (
     get_server_registry_service,
     get_tool_catalog,
 )
+from app.core.enums.server_enum import ServerHealthStatus, TransportType
 from app.schemas.common import PaginatedResponse
 from app.schemas.server import (
     ServerCreate,
-    ServerHealthStatus,
-    ServerRead,
+    ServerResponse,
     ServerTestResponse,
     ServerUpdate,
-    TransportType,
 )
-from app.schemas.tool import ToolRead
+from app.schemas.tool import ToolResponse
 from app.services.connection_manager import ConnectionManager
 from app.services.mcp_gateway import MCPGatewayService
 from app.services.server_registry import ServerRegistryService
@@ -31,21 +30,21 @@ router = APIRouter(prefix="/servers", tags=["Servers"])
 
 @router.post(
     "",
-    response_model=ServerRead,
+    response_model=ServerResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Register a new MCP server",
 )
 async def create_server(
     payload: ServerCreate,
     registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
-) -> ServerRead:
+) -> ServerResponse:
     """Register an MCP server with stdio or streamable-http transport."""
     return await registry.create_server(payload)
 
 
 @router.get(
     "",
-    response_model=PaginatedResponse[ServerRead],
+    response_model=PaginatedResponse[ServerResponse],
     summary="List all registered MCP servers",
 )
 async def list_servers(
@@ -64,7 +63,7 @@ async def list_servers(
         default="created_at", description="Sort field (created_at, name, updated_at)"
     ),
     sort_order: str = Query(default="desc", pattern="^(asc|desc)$", description="Sort order"),
-) -> PaginatedResponse[ServerRead]:
+) -> PaginatedResponse[ServerResponse]:
     """Retrieve paginated MCP servers with optional filtering and sorting."""
     return await registry.list_servers(
         page=page,
@@ -80,20 +79,20 @@ async def list_servers(
 
 @router.get(
     "/{server_id}",
-    response_model=ServerRead,
+    response_model=ServerResponse,
     summary="Get MCP server details",
 )
 async def get_server(
     server_id: UUID,
     registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
-) -> ServerRead:
+) -> ServerResponse:
     """Get complete configuration and status of an MCP server by ID."""
     return await registry.get_server(server_id)
 
 
 @router.patch(
     "/{server_id}",
-    response_model=ServerRead,
+    response_model=ServerResponse,
     summary="Update MCP server configuration",
 )
 async def update_server(
@@ -101,7 +100,7 @@ async def update_server(
     payload: ServerUpdate,
     registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
     gateway: Annotated[MCPGatewayService, Depends(get_mcp_gateway)],
-) -> ServerRead:
+) -> ServerResponse:
     """Update configuration attributes of an existing MCP server."""
     result = await registry.update_server(server_id, payload)
     await gateway.notify_tools_changed()
@@ -129,7 +128,7 @@ async def delete_server(
 
 @router.post(
     "/{server_id}/connect",
-    response_model=ServerRead,
+    response_model=ServerResponse,
     summary="Connect to MCP server",
 )
 async def connect_server(
@@ -138,7 +137,7 @@ async def connect_server(
     connection_mgr: Annotated[ConnectionManager, Depends(get_connection_manager)],
     tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog)],
     gateway: Annotated[MCPGatewayService, Depends(get_mcp_gateway)],
-) -> ServerRead:
+) -> ServerResponse:
     """Establish active session to the server and discover available tools."""
     server = await registry.get_server_entity(server_id)
     try:
@@ -155,7 +154,7 @@ async def connect_server(
 
 @router.post(
     "/{server_id}/disconnect",
-    response_model=ServerRead,
+    response_model=ServerResponse,
     summary="Disconnect from MCP server",
 )
 async def disconnect_server(
@@ -163,7 +162,7 @@ async def disconnect_server(
     registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
     connection_mgr: Annotated[ConnectionManager, Depends(get_connection_manager)],
     gateway: Annotated[MCPGatewayService, Depends(get_mcp_gateway)],
-) -> ServerRead:
+) -> ServerResponse:
     """Disconnect active session for the given server."""
     await registry.get_server_entity(server_id)
     await connection_mgr.disconnect(server_id)
@@ -198,7 +197,7 @@ async def test_server_connection(
 
 @router.post(
     "/{server_id}/refresh-tools",
-    response_model=list[ToolRead],
+    response_model=list[ToolResponse],
     summary="Refresh tools catalog for server",
 )
 async def refresh_server_tools(
@@ -207,7 +206,7 @@ async def refresh_server_tools(
     connection_mgr: Annotated[ConnectionManager, Depends(get_connection_manager)],
     tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog)],
     gateway: Annotated[MCPGatewayService, Depends(get_mcp_gateway)],
-) -> list[ToolRead]:
+) -> list[ToolResponse]:
     """Query the MCP server for tools and update the unified catalog cache."""
     server = await registry.get_server_entity(server_id)
     tools = await tool_cat.refresh_server_tools(server, connection_mgr)
@@ -215,7 +214,7 @@ async def refresh_server_tools(
     await gateway.notify_tools_changed()
 
     return [
-        ToolRead(
+        ToolResponse(
             id=t.id,
             name=t.name,
             description=t.description,

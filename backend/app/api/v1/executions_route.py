@@ -10,14 +10,14 @@ from app.api.dependencies import get_execution_repository
 from app.core.exceptions import NotFoundError
 from app.infrastructure.repositories.execution_repo import ExecutionRepositoryAbstract
 from app.schemas.common import PaginatedResponse
-from app.schemas.execution import ExecutionRecord
+from app.schemas.execution import ExecutionResponse
 
 router = APIRouter(prefix="/executions", tags=["Executions"])
 
 
 @router.get(
     "",
-    response_model=PaginatedResponse[ExecutionRecord],
+    response_model=PaginatedResponse[ExecutionResponse],
     summary="List tool execution history",
 )
 async def list_executions(
@@ -27,7 +27,7 @@ async def list_executions(
     is_error: bool | None = Query(default=None, description="Filter by success/failure"),
     page: int = Query(default=1, ge=1, description="Page number"),
     page_size: int = Query(default=20, ge=1, le=100, description="Items per page"),
-) -> PaginatedResponse[ExecutionRecord]:
+) -> PaginatedResponse[ExecutionResponse]:
     """Retrieve historical log of tool execution calls with pagination and filters."""
     items, total = await repo.list(
         server_id=server_id,
@@ -38,7 +38,7 @@ async def list_executions(
     )
 
     records = [
-        ExecutionRecord(
+        ExecutionResponse(
             id=e.id,
             server_id=e.server_id,
             server_name=e.server_name,
@@ -55,7 +55,7 @@ async def list_executions(
 
     total_pages = math.ceil(total / page_size) if total > 0 else 0
 
-    return PaginatedResponse[ExecutionRecord](
+    return PaginatedResponse[ExecutionResponse](
         items=records,
         total=total,
         page=page,
@@ -66,13 +66,13 @@ async def list_executions(
 
 @router.get(
     "/{execution_id}",
-    response_model=ExecutionRecord,
+    response_model=ExecutionResponse,
     summary="Get execution details by ID",
 )
 async def get_execution(
     execution_id: UUID,
     repo: Annotated[ExecutionRepositoryAbstract, Depends(get_execution_repository)],
-) -> ExecutionRecord:
+) -> ExecutionResponse:
     """Retrieve a specific tool execution log entry by its UUID."""
     record = await repo.get_by_id(execution_id)
     if not record:
@@ -81,7 +81,7 @@ async def get_execution(
             details={"execution_id": str(execution_id)},
         )
 
-    return ExecutionRecord(
+    return ExecutionResponse(
         id=record.id,
         server_id=record.server_id,
         server_name=record.server_name,

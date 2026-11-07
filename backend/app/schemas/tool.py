@@ -7,7 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 
-class ToolRead(BaseModel):
+class ToolResponse(BaseModel):
     """Discovered tool metadata schema."""
 
     id: str = Field(

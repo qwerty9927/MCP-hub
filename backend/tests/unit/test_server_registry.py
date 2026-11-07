@@ -2,14 +2,13 @@
 
 import pytest
 
+from app.core.enums.server_enum import ServerHealthStatus, TransportType
 from app.core.exceptions import ConflictError, NotFoundError
 from app.infrastructure.repositories.server_repo import InMemoryServerRepository
+from app.schemas.connection import StdioConfig
 from app.schemas.server import (
     ServerCreate,
-    ServerHealthStatus,
     ServerUpdate,
-    StdioConfig,
-    TransportType,
 )
 from app.services.server_registry import ServerRegistryService
 

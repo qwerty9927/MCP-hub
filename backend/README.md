@@ -95,14 +95,16 @@ backend/
 │   ├── api/
 │   │   ├── dependencies.py              # Dependency injection providers
 │   │   └── v1/
-│   │       ├── servers.py               # MCP Server registration & lifecycle
-│   │       ├── tools.py                 # Tool discovery & execution router
-│   │       ├── executions.py            # Execution audit log endpoints
-│   │       └── system.py                # Liveness, readiness, and telemetry
-│   ├── constants/
-│   │   └── meta_tools.py                # Meta-tool names & sets (SEARCH_TOOLS, MULTI_EXECUTE_TOOLS)
+│   │       ├── executions_route.py      # Execution audit log endpoints
+│   │       ├── servers_route.py         # MCP Server registration & lifecycle
+│   │       ├── system_route.py          # Liveness, readiness, and telemetry
+│   │       └── tools_route.py           # Tool discovery & execution router
 │   ├── core/
 │   │   ├── config.py                    # Pydantic v2 application settings
+│   │   ├── constants/
+│   │   │   └── meta_tools.py            # Meta-tool names & sets (SEARCH_TOOLS, MULTI_EXECUTE_TOOLS)
+│   │   ├── enums/
+│   │   │   └── server_enum.py           # ServerHealthStatus, TransportType
 │   │   ├── logging.py                   # Structured correlation-ID logging
 │   │   └── exceptions.py                # Domain exception hierarchy
 │   ├── helpers/
@@ -123,6 +125,7 @@ backend/
 │   │   └── execution_model.py           # ExecutionModel ORM mapping
 │   ├── schemas/
 │   │   ├── common.py                    # Paginated envelopes & Error responses
+│   │   ├── connection.py                # Stdio & HTTP transport connection schemas
 │   │   ├── server.py                    # Server models & validation
 │   │   ├── tool.py                      # Tool discovery & execution schemas
 │   │   ├── execution.py                 # Execution audit models

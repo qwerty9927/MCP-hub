@@ -13,6 +13,7 @@ from mcp.client.stdio import stdio_client
 from mcp.client.streamable_http import create_mcp_http_client, streamable_http_client
 
 from app.core.config import Settings, get_settings
+from app.core.enums.server_enum import TransportType
 from app.core.exceptions import (
     BadGatewayError,
     BadRequestError,
@@ -23,7 +24,6 @@ from app.core.logging import logger
 from app.domain.server_entity import ServerEntity
 from app.helpers.errors import format_mcp_error
 from app.helpers.security import sanitize_environment, validate_http_url, validate_stdio_command
-from app.schemas.server import TransportType
 
 
 class SessionWorker:

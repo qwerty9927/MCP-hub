@@ -10,7 +10,7 @@ import mcp.types as types
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from pydantic import ValidationError as PydanticValidationError
 
-from app.constants.meta_tools import META_TOOL_NAMES, MULTI_EXECUTE_TOOLS_NAME
+from app.core.constants.meta_tools import META_TOOL_NAMES, MULTI_EXECUTE_TOOLS_NAME
 from app.core.exceptions import AppError, ValidationError
 from app.core.logging import logger
 from app.helpers.errors import format_mcp_error
