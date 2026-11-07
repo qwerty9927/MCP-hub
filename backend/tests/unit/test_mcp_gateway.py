@@ -1,5 +1,6 @@
 """Unit tests for MCP Gateway service."""
 
+import json
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
@@ -7,9 +8,15 @@ from uuid import uuid4
 import mcp.types as types
 import pytest
 
+from app.constants.meta_tools import (
+    MULTI_EXECUTE_TOOLS_NAME,
+    SEARCH_TOOLS_NAME,
+)
 from app.core.exceptions import ValidationError
 from app.domain.server_entity import ServerEntity
 from app.helpers.text import slugify
+from app.mcp.multi_execute_tools import MULTI_EXECUTE_TOOLS_SCHEMA
+from app.mcp.search_tools import SEARCH_TOOLS_SCHEMA
 from app.schemas.common import PaginatedResponse
 from app.schemas.server import ServerHealthStatus, ServerRead, TransportType
 from app.schemas.tool import ToolRead
@@ -340,3 +347,109 @@ async def test_handle_call_tool_success(gateway_service, mock_registry, mock_too
         tool_name="calculate",
         arguments={"expr": "6*7"},
     )
+
+
+@pytest.mark.asyncio
+async def test_handle_list_tools_includes_meta_tools(
+    gateway_service, mock_registry, mock_tool_catalog
+):
+    mock_registry.list_servers.return_value = PaginatedResponse[ServerRead](
+        items=[], total=0, page=1, page_size=10, total_pages=0
+    )
+    mock_tool_catalog.list_tools.return_value = PaginatedResponse[ToolRead](
+        items=[], total=0, page=1, page_size=10, total_pages=0
+    )
+
+    ctx = MagicMock()
+    result = await gateway_service.handle_list_tools(ctx)
+    tool_names = [t.name for t in result.tools]
+
+    assert SEARCH_TOOLS_NAME in tool_names
+    assert MULTI_EXECUTE_TOOLS_NAME in tool_names
+
+
+def test_get_tool_input_schema_meta_tools(gateway_service):
+    assert gateway_service.get_tool_input_schema(SEARCH_TOOLS_NAME) == SEARCH_TOOLS_SCHEMA
+    assert (
+        gateway_service.get_tool_input_schema(MULTI_EXECUTE_TOOLS_NAME)
+        == MULTI_EXECUTE_TOOLS_SCHEMA
+    )
+    assert gateway_service.get_tool_input_schema("non_existent") is None
+
+
+@pytest.mark.asyncio
+async def test_handle_call_tool_search_tools(gateway_service, mock_registry, mock_tool_catalog):
+    server_id = uuid4()
+    mock_registry.list_servers.return_value = PaginatedResponse[ServerRead](
+        items=[], total=0, page=1, page_size=10, total_pages=0
+    )
+    gateway_service._tool_map["math__calculate"] = GatewayToolMapping(
+        hub_tool_name="math__calculate",
+        server_id=server_id,
+        server_name="math",
+        original_tool_name="calculate",
+        input_schema={"type": "object", "properties": {"expression": {"type": "string"}}},
+        description="Math calculate",
+        availability_status="AVAILABLE",
+    )
+
+    ctx = MagicMock()
+    params = types.CallToolRequestParams(
+        name=SEARCH_TOOLS_NAME,
+        arguments={"queries": ["math calculate"]},
+    )
+    res = await gateway_service.handle_call_tool(ctx, params)
+    assert res.is_error is False
+    assert len(res.content) == 1
+    data = json.loads(res.content[0].text)
+    assert data["matched_count"] == 1
+    assert data["tools"][0]["tool_slug"] == "math__calculate"
+
+
+@pytest.mark.asyncio
+async def test_handle_call_tool_multi_execute_tools(
+    gateway_service, mock_registry, mock_tool_router
+):
+    server_id = uuid4()
+    mock_registry.list_servers.return_value = PaginatedResponse[ServerRead](
+        items=[], total=0, page=1, page_size=10, total_pages=0
+    )
+    gateway_service._tool_map["math__calculate"] = GatewayToolMapping(
+        hub_tool_name="math__calculate",
+        server_id=server_id,
+        server_name="math",
+        original_tool_name="calculate",
+        input_schema={},
+        description=None,
+        availability_status="AVAILABLE",
+    )
+
+    mock_server = ServerEntity(
+        id=server_id,
+        name="math",
+        transport=TransportType.STDIO,
+        enabled=True,
+    )
+    mock_registry.get_server_entity.return_value = mock_server
+    mock_tool_router.execute_mcp_tool.return_value = types.CallToolResult(
+        content=[types.TextContent(type="text", text="42")],
+        is_error=False,
+    )
+
+    ctx = MagicMock()
+    params = types.CallToolRequestParams(
+        name=MULTI_EXECUTE_TOOLS_NAME,
+        arguments={
+            "executions": [
+                {"tool_slug": "math__calculate", "arguments": {"expr": "6*7"}},
+                {"tool_slug": "invalid_slug", "arguments": {}},
+            ]
+        },
+    )
+    res = await gateway_service.handle_call_tool(ctx, params)
+    assert res.is_error is False
+    data = json.loads(res.content[0].text)
+    assert len(data["results"]) == 2
+    assert data["results"][0]["status"] == "success"
+    assert data["results"][0]["data"] == "42"
+    assert data["results"][1]["status"] == "error"

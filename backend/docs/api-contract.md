@@ -484,7 +484,63 @@ When an MCP client requests the tool catalog:
 4. The client receives the aggregated, namespaced tool list.
 5. Connected clients receive `notifications/tools/list_changed` when servers are added, refreshed, or disabled.
 
-### 6.4 Client Usage Example (Python MCP SDK)
+### 6.4 Agent-Driven Meta-Tools (`SEARCH_TOOLS` & `MULTI_EXECUTE_TOOLS`)
+
+To support LLM agents orchestrating tools across many servers without exhausting prompt context windows, the Gateway provides two native meta-tools:
+
+#### 6.4.1 `SEARCH_TOOLS` (Pure Discovery)
+- **Input Schema:**
+  - `queries` (`list[str]`, required, minItems 1): Atomic queries describing required actions.
+  - `top_k` (`integer`, optional, default 5, min 1, max 20): Maximum matches per query.
+- **Behavior:** Performs token matching and substring-boosted relevance scoring against tool slugs, original names, descriptions, and input schema property names/descriptions. Excludes meta-tools and deduplicates across queries.
+- **Response Format (`CallToolResult` text content):**
+  ```json
+  {
+    "matched_count": 1,
+    "tools": [
+      {
+        "tool_slug": "math_server__calculate",
+        "server_id": "e427b3b6-733d-4c3e-862d-96116ca31614",
+        "description": "Evaluate math expressions",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "expression": { "type": "string" }
+          },
+          "required": ["expression"]
+        }
+      }
+    ]
+  }
+  ```
+
+#### 6.4.2 `MULTI_EXECUTE_TOOLS` (Parallel Dispatcher)
+- **Input Schema:**
+  - `executions` (`list[object]`, required, minItems 1):
+    - `tool_slug` (`string`, required): Canonical namespaced tool slug.
+    - `arguments` (`object`, required): Tool input arguments matching schema.
+- **Behavior:** Concurrent execution via `asyncio.gather` through `ToolRouterService`. Fully isolates errors per tool call (partial failures do not abort sibling calls). Guarantees audit logging and blocks recursive meta-tool calls.
+- **Response Format (`CallToolResult` text content):**
+  ```json
+  {
+    "results": [
+      {
+        "tool_slug": "math_server__calculate",
+        "status": "success",
+        "data": "100",
+        "error": null
+      },
+      {
+        "tool_slug": "invalid_tool",
+        "status": "error",
+        "data": null,
+        "error": "Unknown or unavailable tool: 'invalid_tool'"
+      }
+    ]
+  }
+  ```
+
+### 6.5 Client Usage Example (Python MCP SDK)
 
 ```python
 import asyncio

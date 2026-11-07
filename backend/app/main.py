@@ -30,8 +30,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     settings = get_settings()
     logger.info(f"Starting {settings.PROJECT_NAME} v{settings.VERSION} [{settings.ENVIRONMENT}]")
 
-    # Initialize database schema
-    await init_db()
+    # Initialize database schema in non-production environments.
+    # In production, migrations must be executed via Alembic ('alembic upgrade head').
+    # if settings.ENVIRONMENT != "production":
+    #     await init_db()
 
     # Preload discovered tools into catalog cache
     tool_catalog = get_tool_catalog()

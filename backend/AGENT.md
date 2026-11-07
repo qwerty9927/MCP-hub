@@ -75,6 +75,8 @@ backend/
 │   │   ├── api/
 │   │   │   ├── dependencies.py          # Centralized dependency injection providers
 │   │   │   └── v1/                      # API Routers (/servers, /tools, /executions, /system)
+│   │   ├── constants/                   # Application constants partitioned by domain
+│   │   │   └── meta_tools.py            # Meta-tool identifiers (SEARCH_TOOLS, MULTI_EXECUTE_TOOLS)
 │   │   ├── core/
 │   │   │   ├── config.py                # Settings loaded strictly from .env (no in-code defaults)
 │   │   │   ├── exceptions.py            # Domain exception hierarchy (derived from AppError)
@@ -94,7 +96,9 @@ backend/
 │   │   │       ├── server_repo.py       # ServerRepositoryAbstract, PostgresServerRepository, InMemoryServerRepository
 │   │   │       ├── tool_repo.py         # ToolRepositoryAbstract, PostgresToolRepository, InMemoryToolRepository
 │   │   │       └── execution_repo.py    # ExecutionRepositoryAbstract, PostgresExecutionRepository, InMemoryExecutionRepository
-│   │   ├── mcp/                         # MCP protocol extensions & components
+│   │   ├── mcp/                         # Upstream MCP protocol extensions & meta-tools
+│   │   │   ├── search_tools.py          # SEARCH_TOOLS discovery handler & relevance scoring
+│   │   │   └── multi_execute_tools.py   # MULTI_EXECUTE_TOOLS parallel dispatcher & failure isolator
 │   │   ├── middlewares/                 # ASGI middleware components
 │   │   │   └── correlation.py           # CorrelationAndLoggingMiddleware (request tracing)
 │   │   ├── models/                      # SQLAlchemy 2.0 ORM models
@@ -113,7 +117,10 @@ backend/
 ├── migrations/                          # Alembic schema revision scripts
 └── tests/
     ├── conftest.py                      # Pytest async fixtures, test DB cleanup, async_client
-    ├── unit/                            # Fast unit tests (services, helpers, catalog, registry)
+    ├── unit/                            # Fast unit tests (services, helpers, catalog, meta-tools)
+    │   ├── test_search_tools.py         # SEARCH_TOOLS discovery & ranking tests
+    │   ├── test_multi_execute_tools.py  # MULTI_EXECUTE_TOOLS parallel dispatch & isolation tests
+    │   └── ...
     ├── integration/                     # Multi-server aggregation, E2E gateway, database CRUD
     └── security/                        # SSRF, command injection, executable allowlist tests
 ```
@@ -145,6 +152,23 @@ Strict unidirectional dependency flow:
 - **Stdio Allowlist**: Only executables listed in `ALLOWED_STDIO_EXECUTABLES` can be spawned. Reject any shell metacharacters (`;`, `&`, `|`, `` ` ``, `$`, `\n`, null bytes).
 - **SSRF Protection**: Remote HTTP URLs must be validated via `validate_http_url`. In production (`ALLOW_PRIVATE_NETWORK_HTTP=false`), loopback, link-local, private RFC 1918 subnets, and cloud metadata (`169.254.169.254`) are strictly blocked.
 - **Credential Masking**: Sensitive headers (`Authorization`, `x-api-key`, etc.) must always pass through `mask_sensitive_headers()` before serialization in API responses.
+
+### Agent-Driven Meta-Tool Architecture (SEARCH_TOOLS & MULTI_EXECUTE_TOOLS)
+- **Design Philosophy**: Keep tools atomic; the upstream Agent is the planner. The hub provides pure discovery and parallel dispatch without backend execution planning.
+- **Pure Discovery (`app/mcp/search_tools.py`)**:
+  - `SEARCH_TOOLS` accepts atomic queries (`queries: list[str]`) and `top_k: int = 5`.
+  - Scores tools across names, descriptions, and JSON schema property names / descriptions with token matching and substring boosting.
+  - Automatically excludes `META_TOOL_NAMES` from discovery candidates to avoid self-recursion.
+  - Deduplicates matches across queries preserving ranking order.
+- **Parallel Dispatcher (`app/mcp/multi_execute_tools.py`)**:
+  - `MULTI_EXECUTE_TOOLS` accepts `executions: list[{"tool_slug": str, "arguments": dict[str, Any]}]`.
+  - Dispatches calls concurrently via `asyncio.gather(*tasks)` routing through `ToolRouterService.execute_mcp_tool`.
+  - Complies strictly with the AnyIO Cancel Scope Rule (routes through `ConnectionManager` `SessionWorker`).
+  - Preserves argument validation and `ExecutionRepositoryAbstract` audit logging.
+  - Strictly isolates failures per execution item (`"status": "success" | "validation_error" | "error"`).
+  - Explicitly rejects recursive calls to `META_TOOL_NAMES`.
+- **Decoupled Constants (`app/constants/meta_tools.py`)**:
+  - `SEARCH_TOOLS_NAME`, `MULTI_EXECUTE_TOOLS_NAME`, and `META_TOOL_NAMES = frozenset(...)` decouple tool modules and avoid circular dependencies.
 
 ### Error Handling & Exception Groups
 - Domain exceptions use a strict 2-level hierarchy inheriting directly from `AppError` (`app/core/exceptions.py`), defining service-agnostic category names (`NotFoundError`, `BadRequestError`, `ConflictError`, `ForbiddenError`, `ValidationError`, `BadGatewayError`, `GatewayTimeoutError`, `InternalServerError`).

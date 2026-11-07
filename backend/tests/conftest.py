@@ -1,5 +1,6 @@
 """Pytest fixtures and configuration."""
 
+import os
 import sys
 from collections.abc import AsyncGenerator
 from pathlib import Path
@@ -30,9 +31,11 @@ from app.models.execution_model import ExecutionModel  # noqa: E402
 from app.models.server_model import ServerModel  # noqa: E402
 from app.models.tool_model import ToolModel  # noqa: E402
 
-# Configure test engine with NullPool to prevent event loop cross-task issues in pytest-asyncio
+# Configure test engine with NullPool to prevent event loop cross-task issues in pytest-asyncio.
+# Allows overriding DATABASE_URL with TEST_DATABASE_URL to protect local development data.
 _settings = get_settings()
-db_module.engine = db_module.create_database_engine(_settings.DATABASE_URL, poolclass=NullPool)
+_test_db_url = os.environ.get("TEST_DATABASE_URL", _settings.DATABASE_URL)
+db_module.engine = db_module.create_database_engine(_test_db_url, poolclass=NullPool)
 db_module.async_session_factory = async_sessionmaker(
     bind=db_module.engine,
     autoflush=False,
@@ -41,10 +44,15 @@ db_module.async_session_factory = async_sessionmaker(
 )
 
 
+@pytest.fixture(scope="session", autouse=True)
+async def initialize_test_database():
+    """Ensure database schema is created once per test session rather than per test."""
+    await db_module.init_db()
+
+
 @pytest.fixture(autouse=True)
 async def cleanup_dependencies():
     """Ensure clean state before and after each test."""
-    await db_module.init_db()
     yield
     # Cleanup state
     await _connection_manager.shutdown()

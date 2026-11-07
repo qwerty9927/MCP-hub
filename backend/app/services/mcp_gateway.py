@@ -1,6 +1,7 @@
 """MCP Gateway Service for exposing the hub as an aggregated MCP Server via Streamable HTTP."""
 
 import asyncio
+import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -16,10 +17,24 @@ from mcp.server.streamable_http_manager import (
     TransportSecuritySettings,
 )
 
+from app.constants.meta_tools import (
+    MULTI_EXECUTE_TOOLS_NAME,
+    SEARCH_TOOLS_NAME,
+)
 from app.core.config import get_settings
 from app.core.exceptions import BadRequestError, NotFoundError, ValidationError
 from app.core.logging import logger
 from app.helpers.text import slugify
+from app.mcp.multi_execute_tools import (
+    MULTI_EXECUTE_TOOLS_SCHEMA,
+    get_multi_execute_tool_definition,
+    handle_multi_execute_tools,
+)
+from app.mcp.search_tools import (
+    SEARCH_TOOLS_SCHEMA,
+    get_search_tool_definition,
+    handle_search_tools,
+)
 from app.services.connection_manager import ConnectionManager
 from app.services.server_registry import ServerRegistryService
 from app.services.tool_catalog import ToolCatalogService
@@ -228,7 +243,10 @@ class MCPGatewayService:
         # Refresh downstream tool mappings dynamically
         await self.refresh_tool_mappings()
 
-        mcp_tools: list[types.Tool] = []
+        mcp_tools: list[types.Tool] = [
+            get_search_tool_definition(),
+            get_multi_execute_tool_definition(),
+        ]
         for mapping in self._tool_map.values():
             mcp_tools.append(
                 types.Tool(
@@ -244,7 +262,11 @@ class MCPGatewayService:
         return types.ListToolsResult(tools=mcp_tools)
 
     def get_tool_input_schema(self, tool_name: str) -> dict[str, Any] | None:
-        """Return the JSON input schema for a given namespaced tool."""
+        """Return the JSON input schema for a given namespaced tool or meta-tool."""
+        if tool_name == SEARCH_TOOLS_NAME:
+            return SEARCH_TOOLS_SCHEMA
+        if tool_name == MULTI_EXECUTE_TOOLS_NAME:
+            return MULTI_EXECUTE_TOOLS_SCHEMA
         mapping = self._tool_map.get(tool_name)
         return mapping.input_schema if mapping else None
 
@@ -253,26 +275,131 @@ class MCPGatewayService:
         ctx: Any,
         params: types.CallToolRequestParams,
     ) -> types.CallToolResult:
-        """Handle incoming tools/call request by routing to the downstream MCP server."""
-        # 1. Resolve namespaced tool identifier via explicit mapping
-        mapping = self._tool_map.get(params.name)
-        if not mapping:
-            # Try refreshing once in case downstream servers were newly updated
+        """Handle incoming tools/call request by routing to meta-tools or downstream servers."""
+        if not self._tool_map:
             await self.refresh_tool_mappings()
-            mapping = self._tool_map.get(params.name)
 
-        if not mapping:
-            logger.warning(f"Gateway received call for unknown or unmapped tool: '{params.name}'")
+        if params.name == SEARCH_TOOLS_NAME:
+            return self._handle_search_tools_call(params.arguments)
+
+        if params.name == MULTI_EXECUTE_TOOLS_NAME:
+            return await self._handle_multi_execute_tools_call(params.arguments)
+
+        return await self._handle_downstream_tool_call(params.name, params.arguments)
+
+    def _handle_search_tools_call(
+        self,
+        arguments: dict[str, Any] | None,
+    ) -> types.CallToolResult:
+        """Handle execution of the SEARCH_TOOLS meta-tool."""
+        try:
+            result_dict = handle_search_tools(
+                arguments=arguments or {},
+                tool_map=self._tool_map,
+            )
+            return types.CallToolResult(
+                is_error=False,
+                content=[
+                    types.TextContent(
+                        type="text",
+                        text=json.dumps(result_dict, indent=2),
+                    )
+                ],
+            )
+        except ValidationError as err:
+            logger.warning(f"Validation failure in {SEARCH_TOOLS_NAME}: {err.message}")
             return types.CallToolResult(
                 is_error=True,
                 content=[
                     types.TextContent(
-                        type="text", text=f"Unknown or unavailable tool: '{params.name}'"
+                        type="text",
+                        text=f"Argument validation failed: {err.message}",
+                    )
+                ],
+            )
+        except Exception as exc:
+            logger.error(f"Error executing {SEARCH_TOOLS_NAME}: {exc}")
+            return types.CallToolResult(
+                is_error=True,
+                content=[
+                    types.TextContent(
+                        type="text",
+                        text=f"Error executing {SEARCH_TOOLS_NAME}: {exc}",
                     )
                 ],
             )
 
-        # 2. Check downstream server status
+    async def _handle_multi_execute_tools_call(
+        self,
+        arguments: dict[str, Any] | None,
+    ) -> types.CallToolResult:
+        """Handle execution of the MULTI_EXECUTE_TOOLS meta-tool."""
+        try:
+            result_dict = await handle_multi_execute_tools(
+                arguments=arguments or {},
+                tool_map=self._tool_map,
+                tool_router=self.tool_router,
+                server_registry=self.server_registry,
+            )
+            return types.CallToolResult(
+                is_error=False,
+                content=[
+                    types.TextContent(
+                        type="text",
+                        text=json.dumps(result_dict, indent=2),
+                    )
+                ],
+            )
+        except ValidationError as err:
+            logger.warning(f"Validation failure in {MULTI_EXECUTE_TOOLS_NAME}: {err.message}")
+            return types.CallToolResult(
+                is_error=True,
+                content=[
+                    types.TextContent(
+                        type="text",
+                        text=f"Argument validation failed: {err.message}",
+                    )
+                ],
+            )
+        except Exception as exc:
+            logger.error(f"Error executing {MULTI_EXECUTE_TOOLS_NAME}: {exc}")
+            return types.CallToolResult(
+                is_error=True,
+                content=[
+                    types.TextContent(
+                        type="text",
+                        text=f"Error executing {MULTI_EXECUTE_TOOLS_NAME}: {exc}",
+                    )
+                ],
+            )
+
+    async def _resolve_tool_mapping(self, tool_name: str) -> GatewayToolMapping | None:
+        """Resolve a namespaced tool identifier, refreshing mappings once if not found."""
+        mapping = self._tool_map.get(tool_name)
+        if not mapping:
+            await self.refresh_tool_mappings()
+            mapping = self._tool_map.get(tool_name)
+        return mapping
+
+    async def _handle_downstream_tool_call(
+        self,
+        tool_name: str,
+        arguments: dict[str, Any] | None,
+    ) -> types.CallToolResult:
+        """Route tool invocation to downstream MCP server via ToolRouterService."""
+        mapping = await self._resolve_tool_mapping(tool_name)
+        if not mapping:
+            logger.warning(f"Gateway received call for unknown or unmapped tool: '{tool_name}'")
+            return types.CallToolResult(
+                is_error=True,
+                content=[
+                    types.TextContent(
+                        type="text",
+                        text=f"Unknown or unavailable tool: '{tool_name}'",
+                    )
+                ],
+            )
+
         try:
             server = await self.server_registry.get_server_entity(mapping.server_id)
             if not server.enabled:
@@ -291,26 +418,24 @@ class MCPGatewayService:
                 content=[types.TextContent(type="text", text=f"Server lookup failed: {exc}")],
             )
 
-        # 3. Forward call through ToolRouterService to invoke the downstream MCP server
         try:
             logger.info(
-                f"Gateway forwarding tool '{params.name}' -> downstream server '{mapping.server_name}' "
+                f"Gateway forwarding tool '{tool_name}' -> downstream server '{mapping.server_name}' "
                 f"({mapping.server_id}) tool '{mapping.original_tool_name}'"
             )
-            result = await self.tool_router.execute_mcp_tool(
+            return await self.tool_router.execute_mcp_tool(
                 server_id=mapping.server_id,
                 tool_name=mapping.original_tool_name,
-                arguments=params.arguments or {},
+                arguments=arguments or {},
             )
-            return result
-
         except ValidationError as err:
-            logger.warning(f"Validation failure executing '{params.name}': {err.message}")
+            logger.warning(f"Validation failure executing '{tool_name}': {err.message}")
             return types.CallToolResult(
                 is_error=True,
                 content=[
                     types.TextContent(
-                        type="text", text=f"Argument validation failed: {err.message}"
+                        type="text",
+                        text=f"Argument validation failed: {err.message}",
                     )
                 ],
             )
@@ -319,7 +444,8 @@ class MCPGatewayService:
                 is_error=True,
                 content=[
                     types.TextContent(
-                        type="text", text=f"Server '{mapping.server_name}' is disabled"
+                        type="text",
+                        text=f"Server '{mapping.server_name}' is disabled",
                     )
                 ],
             )
@@ -328,15 +454,21 @@ class MCPGatewayService:
                 is_error=True,
                 content=[
                     types.TextContent(
-                        type="text", text=f"Tool '{mapping.original_tool_name}' not found on server"
+                        type="text",
+                        text=f"Tool '{mapping.original_tool_name}' not found on server",
                     )
                 ],
             )
         except Exception as exc:
-            logger.error(f"Error executing tool '{params.name}' through gateway: {exc}")
+            logger.error(f"Error executing tool '{tool_name}' through gateway: {exc}")
             return types.CallToolResult(
                 is_error=True,
-                content=[types.TextContent(type="text", text=f"Downstream execution error: {exc}")],
+                content=[
+                    types.TextContent(
+                        type="text",
+                        text=f"Downstream execution error: {exc}",
+                    )
+                ],
             )
 
     async def notify_tools_changed(self) -> None:

@@ -1,0 +1,6 @@
+"""Constants for MCP Hub Meta-Tools."""
+
+SEARCH_TOOLS_NAME: str = "SEARCH_TOOLS"
+MULTI_EXECUTE_TOOLS_NAME: str = "MULTI_EXECUTE_TOOLS"
+
+META_TOOL_NAMES: frozenset[str] = frozenset({SEARCH_TOOLS_NAME, MULTI_EXECUTE_TOOLS_NAME})

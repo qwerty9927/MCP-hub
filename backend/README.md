@@ -3,7 +3,7 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com)
 [![MCP SDK](https://img.shields.io/badge/MCP%20SDK-2.3+-orange.svg)](https://modelcontextprotocol.io)
-[![Tests Passing](https://img.shields.io/badge/tests-46%20passed-brightgreen.svg)]()
+[![Tests Passing](https://img.shields.io/badge/tests-72%20passed-brightgreen.svg)]()
 [![Coverage 86%](https://img.shields.io/badge/coverage-86%25-green.svg)]()
 
 A production-oriented backend for an **MCP Hub** that centrally orchestrates multiple **Model Context Protocol (MCP)** servers, exposes their tools through a unified REST API, and functions as a full-featured **MCP Gateway** exposing aggregated tools over standard Streamable HTTP (`/mcp`).
@@ -79,6 +79,10 @@ flowchart TD
    - SSRF protection rejecting private IP ranges, loopback, and cloud metadata endpoints (`169.254.169.254`).
    - Automatic masking of sensitive headers and credentials in API outputs.
    - Clean environment sanitization preventing host secrets from leaking into child processes.
+6. **Agent-Driven Meta-Tool Architecture**:
+   Exposes two native meta-tools on `/mcp` designed for autonomous upstream agents:
+   - `SEARCH_TOOLS`: Pure keyword discovery with case-insensitive tokenization and substring boosting across names, descriptions, and input schema properties. Excludes meta-tools to prevent recursion and returns deduplicated candidate tools ranked by relevance.
+   - `MULTI_EXECUTE_TOOLS`: Parallel dispatcher executing multiple tool calls concurrently via `asyncio.gather` through `ToolRouterService`. Provides per-tool failure isolation (a failed downstream call does not fail sibling executions) while strictly preserving AnyIO cancel scopes, JSON schema validation, and database audit logging.
 
 ---
 
@@ -95,6 +99,8 @@ backend/
 │   │       ├── tools.py                 # Tool discovery & execution router
 │   │       ├── executions.py            # Execution audit log endpoints
 │   │       └── system.py                # Liveness, readiness, and telemetry
+│   ├── constants/
+│   │   └── meta_tools.py                # Meta-tool names & sets (SEARCH_TOOLS, MULTI_EXECUTE_TOOLS)
 │   ├── core/
 │   │   ├── config.py                    # Pydantic v2 application settings
 │   │   ├── logging.py                   # Structured correlation-ID logging
@@ -127,7 +133,9 @@ backend/
 │   │   ├── tool_catalog.py              # Cross-server tool aggregation cache
 │   │   ├── tool_router.py               # Input validation & execution router
 │   │   └── mcp_gateway.py               # MCP Gateway server & Streamable HTTP transport
-│   ├── mcp/                             # MCP protocol helpers & extensions
+│   ├── mcp/
+│   │   ├── search_tools.py              # Pure discovery SEARCH_TOOLS handler & scoring
+│   │   └── multi_execute_tools.py       # Parallel MULTI_EXECUTE_TOOLS dispatcher
 │   └── infrastructure/
 │       ├── database.py                  # Database connection & session setup
 │       └── repositories/
@@ -140,7 +148,7 @@ backend/
 │   └── api-contract.md                  # Comprehensive REST API contract
 ├── tests/
 │   ├── conftest.py                      # Test fixtures & test clients
-│   ├── unit/                            # Unit test suite
+│   ├── unit/                            # Unit test suite (search, multi-execute, gateway, router)
 │   ├── integration/                     # Full lifecycle stdio & HTTP tests
 │   └── security/                        # Security validation tests
 ├── Dockerfile                           # Production multi-stage Docker build
@@ -337,6 +345,94 @@ Response:
 ### 6. Inspect Execution History
 ```bash
 curl "http://localhost:8000/api/v1/executions"
+```
+
+### 7. Upstream Agent Meta-Tools via `/mcp` (Streamable HTTP)
+
+When AI agents connect to the hub's upstream endpoint (`POST /mcp`), they can discover and batch execute tools without loading entire catalogs into context:
+
+#### Discovery: `SEARCH_TOOLS`
+Call `SEARCH_TOOLS` with atomic search queries:
+```json
+{
+  "name": "SEARCH_TOOLS",
+  "arguments": {
+    "queries": ["math expression", "text transform"],
+    "top_k": 5
+  }
+}
+```
+Response:
+```json
+{
+  "matched_count": 2,
+  "tools": [
+    {
+      "tool_slug": "demo_server__calculate",
+      "server_id": "e427b3b6-733d-4c3e-862d-96116ca31614",
+      "description": "Calculate math expressions",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "expression": { "type": "string" }
+        },
+        "required": ["expression"]
+      }
+    },
+    {
+      "tool_slug": "text_server__text_transform",
+      "server_id": "7b13e9a2-9310-45e0-9112-9c1c69c645ba",
+      "description": "Transform text case",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "text": { "type": "string" },
+          "mode": { "type": "string", "enum": ["uppercase", "lowercase"] }
+        },
+        "required": ["text"]
+      }
+    }
+  ]
+}
+```
+
+#### Parallel Execution: `MULTI_EXECUTE_TOOLS`
+Execute multiple discovered tools concurrently with isolated per-tool error reporting:
+```json
+{
+  "name": "MULTI_EXECUTE_TOOLS",
+  "arguments": {
+    "executions": [
+      {
+        "tool_slug": "demo_server__calculate",
+        "arguments": { "expression": "25 * 4 + 10" }
+      },
+      {
+        "tool_slug": "text_server__text_transform",
+        "arguments": { "text": "hello world", "mode": "uppercase" }
+      }
+    ]
+  }
+}
+```
+Response:
+```json
+{
+  "results": [
+    {
+      "tool_slug": "demo_server__calculate",
+      "status": "success",
+      "data": "110",
+      "error": null
+    },
+    {
+      "tool_slug": "text_server__text_transform",
+      "status": "success",
+      "data": "HELLO WORLD",
+      "error": null
+    }
+  ]
+}
 ```
 
 ---

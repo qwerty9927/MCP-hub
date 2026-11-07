@@ -119,7 +119,7 @@
           }
         },
         {
-          "name": "4. Call Tool - Math Server Calculate",
+          "name": "4. Call Meta-Tool - SEARCH_TOOLS (Discovery)",
           "request": {
             "method": "POST",
             "header": [
@@ -138,7 +138,67 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 3,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"math_server__calculate\",\n    \"arguments\": {\n      \"expression\": \"25 * 4 + 10\"\n    }\n  }\n}"
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 3,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"SEARCH_TOOLS\",\n    \"arguments\": {\n      \"queries\": [\n        \"math calculation expression\",\n        \"text uppercase transform\"\n      ],\n      \"top_k\": 5\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mcp",
+              "host": ["{{baseUrl}}"],
+              "path": ["mcp"]
+            },
+            "description": "Performs pure discovery across downstream tools using atomic keyword queries and returns relevance-ranked candidate tools."
+          }
+        },
+        {
+          "name": "5. Call Meta-Tool - MULTI_EXECUTE_TOOLS (Parallel Dispatch)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              },
+              {
+                "key": "mcp-session-id",
+                "value": "{{mcp_session_id}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 4,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"MULTI_EXECUTE_TOOLS\",\n    \"arguments\": {\n      \"executions\": [\n        {\n          \"tool_slug\": \"math_server__calculate\",\n          \"arguments\": {\n            \"expression\": \"25 * 4 + 10\"\n          }\n        },\n        {\n          \"tool_slug\": \"text_server__text_transform\",\n          \"arguments\": {\n            \"text\": \"hello postman mcp gateway\",\n            \"mode\": \"uppercase\"\n          }\n        }\n      ]\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mcp",
+              "host": ["{{baseUrl}}"],
+              "path": ["mcp"]
+            },
+            "description": "Executes multiple downstream tool calls concurrently via asyncio.gather with per-call failure isolation."
+          }
+        },
+        {
+          "name": "6. Call Tool - Math Server Calculate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json, text/event-stream"
+              },
+              {
+                "key": "mcp-session-id",
+                "value": "{{mcp_session_id}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 5,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"math_server__calculate\",\n    \"arguments\": {\n      \"expression\": \"25 * 4 + 10\"\n    }\n  }\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/mcp",
@@ -149,7 +209,7 @@
           }
         },
         {
-          "name": "5. Call Tool - Text Server Calculate (Duplicate Name)",
+          "name": "7. Call Tool - Text Server Calculate (Duplicate Name)",
           "request": {
             "method": "POST",
             "header": [
@@ -168,7 +228,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 4,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"text_server__calculate\",\n    \"arguments\": {\n      \"expression\": \"25 * 4 + 10\"\n    }\n  }\n}"
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 6,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"text_server__calculate\",\n    \"arguments\": {\n      \"expression\": \"25 * 4 + 10\"\n    }\n  }\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/mcp",
@@ -179,7 +239,7 @@
           }
         },
         {
-          "name": "6. Call Tool - Text Transform",
+          "name": "8. Call Tool - Text Transform",
           "request": {
             "method": "POST",
             "header": [
@@ -198,7 +258,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 5,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"text_server__text_transform\",\n    \"arguments\": {\n      \"text\": \"hello postman mcp gateway\",\n      \"mode\": \"uppercase\"\n    }\n  }\n}"
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 7,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"text_server__text_transform\",\n    \"arguments\": {\n      \"text\": \"hello postman mcp gateway\",\n      \"mode\": \"uppercase\"\n    }\n  }\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/mcp",
@@ -209,7 +269,7 @@
           }
         },
         {
-          "name": "7. Terminate Session",
+          "name": "9. Terminate Session",
           "request": {
             "method": "DELETE",
             "header": [
