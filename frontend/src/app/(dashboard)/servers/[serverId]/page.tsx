@@ -82,6 +82,7 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
 
     const [deleteOpen, setDeleteOpen] = useState(false);
     const [testResult, setTestResult] = useState<ServerTestResponse | null>(null);
+    const [activeTab, setActiveTab] = useState("tools");
 
     const { data: server, isLoading, isError, error, refetch } = useServer(serverId);
     const { data: toolsData, isLoading: toolsLoading } = useServerTools(serverId);
@@ -352,21 +353,37 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
             )}
 
             {/* Detailed Information Tabs */}
-            <Tabs defaultValue="tools" className="w-full">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TabsList className="grid w-full grid-cols-4 max-w-xl">
-                    <TabsTrigger value="tools" className="gap-1.5">
+                    <TabsTrigger
+                        value="tools"
+                        onClick={() => setActiveTab("tools")}
+                        className="gap-1.5"
+                    >
                         <Wrench className="h-4 w-4" />
                         Tools ({tools.length})
                     </TabsTrigger>
-                    <TabsTrigger value="executions" className="gap-1.5">
+                    <TabsTrigger
+                        value="executions"
+                        onClick={() => setActiveTab("executions")}
+                        className="gap-1.5"
+                    >
                         <History className="h-4 w-4" />
                         Executions ({executions.length})
                     </TabsTrigger>
-                    <TabsTrigger value="config" className="gap-1.5">
+                    <TabsTrigger
+                        value="config"
+                        onClick={() => setActiveTab("config")}
+                        className="gap-1.5"
+                    >
                         <Layers className="h-4 w-4" />
                         Configuration
                     </TabsTrigger>
-                    <TabsTrigger value="telemetry" className="gap-1.5">
+                    <TabsTrigger
+                        value="telemetry"
+                        onClick={() => setActiveTab("telemetry")}
+                        className="gap-1.5"
+                    >
                         <Clock className="h-4 w-4" />
                         Timestamps
                     </TabsTrigger>
