@@ -1,10 +1,11 @@
 """Agent-Driven Meta-Tool: SEARCH_TOOLS (Pure Discovery)."""
 
+import inspect
 import re
-from typing import Any
+from typing import Annotated, Any
 
 import mcp.types as types
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from pydantic import ValidationError as PydanticValidationError
 
 from app.constants.meta_tools import META_TOOL_NAMES, SEARCH_TOOLS_NAME
@@ -12,19 +13,34 @@ from app.core.exceptions import ValidationError
 
 SEARCH_TOOLS_SCHEMA: dict[str, Any] = {
     "type": "object",
+    "additionalProperties": False,
     "properties": {
         "queries": {
             "type": "array",
-            "items": {"type": "string"},
+            "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256,
+            },
             "minItems": 1,
-            "description": "List of atomic search queries describing actions or tools needed.",
+            "description": (
+                "List of atomic English search queries describing each single action, resource, "
+                "or prerequisite lookup needed to fulfill the task. Split multi-step workflows "
+                "into separate queries (1 query per intended tool call). Include the service or "
+                "domain name if known, and omit user-specific identifiers or long text. "
+                "Examples: ['search github issues', 'list slack channels', 'send slack message']."
+            ),
         },
         "top_k": {
             "type": "integer",
             "minimum": 1,
             "maximum": 20,
             "default": 5,
-            "description": "Maximum number of candidate tools to return per query (default 5).",
+            "description": (
+                "Maximum number of candidate tools to return per query (default: 5). "
+                "Increase to 10-15 if the initial search does not return the expected tool "
+                "or if exploring a broad domain."
+            ),
         },
     },
     "required": ["queries"],
@@ -35,10 +51,27 @@ def get_search_tool_definition() -> types.Tool:
     """Return MCP Tool definition for SEARCH_TOOLS."""
     return types.Tool(
         name=SEARCH_TOOLS_NAME,
-        description=(
-            "Pure discovery meta-tool. Searches available tools across downstream servers "
-            "using atomic queries and returns candidate tool definitions (slug, server_id, "
-            "description, input_schema) scored by relevance."
+        description=inspect.cleandoc(
+            """Discover available downstream tools across all connected MCP servers by action, keyword, or domain.
+            Always call this tool FIRST before attempting to execute unfamiliar tools or when you need to verify
+            a tool's exact `tool_slug` and JSON `input_schema`.
+
+            ### Agent Search & Decomposition Guidelines:
+            1. **Atomic Queries (1 Query = 1 Action):** Split complex, multi-step user requests into separate,
+               atomic search strings inside `queries` (e.g., `["list slack channels", "send slack message"]`).
+            2. **Search for Hidden Prerequisites:** If an action requires an opaque ID you do not have yet
+               (e.g., you have a channel name, repo name, or username, but the target API likely needs an ID),
+               proactively include a lookup/search query in the same batch (e.g., `"find user by name"`).
+            3. **Normalize Queries (No PII/Specific Values):** Keep queries focused on the functional action and
+               app/domain name. Do NOT include specific emails, UUIDs, or long message bodies in search queries.
+            4. **English Keywords:** Always write search queries in English using standard API verbs
+               (`list`, `get`, `search`, `create`, `update`, `delete`, `send`).
+
+            ### How to Handle the Response:
+            - Review the returned `tools` list, paying close attention to each tool's `tool_slug` and
+              `input_schema` (especially `required` fields and parameter descriptions).
+            - You are responsible for deciding which discovered tools to call and in what order.
+            - Pass the selected `tool_slug` and schema-compliant `arguments` to `MULTI_EXECUTE_TOOLS`."""
         ),
         input_schema=SEARCH_TOOLS_SCHEMA,
     )
@@ -47,7 +80,11 @@ def get_search_tool_definition() -> types.Tool:
 class SearchToolsInput(BaseModel):
     """Pydantic validation schema for SEARCH_TOOLS arguments."""
 
-    queries: list[str] = Field(..., min_length=1)
+    model_config = ConfigDict(extra="forbid")
+
+    queries: list[
+        Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=256)]
+    ] = Field(..., min_length=1)
     top_k: int = Field(default=5, ge=1, le=20)
 
 

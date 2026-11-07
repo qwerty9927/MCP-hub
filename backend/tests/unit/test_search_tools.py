@@ -23,6 +23,12 @@ def test_search_tool_definition_and_schema():
     assert tool.name == SEARCH_TOOLS_NAME
     assert tool.input_schema == SEARCH_TOOLS_SCHEMA
     assert "queries" in tool.input_schema["required"]
+    assert tool.input_schema["additionalProperties"] is False
+    assert tool.input_schema["properties"]["queries"]["items"]["minLength"] == 1
+    assert tool.input_schema["properties"]["queries"]["items"]["maxLength"] == 256
+    assert "### Agent Search & Decomposition Guidelines:" in tool.description
+    # Ensure description is cleanly dedented via inspect.cleandoc
+    assert not any(line.startswith("            ") for line in tool.description.splitlines())
 
 
 def test_score_tool_match():
@@ -213,3 +219,22 @@ def test_handle_search_tools_validation_error():
     # top_k out of bounds
     with pytest.raises(ValidationError):
         handle_search_tools(arguments={"queries": ["test"], "top_k": 50}, tool_map={})
+
+    # Extra unexpected argument (extra="forbid")
+    with pytest.raises(ValidationError):
+        handle_search_tools(
+            arguments={"queries": ["test"], "unexpected_field": True},
+            tool_map={},
+        )
+
+    # Empty string query item (min_length=1)
+    with pytest.raises(ValidationError):
+        handle_search_tools(arguments={"queries": [""]}, tool_map={})
+
+    # Whitespace-only query item (stripped to empty)
+    with pytest.raises(ValidationError):
+        handle_search_tools(arguments={"queries": ["   "]}, tool_map={})
+
+    # Query string exceeding max length 256
+    with pytest.raises(ValidationError):
+        handle_search_tools(arguments={"queries": ["a" * 257]}, tool_map={})

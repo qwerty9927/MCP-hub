@@ -26,6 +26,14 @@ def test_multi_execute_tool_definition_and_schema():
     assert tool.name == MULTI_EXECUTE_TOOLS_NAME
     assert tool.input_schema == MULTI_EXECUTE_TOOLS_SCHEMA
     assert "executions" in tool.input_schema["required"]
+    assert tool.input_schema["additionalProperties"] is False
+    items_schema = tool.input_schema["properties"]["executions"]["items"]
+    assert items_schema["additionalProperties"] is False
+    assert items_schema["properties"]["tool_slug"]["minLength"] == 1
+    assert items_schema["properties"]["arguments"]["default"] == {}
+    assert "### Agent Execution Guidelines:" in tool.description
+    # Ensure description is cleanly dedented via inspect.cleandoc
+    assert not any(line.startswith("            ") for line in tool.description.splitlines())
 
 
 @pytest.mark.asyncio
@@ -242,6 +250,47 @@ async def test_handle_multi_execute_tools_payload_validation():
     with pytest.raises(ValidationError):
         await handle_multi_execute_tools(
             arguments={},
+            tool_map={},
+            tool_router=mock_router,
+            server_registry=mock_registry,
+        )
+
+    # Extra root argument (extra="forbid")
+    with pytest.raises(ValidationError):
+        await handle_multi_execute_tools(
+            arguments={
+                "executions": [{"tool_slug": "calc", "arguments": {}}],
+                "extra_key": True,
+            },
+            tool_map={},
+            tool_router=mock_router,
+            server_registry=mock_registry,
+        )
+
+    # Extra item argument (extra="forbid")
+    with pytest.raises(ValidationError):
+        await handle_multi_execute_tools(
+            arguments={
+                "executions": [{"tool_slug": "calc", "arguments": {}, "extra_item_key": 123}]
+            },
+            tool_map={},
+            tool_router=mock_router,
+            server_registry=mock_registry,
+        )
+
+    # Empty tool_slug (min_length=1)
+    with pytest.raises(ValidationError):
+        await handle_multi_execute_tools(
+            arguments={"executions": [{"tool_slug": "", "arguments": {}}]},
+            tool_map={},
+            tool_router=mock_router,
+            server_registry=mock_registry,
+        )
+
+    # Whitespace-only tool_slug (stripped to empty)
+    with pytest.raises(ValidationError):
+        await handle_multi_execute_tools(
+            arguments={"executions": [{"tool_slug": "   ", "arguments": {}}]},
             tool_map={},
             tool_router=mock_router,
             server_registry=mock_registry,

@@ -497,9 +497,14 @@ When an MCP client requests the tool catalog:
 To support LLM agents orchestrating tools across many servers without exhausting prompt context windows, the Gateway provides two native meta-tools:
 
 #### 6.4.1 `SEARCH_TOOLS` (Pure Discovery)
-- **Input Schema:**
-  - `queries` (`list[str]`, required, minItems 1): Atomic queries describing required actions.
-  - `top_k` (`integer`, optional, default 5, min 1, max 20): Maximum matches per query.
+- **Input Schema (`additionalProperties: false`):**
+  - `queries` (`list[str]`, required, minItems 1): Atomic English search queries (each query string: `minLength 1, maxLength 256`).
+  - `top_k` (`integer`, optional, default 5, min 1, max 20): Maximum candidate matches per query.
+- **Agent Operating Guidelines:**
+  1. **Atomic Queries:** 1 Query = 1 Action.
+  2. **Hidden Prerequisites:** Proactively query for missing identifiers/prerequisites (e.g. user lookup before invitation).
+  3. **No PII:** Keep queries normalized and free of UUIDs or personal data.
+  4. **English Verbs:** Use standard API action verbs (`list`, `get`, `search`, `create`, `update`, `delete`, `send`).
 - **Behavior:** Performs token matching and substring-boosted relevance scoring against tool slugs, original names, descriptions, and input schema property names/descriptions. Excludes meta-tools and deduplicates across queries.
 - **Response Format (`CallToolResult` text content):**
   ```json
@@ -523,10 +528,14 @@ To support LLM agents orchestrating tools across many servers without exhausting
   ```
 
 #### 6.4.2 `MULTI_EXECUTE_TOOLS` (Parallel Dispatcher)
-- **Input Schema:**
-  - `executions` (`list[object]`, required, minItems 1):
-    - `tool_slug` (`string`, required): Canonical namespaced tool slug.
-    - `arguments` (`object`, required): Tool input arguments matching schema.
+- **Input Schema (`additionalProperties: false`):**
+  - `executions` (`list[object]`, required, minItems 1, `additionalProperties: false`):
+    - `tool_slug` (`string`, required, `minLength: 1`): Canonical namespaced tool slug.
+    - `arguments` (`object`, required, `default: {}`): Tool input arguments matching target schema.
+- **Agent Execution Guidelines:**
+  1. **Strict Schema Compliance:** Provide exact namespaced `tool_slug` and arguments conforming to target tool schema.
+  2. **Parallel vs. Sequential Chaining:** Group independent calls concurrently; if Tool B depends on Tool A's output, execute Tool A first, inspect output, then call Tool B in the next turn.
+  3. **Partial Failure Isolation:** Inspect each item's `status` (`"success" | "validation_error" | "error"`). Retry only items returning `"validation_error"`.
 - **Behavior:** Concurrent execution via `asyncio.gather` through `ToolRouterService`. Fully isolates errors per tool call (partial failures do not abort sibling calls). Guarantees audit logging and blocks recursive meta-tool calls.
 - **Response Format (`CallToolResult` text content):**
   ```json

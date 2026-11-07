@@ -1,12 +1,13 @@
 """Agent-Driven Meta-Tool: MULTI_EXECUTE_TOOLS (Parallel Dispatcher)."""
 
 import asyncio
+import inspect
 import json
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
 import mcp.types as types
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from pydantic import ValidationError as PydanticValidationError
 
 from app.constants.meta_tools import META_TOOL_NAMES, MULTI_EXECUTE_TOOLS_NAME
@@ -16,25 +17,42 @@ from app.helpers.errors import format_mcp_error
 
 MULTI_EXECUTE_TOOLS_SCHEMA: dict[str, Any] = {
     "type": "object",
+    "additionalProperties": False,
     "properties": {
         "executions": {
             "type": "array",
             "items": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
                     "tool_slug": {
                         "type": "string",
-                        "description": "Exact tool slug discovered from SEARCH_TOOLS or catalog.",
+                        "minLength": 1,
+                        "description": (
+                            "Exact namespaced tool identifier (`tool_slug`) returned by "
+                            "SEARCH_TOOLS or listed in the tool catalog (e.g., "
+                            "'math-server__add' or 'slack__send_message'). Never invent slugs."
+                        ),
                     },
                     "arguments": {
                         "type": "object",
-                        "description": "Arguments matching the downstream tool's input schema.",
+                        "default": {},
+                        "description": (
+                            "Key-value JSON dictionary of arguments strictly conforming to the "
+                            "target tool's `input_schema`. Provide all `required` fields with "
+                            "exact data types. Pass an empty object `{}` if the tool takes "
+                            "no arguments."
+                        ),
                     },
                 },
                 "required": ["tool_slug", "arguments"],
             },
             "minItems": 1,
-            "description": "List of tool execution specifications to dispatch concurrently.",
+            "description": (
+                "Non-empty list of independent tool calls to execute concurrently. "
+                "Batch independent calls together for speed, but do NOT batch a tool call "
+                "that depends on the runtime output of another call in the same request."
+            ),
         },
     },
     "required": ["executions"],
@@ -45,10 +63,23 @@ def get_multi_execute_tool_definition() -> types.Tool:
     """Return MCP Tool definition for MULTI_EXECUTE_TOOLS."""
     return types.Tool(
         name=MULTI_EXECUTE_TOOLS_NAME,
-        description=(
-            "Parallel dispatcher meta-tool. Executes multiple downstream tool calls "
-            "concurrently, preserving validation, audit logging, and per-tool failure "
-            "isolation."
+        description=inspect.cleandoc(
+            """Concurrently execute one or more downstream tools discovered via `SEARCH_TOOLS`.
+
+            ### Agent Execution Guidelines:
+            1. **Strict Schema Compliance:** Every item in `executions` MUST use the exact `tool_slug` and
+               provide `arguments` that strictly match the `input_schema` returned by `SEARCH_TOOLS`.
+               Never guess or fabricate tool slugs or parameter names.
+            2. **Parallel vs. Sequential Chaining:**
+               - **Independent Calls:** Group independent tool calls (such as fetching prerequisites from
+                 multiple services or running parallel lookups) into a single `MULTI_EXECUTE_TOOLS` call.
+               - **Dependent Calls (Data Dependencies):** If Tool B requires an output from Tool A
+                 (e.g., `channel_id` returned by `list_channels`), execute Tool A first, inspect its response,
+                 and then call `MULTI_EXECUTE_TOOLS` for Tool B in the next turn.
+            3. **Partial Failure Handling:** Each tool execution in the batch is isolated and returns its own
+               `status` (`"success"`, `"validation_error"`, or `"error"`).
+               - If an item returns `"validation_error"`, read the error details, fix the missing/invalid
+                 arguments according to the tool's `input_schema`, and retry only the failed tool."""
         ),
         input_schema=MULTI_EXECUTE_TOOLS_SCHEMA,
     )
@@ -57,12 +88,16 @@ def get_multi_execute_tool_definition() -> types.Tool:
 class ToolExecutionItem(BaseModel):
     """Single tool execution specification for MULTI_EXECUTE_TOOLS."""
 
-    tool_slug: str
+    model_config = ConfigDict(extra="forbid")
+
+    tool_slug: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
     arguments: dict[str, Any] = Field(default_factory=dict)
 
 
 class MultiExecuteToolsInput(BaseModel):
     """Pydantic validation schema for MULTI_EXECUTE_TOOLS arguments."""
+
+    model_config = ConfigDict(extra="forbid")
 
     executions: list[ToolExecutionItem] = Field(..., min_length=1)
 

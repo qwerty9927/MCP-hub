@@ -155,13 +155,25 @@ Strict unidirectional dependency flow:
 
 ### Agent-Driven Meta-Tool Architecture (SEARCH_TOOLS & MULTI_EXECUTE_TOOLS)
 - **Design Philosophy**: Keep tools atomic; the upstream Agent is the planner. The hub provides pure discovery and parallel dispatch without backend execution planning.
+- **Strict Schema & Runtime Enforcement**:
+  - Both schemas enforce `"additionalProperties": False` and runtime Pydantic validation uses `model_config = ConfigDict(extra="forbid")` to reject unadvertised/hallucinated parameters.
+  - Tool descriptions are cleaned with `inspect.cleandoc(...)` to eliminate leading indentation whitespace and preserve prompt tokens for upstream LLM contexts.
 - **Pure Discovery (`app/mcp/search_tools.py`)**:
-  - `SEARCH_TOOLS` accepts atomic queries (`queries: list[str]`) and `top_k: int = 5`.
-  - Scores tools across names, descriptions, and JSON schema property names / descriptions with token matching and substring boosting.
+  - `SEARCH_TOOLS` accepts atomic queries (`queries: list[str]` with `1..256` character bounds and whitespace trimming) and `top_k: int = 5` (`1..20`).
+  - Agent Operating Guidelines embedded in tool description instruct LLMs to:
+    1. Emit 1 query per intended action.
+    2. Proactively search for hidden prerequisites (e.g., ID lookups before mutations).
+    3. Normalize queries without PII or long values.
+    4. Use English verbs (`list`, `get`, `search`, `create`, `update`, `delete`, `send`).
+  - Relevance scoring evaluates names, descriptions, and JSON schema property names / descriptions with token matching and substring boosting.
   - Automatically excludes `META_TOOL_NAMES` from discovery candidates to avoid self-recursion.
   - Deduplicates matches across queries preserving ranking order.
 - **Parallel Dispatcher (`app/mcp/multi_execute_tools.py`)**:
-  - `MULTI_EXECUTE_TOOLS` accepts `executions: list[{"tool_slug": str, "arguments": dict[str, Any]}]`.
+  - `MULTI_EXECUTE_TOOLS` accepts `executions: list[{"tool_slug": str, "arguments": dict[str, Any]}]` (`tool_slug` min length 1, `arguments` defaulting to `{}`).
+  - Agent Execution Guidelines instruct LLMs:
+    1. Strictly conform `arguments` to the target tool's `input_schema` discovered via `SEARCH_TOOLS`.
+    2. Batch independent calls together; do NOT batch data-dependent calls (execute Tool A, inspect its response, then call Tool B in the next turn).
+    3. Isolate partial failures and retry only items returning `"validation_error"`.
   - Dispatches calls concurrently via `asyncio.gather(*tasks)` routing through `ToolRouterService.execute_mcp_tool`.
   - Complies strictly with the AnyIO Cancel Scope Rule (routes through `ConnectionManager` `SessionWorker`).
   - Preserves argument validation and `ExecutionRepositoryAbstract` audit logging.
