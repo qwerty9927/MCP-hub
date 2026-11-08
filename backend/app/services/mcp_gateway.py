@@ -25,6 +25,7 @@ from app.core.constants.meta_tools import (
 from app.core.exceptions import BadRequestError, NotFoundError, ValidationError
 from app.core.logging import logger
 from app.helpers.text import slugify
+from app.infrastructure.repositories.session_repo import SessionRepositoryAbstract
 from app.mcp.multi_execute_tools import (
     MULTI_EXECUTE_TOOLS_SCHEMA,
     get_multi_execute_tool_definition,
@@ -79,6 +80,20 @@ class MCPGatewayProxyASGI:
 
     async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
         session_manager = self.gateway_service.session_manager
+
+        # Intercept DELETE requests to mark sessions completed
+        if scope.get("type") == "http" and scope.get("method") == "DELETE":
+            session_id = None
+            for name, val in scope.get("headers", []):
+                if name.lower() == b"mcp-session-id":
+                    session_id = val.decode("utf-8", errors="ignore")
+                    break
+            if session_id and self.gateway_service.session_repo:
+                try:
+                    await self.gateway_service.session_repo.update_status(session_id, "completed")
+                except Exception as exc:
+                    logger.warning(f"Could not update session status on DELETE: {exc}")
+
         await session_manager.asgi_app(scope, receive, send)
 
 
@@ -91,11 +106,13 @@ class MCPGatewayService:
         tool_catalog: ToolCatalogService,
         connection_manager: ConnectionManager,
         tool_router: ToolRouterService,
+        session_repository: SessionRepositoryAbstract | None = None,
     ) -> None:
         self.server_registry = server_registry
         self.tool_catalog = tool_catalog
         self.connection_manager = connection_manager
         self.tool_router = tool_router
+        self.session_repo = session_repository
 
         self._tool_map: dict[str, GatewayToolMapping] = {}
         self._active_sessions: set[ServerSession] = set()
@@ -239,6 +256,9 @@ class MCPGatewayService:
         # Track active client session for list_changed notifications
         if hasattr(ctx, "session") and ctx.session is not None:
             self._active_sessions.add(ctx.session)
+            conn = getattr(ctx.session, "_connection", None)
+            if conn and isinstance(getattr(conn, "session_id", None), str):
+                await self._ensure_session_registered(ctx, conn.session_id)
 
         # Refresh downstream tool mappings dynamically
         await self.refresh_tool_mappings()
@@ -270,6 +290,34 @@ class MCPGatewayService:
         mapping = self._tool_map.get(tool_name)
         return mapping.input_schema if mapping else None
 
+    async def _ensure_session_registered(self, ctx: Any, session_id: str) -> None:
+        """Register or update an active session discovered from MCP client stream."""
+        if not self.session_repo:
+            return
+        title = None
+        metadata = None
+        try:
+            conn = getattr(getattr(ctx, "session", None), "_connection", None)
+            if conn and conn.client_params and conn.client_params.client_info:
+                info = conn.client_params.client_info
+                title = f"{info.name} ({session_id[:8]})"
+                metadata = {
+                    "client_name": info.name,
+                    "client_version": info.version,
+                    "protocol_version": getattr(conn, "protocol_version", None),
+                }
+        except Exception:
+            pass
+
+        try:
+            await self.session_repo.get_or_create(
+                session_id=session_id,
+                title=title,
+                metadata=metadata,
+            )
+        except Exception as exc:
+            logger.warning(f"Could not register session '{session_id}': {exc}")
+
     async def handle_call_tool(
         self,
         ctx: Any,
@@ -279,13 +327,23 @@ class MCPGatewayService:
         if not self._tool_map:
             await self.refresh_tool_mappings()
 
+        session_id = None
+        conn = getattr(getattr(ctx, "session", None), "_connection", None)
+        if conn and isinstance(getattr(conn, "session_id", None), str):
+            session_id = conn.session_id
+            await self._ensure_session_registered(ctx, session_id)
+
         if params.name == SEARCH_TOOLS_NAME:
             return self._handle_search_tools_call(params.arguments)
 
         if params.name == MULTI_EXECUTE_TOOLS_NAME:
-            return await self._handle_multi_execute_tools_call(params.arguments)
+            return await self._handle_multi_execute_tools_call(
+                params.arguments, session_id=session_id
+            )
 
-        return await self._handle_downstream_tool_call(params.name, params.arguments)
+        return await self._handle_downstream_tool_call(
+            params.name, params.arguments, session_id=session_id
+        )
 
     def _handle_search_tools_call(
         self,
@@ -332,6 +390,7 @@ class MCPGatewayService:
     async def _handle_multi_execute_tools_call(
         self,
         arguments: dict[str, Any] | None,
+        session_id: str | None = None,
     ) -> types.CallToolResult:
         """Handle execution of the MULTI_EXECUTE_TOOLS meta-tool."""
         try:
@@ -340,6 +399,7 @@ class MCPGatewayService:
                 tool_map=self._tool_map,
                 tool_router=self.tool_router,
                 server_registry=self.server_registry,
+                session_id=session_id,
             )
             return types.CallToolResult(
                 is_error=False,
@@ -385,6 +445,7 @@ class MCPGatewayService:
         self,
         tool_name: str,
         arguments: dict[str, Any] | None,
+        session_id: str | None = None,
     ) -> types.CallToolResult:
         """Route tool invocation to downstream MCP server via ToolRouterService."""
         mapping = await self._resolve_tool_mapping(tool_name)
@@ -423,10 +484,15 @@ class MCPGatewayService:
                 f"Gateway forwarding tool '{tool_name}' -> downstream server '{mapping.server_name}' "
                 f"({mapping.server_id}) tool '{mapping.original_tool_name}'"
             )
+            kwargs = {}
+            if session_id and isinstance(session_id, str):
+                kwargs["session_id"] = session_id
+
             return await self.tool_router.execute_mcp_tool(
                 server_id=mapping.server_id,
                 tool_name=mapping.original_tool_name,
                 arguments=arguments or {},
+                **kwargs,
             )
         except ValidationError as err:
             logger.warning(f"Validation failure executing '{tool_name}': {err.message}")

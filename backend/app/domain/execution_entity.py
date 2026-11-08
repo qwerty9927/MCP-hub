@@ -20,3 +20,7 @@ class ExecutionEntity:
     executed_at: datetime
     error_message: str | None = None
     response: dict[str, Any] | list[Any] | None = None
+    session_id: str | None = None
+    status: str = "completed"
+    started_at: datetime | None = None
+    completed_at: datetime | None = None

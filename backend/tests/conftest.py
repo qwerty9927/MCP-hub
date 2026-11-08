@@ -26,6 +26,7 @@ from app.core.config import get_settings  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models.execution_model import ExecutionModel  # noqa: E402
 from app.models.server_model import ServerModel  # noqa: E402
+from app.models.session_model import SessionModel  # noqa: E402
 from app.models.tool_model import ToolModel  # noqa: E402
 
 # Configure test engine with NullPool to prevent event loop cross-task issues in pytest-asyncio.
@@ -57,6 +58,7 @@ async def cleanup_dependencies():
     async with db_module.async_session_factory() as session:
         await session.execute(delete(ToolModel))
         await session.execute(delete(ExecutionModel))
+        await session.execute(delete(SessionModel))
         await session.execute(delete(ServerModel))
         await session.commit()
 

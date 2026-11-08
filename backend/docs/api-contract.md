@@ -599,3 +599,177 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())
 ```
+
+---
+
+## 7. Session Explorer Endpoints
+
+### 7.1 List Sessions
+`GET /api/v1/sessions`
+
+Retrieve existing MCP client sessions with pagination, search, and status filtering.
+
+#### Query Parameters:
+- `page` (integer, default: 1): Page number (>= 1).
+- `page_size` (integer, default: 20): Items per page (1 to 100).
+- `search` (string, optional): Search term matching session ID or title.
+- `status` (string, optional): Filter by lifecycle status (`active`, `completed`, `failed`).
+
+#### Response Body (`200 OK`):
+```json
+{
+  "items": [
+    {
+      "id": "7f9a12c4e5b647d8a9b0c1d2e3f4a5b6",
+      "title": "claude-desktop (7f9a12c4)",
+      "status": "active",
+      "created_at": "2026-11-08T10:15:30.000Z",
+      "last_activity_at": "2026-11-08T10:20:00.000Z",
+      "total_tool_calls": 12
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "page_size": 20,
+  "total_pages": 1
+}
+```
+
+### 7.2 Get Session Details
+`GET /api/v1/sessions/{session_id}`
+
+Retrieve a specific session by ID including aggregated tool execution metrics and client metadata.
+
+#### Path Parameters:
+- `session_id` (string): The 32-hex or 36-UUID string identifying the session.
+
+#### Response Body (`200 OK`):
+```json
+{
+  "id": "7f9a12c4e5b647d8a9b0c1d2e3f4a5b6",
+  "title": "claude-desktop (7f9a12c4)",
+  "metadata": {
+    "client_name": "claude-desktop",
+    "client_version": "0.7.0",
+    "protocol_version": "2024-11-05"
+  },
+  "status": "active",
+  "created_at": "2026-11-08T10:15:30.000Z",
+  "last_activity_at": "2026-11-08T10:20:00.000Z",
+  "total_tool_calls": 12,
+  "successful_tool_calls": 10,
+  "failed_tool_calls": 2
+}
+```
+
+### 7.3 List Session Tool Calls
+`GET /api/v1/sessions/{session_id}/tool-calls`
+
+Retrieve the chronological tool call execution history for a session.
+
+#### Query Parameters:
+- `page` (integer, default: 1): Page number (>= 1).
+- `page_size` (integer, default: 20): Items per page (1 to 100).
+- `sort_by` (string, default: `created_at`): Sort field (`created_at`, `started_at`, `completed_at`, `duration_ms`, `server_name`, `tool_name`, `status`).
+- `order` (string, default: `asc`): Sort direction (`asc`, `desc`).
+- `status` (string, optional): Filter by status (`running`, `completed`, `failed`).
+- `server_name` (string, optional): Filter by server name (case-insensitive substring).
+- `tool_name` (string, optional): Filter by tool name (case-insensitive substring).
+
+#### Response Body (`200 OK`):
+```json
+{
+  "items": [
+    {
+      "id": "c3d4e5f6-a7b8-4901-8234-567890abcdef",
+      "session_id": "7f9a12c4e5b647d8a9b0c1d2e3f4a5b6",
+      "server_name": "math_server",
+      "tool_name": "calculate",
+      "status": "completed",
+      "started_at": "2026-11-08T10:16:00.000Z",
+      "completed_at": "2026-11-08T10:16:00.025Z",
+      "duration_ms": 25.4,
+      "error_summary": null,
+      "arguments": {
+        "expression": "10 * 5 + 2"
+      },
+      "response": {
+        "content": [
+          {
+            "type": "text",
+            "text": "52"
+          }
+        ]
+      }
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "page_size": 20,
+  "total_pages": 1
+}
+```
+
+### 7.4 Get Tool Call Details
+`GET /api/v1/sessions/{session_id}/tool-calls/{call_id}`
+
+Retrieve a specific tool call's detailed record within a session.
+
+#### Path Parameters:
+- `session_id` (string): The session ID.
+- `call_id` (UUID): The tool call execution UUID.
+
+#### Response Body (`200 OK`):
+```json
+{
+  "id": "c3d4e5f6-a7b8-4901-8234-567890abcdef",
+  "session_id": "7f9a12c4e5b647d8a9b0c1d2e3f4a5b6",
+  "server_name": "math_server",
+  "tool_name": "calculate",
+  "status": "completed",
+  "started_at": "2026-11-08T10:16:00.000Z",
+  "completed_at": "2026-11-08T10:16:00.025Z",
+  "duration_ms": 25.4,
+  "error_summary": null,
+  "arguments": {
+    "expression": "10 * 5 + 2"
+  },
+  "response": {
+    "content": [
+      {
+        "type": "text",
+        "text": "52"
+      }
+    ]
+  }
+}
+```
+
+### 7.5 Explicitly Create Session
+`POST /api/v1/sessions`
+
+Explicitly register a new session (e.g., from web frontend or external orchestrator).
+
+#### Request Body:
+```json
+{
+  "title": "Agent Debugging Session #1",
+  "metadata": {
+    "initiator": "user-portal",
+    "user_id": "usr_12345"
+  }
+}
+```
+
+#### Response Body (`201 Created`):
+```json
+{
+  "id": "a1b2c3d4e5f647d8a9b0c1d2e3f4a5b6",
+  "title": "Agent Debugging Session #1",
+  "status": "active",
+  "created_at": "2026-11-08T10:30:00.000Z",
+  "last_activity_at": "2026-11-08T10:30:00.000Z",
+  "total_tool_calls": 0
+}
+```
+

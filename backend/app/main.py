@@ -13,6 +13,7 @@ from starlette.routing import Route
 from app.api.dependencies import get_connection_manager, get_mcp_gateway, get_tool_catalog
 from app.api.v1.executions_route import router as executions_router
 from app.api.v1.servers_route import router as servers_router
+from app.api.v1.sessions_route import router as sessions_router
 from app.api.v1.system_route import router as system_router
 from app.api.v1.tools_route import router as tools_router
 from app.core.config import get_settings
@@ -163,6 +164,7 @@ def create_app() -> FastAPI:
     v1_router.include_router(servers_router)
     v1_router.include_router(tools_router)
     v1_router.include_router(executions_router)
+    v1_router.include_router(sessions_router)
     v1_router.include_router(system_router, prefix="/system")
 
     app.include_router(v1_router)

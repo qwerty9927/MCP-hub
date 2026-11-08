@@ -15,6 +15,7 @@ from app.core.logging import get_correlation_id
 from app.domain.execution_entity import ExecutionEntity
 from app.helpers.validation import validate_tool_arguments
 from app.infrastructure.repositories.execution_repo import ExecutionRepositoryAbstract
+from app.infrastructure.repositories.session_repo import SessionRepositoryAbstract
 from app.schemas.tool import ToolExecuteResponse
 from app.services.connection_manager import ConnectionManager
 from app.services.server_registry import ServerRegistryService
@@ -49,11 +50,13 @@ class ToolRouterService:
         connection_manager: ConnectionManager,
         tool_catalog: ToolCatalogService,
         execution_repository: ExecutionRepositoryAbstract,
+        session_repository: SessionRepositoryAbstract | None = None,
     ) -> None:
         self.server_registry = server_registry
         self.connection_manager = connection_manager
         self.tool_catalog = tool_catalog
         self.execution_repository = execution_repository
+        self.session_repository = session_repository
 
     async def execute_mcp_tool(
         self,
@@ -62,6 +65,7 @@ class ToolRouterService:
         arguments: dict[str, Any],
         timeout: float | None = None,
         execution_id: UUID | None = None,
+        session_id: str | None = None,
     ) -> mcp_types.CallToolResult:
         """Route and execute a tool call, returning the native CallToolResult while logging execution."""
         exec_id = execution_id or uuid4()
@@ -103,6 +107,9 @@ class ToolRouterService:
             duration_ms = (time.perf_counter() - start_time) * 1000
             response_payload = _extract_response_content(result)
 
+            completed_at = datetime.now(UTC)
+            call_status = "failed" if result.is_error else "completed"
+
             # Record execution log
             error_msg = None
             if result.is_error:
@@ -126,11 +133,20 @@ class ToolRouterService:
                 executed_at=now,
                 error_message=error_msg,
                 response=response_payload,
+                session_id=session_id,
+                status=call_status,
+                started_at=now,
+                completed_at=completed_at,
             )
             await self.execution_repository.create(log_record)
+
+            if session_id and self.session_repository:
+                await self.session_repository.update_activity(session_id, completed_at)
+
             return result
 
         except Exception as exc:
+            completed_at = datetime.now(UTC)
             duration_ms = (time.perf_counter() - start_time) * 1000
             log_record = ExecutionEntity(
                 id=exec_id,
@@ -143,8 +159,16 @@ class ToolRouterService:
                 executed_at=now,
                 error_message=str(exc),
                 response=None,
+                session_id=session_id,
+                status="failed",
+                started_at=now,
+                completed_at=completed_at,
             )
             await self.execution_repository.create(log_record)
+
+            if session_id and self.session_repository:
+                await self.session_repository.update_activity(session_id, completed_at)
+
             raise
 
     async def execute_tool(
@@ -153,6 +177,7 @@ class ToolRouterService:
         tool_name: str,
         arguments: dict[str, Any],
         timeout: float | None = None,
+        session_id: str | None = None,
     ) -> ToolExecuteResponse:
         """Route and execute a tool call with validation, monitoring, and audit logging."""
         execution_id = uuid4()
@@ -165,6 +190,7 @@ class ToolRouterService:
             arguments=arguments,
             timeout=timeout,
             execution_id=execution_id,
+            session_id=session_id,
         )
 
         duration_ms = (time.perf_counter() - start_time) * 1000

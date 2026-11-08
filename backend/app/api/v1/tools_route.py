@@ -103,8 +103,13 @@ async def execute_tool(
     router_service: Annotated[ToolRouterService, Depends(get_tool_router_service)],
 ) -> ToolExecuteResponse:
     """Validate arguments and invoke the specified MCP tool on the target server."""
+    kwargs = {}
+    if payload.session_id is not None:
+        kwargs["session_id"] = payload.session_id
+
     return await router_service.execute_tool(
         server_id=server_id,
         tool_name=tool_name,
         arguments=payload.arguments,
+        **kwargs,
     )

@@ -107,6 +107,7 @@ async def handle_multi_execute_tools(
     tool_map: dict[str, Any],
     tool_router: Any,
     server_registry: Any,
+    session_id: str | None = None,
 ) -> dict[str, Any]:
     """Execute MULTI_EXECUTE_TOOLS parallel dispatcher with isolated failure handling."""
     try:
@@ -153,10 +154,15 @@ async def handle_multi_execute_tools(
                     "error": f"Target server '{mapping.server_name}' is currently disabled",
                 }
 
+            kwargs = {}
+            if session_id and isinstance(session_id, str):
+                kwargs["session_id"] = session_id
+
             result = await tool_router.execute_mcp_tool(
                 server_id=server_id_val,
                 tool_name=mapping.original_tool_name,
                 arguments=item.arguments,
+                **kwargs,
             )
 
             if result.is_error:

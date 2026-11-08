@@ -4,10 +4,12 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.enums.session_enum import ToolCallStatus
 from app.domain.execution_entity import ExecutionEntity
+from app.domain.session_entity import ToolCallEntity
 from app.models.base_model import Base
 
 
@@ -36,9 +38,24 @@ class ExecutionModel(Base):
         nullable=False,
     )
     response: Mapped[dict[str, Any] | list[Any] | None] = mapped_column(JSON, nullable=True)
+    session_id: Mapped[str | None] = mapped_column(
+        String(64),
+        ForeignKey("mcp_sessions.id", ondelete="CASCADE"),
+        index=True,
+        nullable=True,
+    )
+    status: Mapped[str] = mapped_column(String(20), default="completed", index=True, nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    # Relationship to parent server
+    __table_args__ = (
+        Index("ix_tool_executions_session_started_at", "session_id", "started_at"),
+        Index("ix_tool_executions_session_status", "session_id", "status"),
+    )
+
+    # Relationships
     server = relationship("ServerModel", back_populates="executions")
+    session = relationship("SessionModel", back_populates="executions")
 
     def to_domain(self) -> ExecutionEntity:
         """Convert database model to domain entity."""
@@ -52,6 +69,31 @@ class ExecutionModel(Base):
             error_message=self.error_message,
             duration_ms=self.duration_ms,
             executed_at=self.executed_at,
+            response=self.response,
+            session_id=self.session_id,
+            status=self.status,
+            started_at=self.started_at,
+            completed_at=self.completed_at,
+        )
+
+    def to_tool_call_domain(self) -> ToolCallEntity:
+        """Convert database model to ToolCallEntity for session explorer."""
+        status_val = (
+            ToolCallStatus(self.status)
+            if self.status in ToolCallStatus._value2member_map_
+            else (ToolCallStatus.FAILED if self.is_error else ToolCallStatus.COMPLETED)
+        )
+        return ToolCallEntity(
+            id=UUID(self.id),
+            session_id=self.session_id,
+            server_name=self.server_name,
+            tool_name=self.tool_name,
+            status=status_val,
+            started_at=self.started_at or self.executed_at,
+            completed_at=self.completed_at,
+            duration_ms=self.duration_ms,
+            error_summary=self.error_message,
+            arguments=self.arguments or {},
             response=self.response,
         )
 
@@ -69,4 +111,8 @@ class ExecutionModel(Base):
             duration_ms=entity.duration_ms,
             executed_at=entity.executed_at,
             response=entity.response,
+            session_id=str(entity.session_id) if entity.session_id else None,
+            status=entity.status or ("failed" if entity.is_error else "completed"),
+            started_at=entity.started_at or entity.executed_at,
+            completed_at=entity.completed_at,
         )
