@@ -1,5 +1,6 @@
 """Unit tests for ToolRouterService."""
 
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import mcp.types as mcp_types
@@ -8,8 +9,8 @@ import pytest
 from app.core.enums.server_enum import ServerHealthStatus, TransportType
 from app.core.exceptions import BadRequestError, ValidationError
 from app.domain.server_entity import ServerEntity
-from app.infrastructure.repositories.execution_repo import InMemoryExecutionRepository
-from app.infrastructure.repositories.server_repo import InMemoryServerRepository
+from app.infrastructure.repositories.execution_repo import ExecutionRepositoryAbstract
+from app.infrastructure.repositories.server_repo import ServerRepositoryAbstract
 from app.schemas.connection import StdioConfig
 from app.services.connection_manager import ConnectionManager
 from app.services.server_registry import ServerRegistryService
@@ -57,10 +58,22 @@ class MockConnectionManager(ConnectionManager):
 
 
 @pytest.fixture
-async def tool_router_fixture():
-    server_repo = InMemoryServerRepository()
-    exec_repo = InMemoryExecutionRepository()
-    server_reg = ServerRegistryService(server_repo)
+def mock_server_repo() -> AsyncMock:
+    repo = AsyncMock(spec=ServerRepositoryAbstract)
+    repo.update.side_effect = lambda s: s
+    return repo
+
+
+@pytest.fixture
+def mock_exec_repo() -> AsyncMock:
+    repo = AsyncMock(spec=ExecutionRepositoryAbstract)
+    repo.create.side_effect = lambda e: e
+    return repo
+
+
+@pytest.fixture
+def tool_router_fixture(mock_server_repo: AsyncMock, mock_exec_repo: AsyncMock):
+    server_reg = ServerRegistryService(mock_server_repo)
     conn_mgr = MockConnectionManager()
     catalog = ToolCatalogService()
 
@@ -72,21 +85,21 @@ async def tool_router_fixture():
         enabled=True,
         health_status=ServerHealthStatus.HEALTHY,
     )
-    await server_repo.create(server)
-    await catalog.refresh_server_tools(server, conn_mgr)
+    mock_server_repo.get_by_id.return_value = server
 
     router = ToolRouterService(
         server_registry=server_reg,
         connection_manager=conn_mgr,
         tool_catalog=catalog,
-        execution_repository=exec_repo,
+        execution_repository=mock_exec_repo,
     )
 
-    return router, server, exec_repo
+    return router, server, mock_exec_repo, catalog, conn_mgr
 
 
 async def test_execute_tool_success(tool_router_fixture):
-    router, server, exec_repo = tool_router_fixture
+    router, server, mock_exec_repo, catalog, conn_mgr = tool_router_fixture
+    await catalog.refresh_server_tools(server, conn_mgr)
 
     resp = await router.execute_tool(
         server_id=server.id,
@@ -99,18 +112,19 @@ async def test_execute_tool_success(tool_router_fixture):
     assert resp.duration_ms >= 0
 
     # Verify execution audit record was created
-    executions, total = await exec_repo.list()
-    assert total == 1
-    assert executions[0].tool_name == "add"
-    assert executions[0].is_error is False
-    assert executions[0].response == {
+    mock_exec_repo.create.assert_awaited_once()
+    saved = mock_exec_repo.create.call_args[0][0]
+    assert saved.tool_name == "add"
+    assert saved.is_error is False
+    assert saved.response == {
         "content": [{"type": "text", "text": "35"}],
         "structured_content": {"result": 35},
     }
 
 
 async def test_execute_tool_argument_validation_failure(tool_router_fixture):
-    router, server, _ = tool_router_fixture
+    router, server, mock_exec_repo, catalog, conn_mgr = tool_router_fixture
+    await catalog.refresh_server_tools(server, conn_mgr)
 
     # Missing required argument 'b'
     with pytest.raises(ValidationError) as exc_info:
@@ -120,10 +134,11 @@ async def test_execute_tool_argument_validation_failure(tool_router_fixture):
             arguments={"a": 10},
         )
     assert "Invalid arguments" in str(exc_info.value)
+    mock_exec_repo.create.assert_not_called()
 
 
 async def test_execute_tool_on_disabled_server(tool_router_fixture):
-    router, server, _ = tool_router_fixture
+    router, server, mock_exec_repo, _, _ = tool_router_fixture
     server.enabled = False
 
     with pytest.raises(BadRequestError):
@@ -132,3 +147,4 @@ async def test_execute_tool_on_disabled_server(tool_router_fixture):
             tool_name="add",
             arguments={"a": 1, "b": 2},
         )
+    mock_exec_repo.create.assert_not_called()

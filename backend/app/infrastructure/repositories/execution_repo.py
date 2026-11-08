@@ -1,4 +1,3 @@
-import asyncio
 from abc import ABC, abstractmethod
 from uuid import UUID
 
@@ -96,46 +95,3 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
             result = await session.execute(stmt)
             models = result.scalars().all()
             return [m.to_domain() for m in models], total
-
-
-class InMemoryExecutionRepository(ExecutionRepositoryAbstract):
-    """In-memory implementation of ExecutionRepositoryAbstract."""
-
-    def __init__(self) -> None:
-        self._executions: dict[UUID, ExecutionEntity] = {}
-        self._lock = asyncio.Lock()
-
-    async def create(self, execution: ExecutionEntity) -> ExecutionEntity:
-        async with self._lock:
-            self._executions[execution.id] = execution
-            return execution
-
-    async def get_by_id(self, execution_id: UUID) -> ExecutionEntity | None:
-        async with self._lock:
-            return self._executions.get(execution_id)
-
-    async def list(
-        self,
-        server_id: UUID | None = None,
-        tool_name: str | None = None,
-        is_error: bool | None = None,
-        page: int = 1,
-        page_size: int = 20,
-    ) -> tuple[list[ExecutionEntity], int]:
-        async with self._lock:
-            items = list(self._executions.values())
-
-        if server_id is not None:
-            items = [e for e in items if e.server_id == server_id]
-        if tool_name is not None:
-            items = [e for e in items if tool_name.lower() in e.tool_name.lower()]
-        if is_error is not None:
-            items = [e for e in items if e.is_error == is_error]
-
-        # Sort latest first
-        items.sort(key=lambda e: e.executed_at, reverse=True)
-
-        total = len(items)
-        start = (page - 1) * page_size
-        end = start + page_size
-        return items[start:end], total

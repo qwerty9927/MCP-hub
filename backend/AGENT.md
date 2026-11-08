@@ -99,9 +99,9 @@ backend/
 │   │   ├── infrastructure/
 │   │   │   ├── database.py              # Async SQLAlchemy engine, session maker, connection pooling
 │   │   │   └── repositories/            # Domain repository modules (interfaces, Postgres implementations)
-│   │   │       ├── server_repo.py       # ServerRepositoryAbstract, PostgresServerRepository, InMemoryServerRepository
-│   │   │       ├── tool_repo.py         # ToolRepositoryAbstract, PostgresToolRepository, InMemoryToolRepository
-│   │   │       └── execution_repo.py    # ExecutionRepositoryAbstract, PostgresExecutionRepository, InMemoryExecutionRepository
+│   │   │       ├── server_repo.py       # ServerRepositoryAbstract, PostgresServerRepository
+│   │   │       ├── tool_repo.py         # ToolRepositoryAbstract, PostgresToolRepository
+│   │   │       └── execution_repo.py    # ExecutionRepositoryAbstract, PostgresExecutionRepository
 │   │   ├── mcp/                         # Upstream MCP protocol extensions & meta-tools
 │   │   │   ├── search_tools.py          # SEARCH_TOOLS discovery handler & relevance scoring
 │   │   │   └── multi_execute_tools.py   # MULTI_EXECUTE_TOOLS parallel dispatcher & failure isolator

@@ -142,9 +142,9 @@ backend/
 │   └── infrastructure/
 │       ├── database.py                  # Database connection & session setup
 │       └── repositories/
-│           ├── server_repo.py           # ServerRepositoryAbstract, Postgres & InMemory implementations
-│           ├── tool_repo.py             # ToolRepositoryAbstract, Postgres & InMemory implementations
-│           └── execution_repo.py        # ExecutionRepositoryAbstract, Postgres & InMemory implementations
+│           ├── server_repo.py           # ServerRepositoryAbstract, PostgresServerRepository
+│           ├── tool_repo.py             # ToolRepositoryAbstract, PostgresToolRepository
+│           └── execution_repo.py        # ExecutionRepositoryAbstract, PostgresExecutionRepository
 ├── demo_server/
 │   └── server.py                        # Built-in demo MCP server (3 tools)
 ├── docs/

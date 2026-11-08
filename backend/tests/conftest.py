@@ -19,10 +19,7 @@ if str(backend_dir) not in sys.path:
 import app.infrastructure.database as db_module  # noqa: E402
 from app.api.dependencies import (  # noqa: E402
     _connection_manager,
-    _execution_repo,
-    _server_repo,
     _tool_catalog,
-    _tool_repo,
     get_mcp_gateway,
 )
 from app.core.config import get_settings  # noqa: E402
@@ -57,20 +54,11 @@ async def cleanup_dependencies():
     # Cleanup state
     await _connection_manager.shutdown()
 
-    if hasattr(_server_repo, "_servers"):
-        _server_repo._servers.clear()
-    else:
-        async with db_module.async_session_factory() as session:
-            await session.execute(delete(ToolModel))
-            await session.execute(delete(ExecutionModel))
-            await session.execute(delete(ServerModel))
-            await session.commit()
-
-    if hasattr(_execution_repo, "_executions"):
-        _execution_repo._executions.clear()
-
-    if hasattr(_tool_repo, "_tools"):
-        _tool_repo._tools.clear()
+    async with db_module.async_session_factory() as session:
+        await session.execute(delete(ToolModel))
+        await session.execute(delete(ExecutionModel))
+        await session.execute(delete(ServerModel))
+        await session.commit()
 
     _tool_catalog._tools.clear()
 
