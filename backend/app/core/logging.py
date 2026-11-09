@@ -38,7 +38,10 @@ def setup_logging() -> None:
     settings = get_settings()
     log_level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
 
-    log_format = "[%(asctime)s] [%(levelname)s] [corr_id:%(correlation_id)s] [%(name)s:%(funcName)s:%(lineno)d]: %(message)s"
+    log_format = (
+        "[%(asctime)s] [%(levelname)s] [corr_id:%(correlation_id)s] "
+        "[%(name)s:%(funcName)s:%(lineno)d]: %(message)s"
+    )
 
     formatter = logging.Formatter(log_format, datefmt="%Y-%m-%d %H:%M:%S")
 

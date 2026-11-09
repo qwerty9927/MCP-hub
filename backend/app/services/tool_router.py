@@ -85,8 +85,12 @@ class ToolRouterService:
             tool = await self.tool_catalog.get_tool(tool_name, server_id=server_id)
         except NotFoundError:
             # Refresh server tools in case it's newly connected
-            refreshed = await self.tool_catalog.refresh_server_tools(server, self.connection_manager)
-            await self.server_registry.update_health(server.id, server.health_status, len(refreshed))
+            refreshed = await self.tool_catalog.refresh_server_tools(
+                server, self.connection_manager
+            )
+            await self.server_registry.update_health(
+                server.id, server.health_status, len(refreshed)
+            )
             tool = await self.tool_catalog.get_tool(tool_name, server_id=server_id)
 
         # 3. Validate arguments against tool input schema
@@ -110,9 +114,13 @@ class ToolRouterService:
             error_msg = None
             if result.is_error:
                 text_blocks = [
-                    item.get("text") for item in response_payload.get("content", []) if item.get("type") == "text" and item.get("text")
+                    item.get("text")
+                    for item in response_payload.get("content", [])
+                    if item.get("type") == "text" and item.get("text")
                 ]
-                error_msg = "\n".join(text_blocks) if text_blocks else "Tool execution reported an error"
+                error_msg = (
+                    "\n".join(text_blocks) if text_blocks else "Tool execution reported an error"
+                )
 
             log_record = ExecutionEntity(
                 id=exec_id,

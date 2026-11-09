@@ -111,11 +111,16 @@ class PostgresServerRepository(ServerRepositoryAbstract):
                 transport_val = transport.value if hasattr(transport, "value") else str(transport)
                 stmt = stmt.where(ServerModel.transport == transport_val)
             if health_status is not None:
-                health_val = health_status.value if hasattr(health_status, "value") else str(health_status)
+                health_val = (
+                    health_status.value if hasattr(health_status, "value") else str(health_status)
+                )
                 stmt = stmt.where(ServerModel.health_status == health_val)
             if search:
                 term = f"%{search.lower()}%"
-                stmt = stmt.where(func.lower(ServerModel.name).like(term) | func.lower(ServerModel.description).like(term))
+                stmt = stmt.where(
+                    func.lower(ServerModel.name).like(term)
+                    | func.lower(ServerModel.description).like(term)
+                )
 
             # Count total
             count_stmt = select(func.count()).select_from(stmt.subquery())
@@ -124,7 +129,9 @@ class PostgresServerRepository(ServerRepositoryAbstract):
 
             # Sorting
             sort_column = getattr(ServerModel, sort_by, ServerModel.created_at)
-            stmt = stmt.order_by(sort_column.desc() if sort_order.lower() == "desc" else sort_column.asc())
+            stmt = stmt.order_by(
+                sort_column.desc() if sort_order.lower() == "desc" else sort_column.asc()
+            )
 
             # Pagination
             offset = (page - 1) * page_size
@@ -145,11 +152,21 @@ class PostgresServerRepository(ServerRepositoryAbstract):
             else:
                 model.name = server.name
                 model.description = server.description
-                model.transport = server.transport.value if hasattr(server.transport, "value") else str(server.transport)
-                model.stdio_config = server.stdio_config.model_dump() if server.stdio_config else None
+                model.transport = (
+                    server.transport.value
+                    if hasattr(server.transport, "value")
+                    else str(server.transport)
+                )
+                model.stdio_config = (
+                    server.stdio_config.model_dump() if server.stdio_config else None
+                )
                 model.http_config = server.http_config.model_dump() if server.http_config else None
                 model.enabled = server.enabled
-                model.health_status = server.health_status.value if hasattr(server.health_status, "value") else str(server.health_status)
+                model.health_status = (
+                    server.health_status.value
+                    if hasattr(server.health_status, "value")
+                    else str(server.health_status)
+                )
                 model.last_connected_at = server.last_connected_at
                 model.last_health_check_at = server.last_health_check_at
                 model.discovered_tool_count = server.discovered_tool_count

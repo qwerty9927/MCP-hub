@@ -69,7 +69,9 @@ def validate_stdio_command(command: str, args: list[str] | None = None) -> None:
                 raise ForbiddenError("Argument contains illegal null byte")
 
 
-def sanitize_environment(custom_env: dict[str, str] | None, inherit_base: bool = True) -> dict[str, str]:
+def sanitize_environment(
+    custom_env: dict[str, str] | None, inherit_base: bool = True
+) -> dict[str, str]:
     """Sanitize environment variables passed to child stdio processes.
 
     Ensures host secrets are not leaked unintentionally to child processes.

@@ -17,7 +17,10 @@ async def test_disallowed_executable_rejected(async_client: AsyncClient):
     assert response.status_code == 403
     data = response.json()
     assert "error" in data
-    assert "disallowed" in data["error"]["message"].lower() or "not in the approved" in data["error"]["message"].lower()
+    assert (
+        "disallowed" in data["error"]["message"].lower()
+        or "not in the approved" in data["error"]["message"].lower()
+    )
 
 
 async def test_command_injection_attempt_rejected(async_client: AsyncClient):

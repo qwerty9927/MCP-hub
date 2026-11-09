@@ -63,7 +63,9 @@ def upgrade() -> None:
         ["id"],
         ondelete="CASCADE",
     )
-    op.create_index(op.f("ix_tool_executions_session_id"), "tool_executions", ["session_id"], unique=False)
+    op.create_index(
+        op.f("ix_tool_executions_session_id"), "tool_executions", ["session_id"], unique=False
+    )
     op.create_index(op.f("ix_tool_executions_status"), "tool_executions", ["status"], unique=False)
     op.create_index(
         op.f("ix_tool_executions_session_started_at"),

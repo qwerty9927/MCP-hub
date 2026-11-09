@@ -1,8 +1,6 @@
 """Unit tests for SEARCH_TOOLS pure discovery meta-tool."""
 
-from dataclasses import dataclass
-from typing import Any
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 
@@ -17,6 +15,9 @@ from app.mcp.search_tools import (
     handle_search_tools,
     score_tool_match,
 )
+from dataclasses import dataclass
+from typing import Any
+from uuid import UUID
 
 
 @dataclass

@@ -14,7 +14,11 @@ def validate_tool_arguments(
     tool_name: str,
 ) -> None:
     """Validate tool execution arguments against the tool's input JSON schema."""
-    if input_schema and isinstance(input_schema, dict) and (input_schema.get("type") == "object" or "properties" in input_schema):
+    if (
+        input_schema
+        and isinstance(input_schema, dict)
+        and (input_schema.get("type") == "object" or "properties" in input_schema)
+    ):
         try:
             jsonschema.validate(instance=arguments, schema=input_schema)
         except JSONSchemaValidationError as val_err:

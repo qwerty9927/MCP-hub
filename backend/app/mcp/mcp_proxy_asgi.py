@@ -25,7 +25,9 @@ class MCPProxyASGI:
                     break
             if session_id:
                 try:
-                    await self.server.session_explorer.update_status(session_id, SessionStatus.COMPLETED)
+                    await self.server.session_explorer.update_status(
+                        session_id, SessionStatus.COMPLETED
+                    )
                 except Exception as exc:
                     logger.warning(f"Could not update session status on DELETE: {exc}")
 

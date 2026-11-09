@@ -220,7 +220,7 @@ Strict unidirectional dependency flow:
   - All `__init__.py` files across `app/` are pure package markers (empty, containing 0 re-exports or logic).
   - Internal imports must be explicit and direct to the defining submodule (e.g. `from app.domain.server_entity import ServerEntity`, `from app.infrastructure.repositories.server_repo import ServerRepositoryAbstract`).
 - **Ruff Configuration**:
-  - Max line length: `140`.
+  - Max line length: `100`.
   - Selected linters: `E` (Pycodestyle errors), `F` (Pyflakes), `I` (isort imports), `UP` (pyupgrade), `B` (flake8-bugbear), `SIM` (flake8-simplify).
   - Ignored: `E501` (line length enforced by formatter), `B008` (function calls in FastAPI argument defaults).
 

@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.routing import Route
 
-from app.api.dependencies import get_connection_manager, get_mcp_server
+from app.api.dependencies import get_connection_manager, get_mcp_server, get_tool_catalog
 from app.api.v1.executions_route import router as executions_router
 from app.api.v1.servers_route import router as servers_router
 from app.api.v1.sessions_route import router as sessions_router
@@ -91,7 +91,9 @@ def create_app() -> FastAPI:
         )
 
     @app.exception_handler(RequestValidationError)
-    async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    async def validation_exception_handler(
+        request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
         corr_id = get_correlation_id()
         errors = [
             {

@@ -82,7 +82,9 @@ class SearchToolsInput(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    queries: list[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=256)]] = Field(..., min_length=1)
+    queries: list[
+        Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=256)]
+    ] = Field(..., min_length=1)
     top_k: int = Field(default=5, ge=1, le=20)
 
 

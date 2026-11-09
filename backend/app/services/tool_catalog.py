@@ -83,7 +83,9 @@ class ToolCatalogService:
             for entity in discovered:
                 self._tools[entity.id] = entity
 
-        logger.info(f"Refreshed tool catalog for server '{server.name}' ({len(discovered)} tools discovered)")
+        logger.info(
+            f"Refreshed tool catalog for server '{server.name}' ({len(discovered)} tools discovered)"
+        )
         return discovered
 
     async def remove_server_tools(self, server_id: UUID) -> None:
@@ -125,13 +127,17 @@ class ToolCatalogService:
             if tool_name:
                 raw_items = [t for t in raw_items if t.name.lower() == tool_name.lower()]
             if status:
-                raw_items = [t for t in raw_items if t.availability_status.lower() == status.lower()]
+                raw_items = [
+                    t for t in raw_items if t.availability_status.lower() == status.lower()
+                ]
             if search:
                 q = search.lower()
                 raw_items = [
                     t
                     for t in raw_items
-                    if q in t.name.lower() or (t.description and q in t.description.lower()) or q in t.server_name.lower()
+                    if q in t.name.lower()
+                    or (t.description and q in t.description.lower())
+                    or q in t.server_name.lower()
                 ]
 
             raw_items.sort(key=lambda t: (t.server_name.lower(), t.name.lower()))
@@ -179,7 +185,9 @@ class ToolCatalogService:
 
             # 3. Match by name
             for tool in self._tools.values():
-                if tool.name.lower() == tool_id_or_name.lower() and (server_id is None or tool.server_id == server_id):
+                if tool.name.lower() == tool_id_or_name.lower() and (
+                    server_id is None or tool.server_id == server_id
+                ):
                     return tool
 
         # If not found in cache, fallback to database repository
@@ -190,7 +198,11 @@ class ToolCatalogService:
                     self._tools[db_tool.id] = db_tool
                 return db_tool
 
-        msg = f"Tool '{tool_id_or_name}' not found on server '{server_id}'" if server_id else f"Tool '{tool_id_or_name}' not found"
+        msg = (
+            f"Tool '{tool_id_or_name}' not found on server '{server_id}'"
+            if server_id
+            else f"Tool '{tool_id_or_name}' not found"
+        )
         raise NotFoundError(
             msg,
             details={

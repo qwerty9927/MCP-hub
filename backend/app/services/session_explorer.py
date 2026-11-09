@@ -57,7 +57,9 @@ class SessionExplorerService:
         if request.session_id.strip():
             return None
 
-        return await self.session_repo.init(session_id=request.session_id, title=request.title, metadata=request.metadata)
+        return await self.session_repo.init(
+            session_id=request.session_id, title=request.title, metadata=request.metadata
+        )
 
     async def list_sessions(
         self,

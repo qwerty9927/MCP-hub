@@ -24,7 +24,9 @@ async def list_tools(
     server_id: UUID | None = Query(default=None, description="Filter by server UUID"),
     tool_name: str | None = Query(default=None, description="Filter by tool name"),
     status: str | None = Query(default=None, description="Filter by availability status"),
-    search: str | None = Query(default=None, description="Search query matching name, description, or server"),
+    search: str | None = Query(
+        default=None, description="Search query matching name, description, or server"
+    ),
     page: int = Query(default=1, ge=1, description="Page number"),
     page_size: int = Query(default=20, ge=1, le=100, description="Items per page"),
 ) -> PaginatedResponse[ToolResponse]:
@@ -49,7 +51,9 @@ async def list_server_tools(
     tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog)],
     tool_name: str | None = Query(default=None, description="Filter by tool name"),
     status: str | None = Query(default=None, description="Filter by availability status"),
-    search: str | None = Query(default=None, description="Search query matching name or description"),
+    search: str | None = Query(
+        default=None, description="Search query matching name or description"
+    ),
     page: int = Query(default=1, ge=1, description="Page number"),
     page_size: int = Query(default=20, ge=1, le=100, description="Items per page"),
 ) -> PaginatedResponse[ToolResponse]:

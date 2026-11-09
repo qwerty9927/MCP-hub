@@ -30,7 +30,9 @@ def registry_service(mock_server_repo: AsyncMock) -> ServerRegistryService:
     return ServerRegistryService(repository=mock_server_repo)
 
 
-async def test_create_server_success(registry_service: ServerRegistryService, mock_server_repo: AsyncMock):
+async def test_create_server_success(
+    registry_service: ServerRegistryService, mock_server_repo: AsyncMock
+):
     mock_server_repo.get_by_name.return_value = None
     payload = ServerCreate(
         name="test-server-1",
@@ -49,7 +51,9 @@ async def test_create_server_success(registry_service: ServerRegistryService, mo
     mock_server_repo.create.assert_awaited_once()
 
 
-async def test_create_server_duplicate_name(registry_service: ServerRegistryService, mock_server_repo: AsyncMock):
+async def test_create_server_duplicate_name(
+    registry_service: ServerRegistryService, mock_server_repo: AsyncMock
+):
     mock_server_repo.get_by_name.return_value = ServerEntity(
         name="duplicate-server",
         transport=TransportType.STDIO,
@@ -66,7 +70,9 @@ async def test_create_server_duplicate_name(registry_service: ServerRegistryServ
     mock_server_repo.create.assert_not_called()
 
 
-async def test_get_server_not_found(registry_service: ServerRegistryService, mock_server_repo: AsyncMock):
+async def test_get_server_not_found(
+    registry_service: ServerRegistryService, mock_server_repo: AsyncMock
+):
     mock_server_repo.get_by_id.return_value = None
 
     with pytest.raises(NotFoundError):
@@ -97,7 +103,9 @@ async def test_update_server(registry_service: ServerRegistryService, mock_serve
     mock_server_repo.update.assert_awaited_once()
 
 
-async def test_list_servers_filtering_and_pagination(registry_service: ServerRegistryService, mock_server_repo: AsyncMock):
+async def test_list_servers_filtering_and_pagination(
+    registry_service: ServerRegistryService, mock_server_repo: AsyncMock
+):
     items = [
         ServerEntity(
             id=uuid4(),

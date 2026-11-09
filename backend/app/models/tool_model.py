@@ -28,7 +28,9 @@ class ToolModel(Base):
     name: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     input_schema: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
-    availability_status: Mapped[str] = mapped_column(String(20), default="AVAILABLE", index=True, nullable=False)
+    availability_status: Mapped[str] = mapped_column(
+        String(20), default="AVAILABLE", index=True, nullable=False
+    )
     last_discovered_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),

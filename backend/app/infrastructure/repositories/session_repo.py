@@ -121,7 +121,11 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
                 return None
 
             session, total, successful, failed = result
-            status_val = SessionStatus(session.status) if session.status in SessionStatus._value2member_map_ else SessionStatus.ACTIVE
+            status_val = (
+                SessionStatus(session.status)
+                if session.status in SessionStatus._value2member_map_
+                else SessionStatus.ACTIVE
+            )
             return SessionDetailEntity(
                 id=session.id,
                 status=status_val,
@@ -179,7 +183,11 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
 
     async def update_status(self, session_id: str, status: str) -> bool:
         async with db_module.async_session_factory() as db_session:
-            stmt = update(SessionModel).where(SessionModel.id == session_id).values(status=status, last_activity_at=datetime.now(UTC))
+            stmt = (
+                update(SessionModel)
+                .where(SessionModel.id == session_id)
+                .values(status=status, last_activity_at=datetime.now(UTC))
+            )
             await db_session.execute(stmt)
             await db_session.commit()
 

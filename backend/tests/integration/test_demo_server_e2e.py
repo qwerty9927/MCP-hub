@@ -6,7 +6,9 @@ from pathlib import Path
 from httpx import AsyncClient
 
 # Absolute path to demo server script
-DEMO_SERVER_SCRIPT = str(Path(__file__).resolve().parent.parent.parent / "demo_server" / "server.py")
+DEMO_SERVER_SCRIPT = str(
+    Path(__file__).resolve().parent.parent.parent / "demo_server" / "server.py"
+)
 
 
 async def test_system_endpoints(async_client: AsyncClient):

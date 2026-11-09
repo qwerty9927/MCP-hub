@@ -117,7 +117,9 @@ async def test_session_explorer_api_lifecycle(async_client: AsyncClient):
     missing_session_resp = await async_client.get(f"/api/v1/sessions/{fake_session}")
     assert missing_session_resp.status_code == 404
 
-    missing_call_resp = await async_client.get(f"/api/v1/sessions/{session_id}/tool-calls/{uuid4()}")
+    missing_call_resp = await async_client.get(
+        f"/api/v1/sessions/{session_id}/tool-calls/{uuid4()}"
+    )
     assert missing_call_resp.status_code == 404
 
 

@@ -12,52 +12,74 @@ class SessionCreate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    title: str | None = Field(default=None, max_length=255)
-    metadata: dict[str, Any] | None = None
+    title: str | None = Field(
+        default=None, max_length=255, description="Human-readable title or label"
+    )
+    metadata: dict[str, Any] | None = Field(
+        default=None, description="Optional metadata or client attributes"
+    )
 
 
 class SessionResponse(BaseModel):
     """Session summary response schema."""
 
-    id: str
-    title: str | None = None
-    status: str
-    created_at: datetime
-    last_activity_at: datetime
-    total_tool_calls: int = 0
+    id: str = Field(..., description="Unique session identifier")
+    title: str | None = Field(default=None, description="Session title or identifier")
+    status: str = Field(..., description="Session lifecycle status (active, completed, failed)")
+    created_at: datetime = Field(..., description="Timestamp when session was created")
+    last_activity_at: datetime = Field(
+        ..., description="Timestamp of most recent activity in session"
+    )
+    total_tool_calls: int = Field(
+        default=0, description="Total count of tool calls belonging to this session"
+    )
 
 
 class SessionDetailResponse(BaseModel):
     """Detailed session view with aggregated execution metrics."""
 
-    id: str
-    title: str | None = None
-    metadata: dict[str, Any] | None = None
-    status: str
-    created_at: datetime
-    last_activity_at: datetime
-    total_tool_calls: int = 0
-    successful_tool_calls: int = 0
-    failed_tool_calls: int = 0
+    id: str = Field(..., description="Unique session identifier")
+    title: str | None = Field(default=None, description="Session title or identifier")
+    metadata: dict[str, Any] | None = Field(
+        default=None, description="Session metadata or client properties"
+    )
+    status: str = Field(..., description="Session lifecycle status (active, completed, failed)")
+    created_at: datetime = Field(..., description="Timestamp when session was created")
+    last_activity_at: datetime = Field(
+        ..., description="Timestamp of most recent activity in session"
+    )
+    total_tool_calls: int = Field(default=0, description="Total count of tool calls in session")
+    successful_tool_calls: int = Field(
+        default=0, description="Total number of successfully executed tool calls"
+    )
+    failed_tool_calls: int = Field(default=0, description="Total number of failed tool calls")
 
 
 class InitSessionRequest(BaseModel):
     session_id: str
-    title: str | None = None
-    metadata: dict[str, Any] | None = None
+    title: str | None
+    metadata: dict[str, Any] | None
 
 
 class ToolCallResponse(BaseModel):
     """Detailed tool execution record within a session."""
 
-    id: UUID
-    session_id: str | None = None
-    server_name: str
-    tool_name: str
-    status: str
-    started_at: datetime
-    completed_at: datetime | None = None
-    duration_ms: float | None = None
-    error_summary: str | None = None
-    arguments: dict[str, Any] = Field(default_factory=dict)
-    response: Any | None = None
+    id: UUID = Field(..., description="Unique call ID")
+    session_id: str | None = Field(default=None, description="Parent session ID")
+    server_name: str = Field(..., description="Name of the MCP server")
+    tool_name: str = Field(..., description="Name of the executed tool")
+    status: str = Field(..., description="Execution status (running, completed, failed)")
+    started_at: datetime = Field(..., description="Timestamp when tool execution started")
+    completed_at: datetime | None = Field(
+        default=None, description="Timestamp when tool execution finished"
+    )
+    duration_ms: float | None = Field(
+        default=None, description="Execution duration in milliseconds"
+    )
+    error_summary: str | None = Field(
+        default=None, description="Summary error message if execution failed"
+    )
+    arguments: dict[str, Any] = Field(
+        default_factory=dict, description="Tool execution input arguments"
+    )
+    response: Any | None = Field(default=None, description="Output payload returned by the tool")

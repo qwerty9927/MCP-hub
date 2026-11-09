@@ -69,18 +69,26 @@ class SessionWorker:
                         args=self.server.stdio_config.args,
                         env=sanitized_env,
                     )
-                    logger.info(f"Spawning stdio process for '{self.server.name}': {params.command} {params.args}")
-                    read_stream, write_stream = await stack.enter_async_context(stdio_client(params))
+                    logger.info(
+                        f"Spawning stdio process for '{self.server.name}': {params.command} {params.args}"
+                    )
+                    read_stream, write_stream = await stack.enter_async_context(
+                        stdio_client(params)
+                    )
 
                 elif self.server.transport == TransportType.STREAMABLE_HTTP:
                     if not self.server.http_config:
                         raise ValueError("Missing http configuration")
 
                     validate_http_url(self.server.http_config.url)
-                    logger.info(f"Connecting streamable-http client for '{self.server.name}' at {self.server.http_config.url}")
+                    logger.info(
+                        f"Connecting streamable-http client for '{self.server.name}' at {self.server.http_config.url}"
+                    )
                     http_client = None
                     if self.server.http_config.headers:
-                        http_client = await stack.enter_async_context(create_mcp_http_client(headers=self.server.http_config.headers))
+                        http_client = await stack.enter_async_context(
+                            create_mcp_http_client(headers=self.server.http_config.headers)
+                        )
                     read_stream, write_stream = await stack.enter_async_context(
                         streamable_http_client(self.server.http_config.url, http_client=http_client)
                     )
@@ -186,7 +194,9 @@ class ConnectionManager:
                     await asyncio.wait_for(existing.session.send_ping(), timeout=2.0)
                     return existing.session
                 except Exception as exc:
-                    logger.warning(f"Existing session for server '{server.name}' unhealthy: {exc}. Reconnecting...")
+                    logger.warning(
+                        f"Existing session for server '{server.name}' unhealthy: {exc}. Reconnecting..."
+                    )
                     await existing.stop()
                     self._workers.pop(server.id, None)
 
@@ -298,7 +308,11 @@ class ConnectionManager:
                 ) from exc
             except Exception as exc:
                 logger.error(f"Error executing tool '{tool_name}' on server '{server.name}': {exc}")
-                if "connection" in str(exc).lower() or "pipe" in str(exc).lower() or "stream" in str(exc).lower():
+                if (
+                    "connection" in str(exc).lower()
+                    or "pipe" in str(exc).lower()
+                    or "stream" in str(exc).lower()
+                ):
                     await self.disconnect(server.id)
                 raise InternalServerError(
                     f"Execution error for tool '{tool_name}': {exc}",
