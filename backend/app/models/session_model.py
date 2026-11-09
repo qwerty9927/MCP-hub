@@ -54,9 +54,9 @@ class SessionModel(Base):
         )
 
     @classmethod
-    def from_domain(self, entity: SessionEntity) -> "SessionModel":
+    def from_domain(cls, entity: SessionEntity) -> "SessionModel":
         """Convert domain entity to database model."""
-        return self(
+        return cls(
             id=str(entity.id),
             title=entity.title,
             status=str(entity.status.value)

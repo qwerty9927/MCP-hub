@@ -88,6 +88,11 @@ class SearchToolsInput(BaseModel):
     top_k: int = Field(default=5, ge=1, le=20)
 
 
+def _tokenize(text: str) -> list[str]:
+    """Extract lowercase alphanumeric tokens from text."""
+    return [t.lower() for t in re.split(r"[_\W]+", text) if t]
+
+
 def score_tool_match(
     query: str,
     tool_slug: str,
@@ -167,37 +172,34 @@ def handle_search_tools(
     arguments: dict[str, Any] | None = None,
     queries: list[str] | None = None,
     top_k: int = 5,
-    candidates: list[dict[str, Any]] | None = None,
     tool_map: dict[str, Any] | None = None,
     tools: list[Any] | None = None,
 ) -> dict[str, Any]:
     """Execute SEARCH_TOOLS pure discovery across available tools."""
     # Validate arguments
     try:
-        validated = SearchToolsInput.model_validate(arguments or {})
-        search_queries = validated.queries
-        effective_top_k = validated.top_k
-
+        if arguments is not None:
+            validated = SearchToolsInput.model_validate(arguments)
+            search_queries = validated.queries
+            effective_top_k = validated.top_k
+        else:
+            validated = SearchToolsInput(queries=queries or [], top_k=top_k)
+            search_queries = validated.queries
+            effective_top_k = validated.top_k
     except PydanticValidationError as err:
         raise ValidationError(
             f"Invalid arguments for {SEARCH_TOOLS_NAME}: {err}",
             details={"errors": err.errors()},
         ) from err
 
-    # Normalize candidate list
-    candidate_list: list[dict[str, Any]] = []
+    # Normalize candidate list from tool_map or tools
+    candidates: list[dict[str, Any]] = []
 
-    if candidates:
-        for cand in candidates:
-            slug = cand.get("tool_slug", "")
-            if slug in META_TOOL_NAMES:
-                continue
-            candidate_list.append(cand)
-    elif tool_map:
+    if tool_map:
         for slug, mapping in tool_map.items():
             if slug in META_TOOL_NAMES:
                 continue
-            candidate_list.append(
+            candidates.append(
                 {
                     "tool_slug": getattr(mapping, "hub_tool_name", slug),
                     "server_id": str(getattr(mapping, "server_id", "")),
@@ -213,8 +215,8 @@ def handle_search_tools(
             if name in META_TOOL_NAMES:
                 continue
             srv_name = getattr(t, "server_name", "")
-            slug = getattr(t, "id", None) or (f"{srv_name}__{name}" if srv_name else name)
-            candidate_list.append(
+            slug = getattr(t, "id", None) or f"{srv_name}__{name}" if srv_name else name
+            candidates.append(
                 {
                     "tool_slug": getattr(t, "hub_tool_name", slug),
                     "server_id": str(getattr(t, "server_id", "")),
@@ -230,7 +232,7 @@ def handle_search_tools(
 
     for query in search_queries:
         scored_for_query: list[tuple[float, dict[str, Any]]] = []
-        for cand in candidate_list:
+        for cand in candidates:
             score = score_tool_match(
                 query=query,
                 tool_slug=cand["tool_slug"],
@@ -263,8 +265,3 @@ def handle_search_tools(
         "matched_count": len(matched_tools),
         "tools": matched_tools,
     }
-
-
-def _tokenize(text: str) -> list[str]:
-    """Extract lowercase alphanumeric tokens from text."""
-    return [t.lower() for t in re.split(r"[_\W]+", text) if t]

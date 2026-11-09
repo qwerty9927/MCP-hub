@@ -104,10 +104,9 @@ class MultiExecuteToolsInput(BaseModel):
 
 async def handle_multi_execute_tools(
     arguments: dict[str, Any],
+    tool_map: dict[str, Any],
     tool_router: Any,
-    tool_resolver: Any | None = None,
-    tool_map: dict[str, Any] | None = None,
-    server_registry: Any = None,
+    server_registry: Any,
     session_id: str | None = None,
 ) -> dict[str, Any]:
     """Execute MULTI_EXECUTE_TOOLS parallel dispatcher with isolated failure handling."""
@@ -131,59 +130,28 @@ async def handle_multi_execute_tools(
                 "error": f"Executing meta-tool '{slug}' via {MULTI_EXECUTE_TOOLS_NAME} is not permitted.",
             }
 
-        server_id_val: UUID | None = None
-        server_name: str = ""
-        original_tool_name: str = ""
-        server_enabled: bool = True
-
-        if tool_resolver is not None:
-            resolved = await tool_resolver(slug)
-            if not resolved:
-                return {
-                    "tool_slug": slug,
-                    "status": "error",
-                    "data": None,
-                    "error": f"Unknown or unavailable tool: '{slug}'",
-                }
-            tool_ent, server_ent = resolved
-            server_id_val = server_ent.id if isinstance(server_ent.id, UUID) else UUID(str(server_ent.id))
-            server_name = server_ent.name
-            original_tool_name = tool_ent.name
-            server_enabled = server_ent.enabled
-        elif tool_map is not None:
-            mapping = tool_map.get(slug)
-            if not mapping:
-                return {
-                    "tool_slug": slug,
-                    "status": "error",
-                    "data": None,
-                    "error": f"Unknown or unavailable tool: '{slug}'",
-                }
-            server_id_val = (
-                mapping.server_id
-                if isinstance(mapping.server_id, UUID)
-                else UUID(str(mapping.server_id))
-            )
-            server_name = getattr(mapping, "server_name", "server")
-            original_tool_name = getattr(mapping, "original_tool_name", slug)
-            if server_registry is not None:
-                server = await server_registry.get_server_entity(server_id_val)
-                server_enabled = server.enabled
-        else:
+        mapping = tool_map.get(slug)
+        if not mapping:
             return {
                 "tool_slug": slug,
                 "status": "error",
                 "data": None,
-                "error": f"No tool resolver available to locate: '{slug}'",
+                "error": f"Unknown or unavailable tool: '{slug}'",
             }
 
         try:
-            if not server_enabled:
+            # Check server availability
+            server_id_val = mapping.server_id
+            if isinstance(server_id_val, str):
+                server_id_val = UUID(server_id_val)
+
+            server = await server_registry.get_server_entity(server_id_val)
+            if not server.enabled:
                 return {
                     "tool_slug": slug,
                     "status": "error",
                     "data": None,
-                    "error": f"Target server '{server_name}' is currently disabled",
+                    "error": f"Target server '{mapping.server_name}' is currently disabled",
                 }
 
             kwargs = {}
@@ -192,7 +160,7 @@ async def handle_multi_execute_tools(
 
             result = await tool_router.execute_mcp_tool(
                 server_id=server_id_val,
-                tool_name=original_tool_name,
+                tool_name=mapping.original_tool_name,
                 arguments=item.arguments,
                 **kwargs,
             )

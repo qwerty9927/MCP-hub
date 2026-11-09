@@ -3,7 +3,7 @@
 import math
 import re
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from app.core.enums.session_enum import SessionStatus
 from app.core.exceptions import NotFoundError
@@ -12,7 +12,7 @@ from app.infrastructure.repositories.execution_repo import ExecutionRepositoryAb
 from app.infrastructure.repositories.session_repo import SessionRepositoryAbstract
 from app.schemas.common import PaginatedResponse
 from app.schemas.session import (
-    InitSessionRequest,
+    SessionCreate,
     SessionDetailResponse,
     SessionResponse,
     ToolCallResponse,
@@ -53,12 +53,25 @@ class SessionExplorerService:
         self.session_repo = session_repository
         self.execution_repo = execution_repository
 
-    async def init_session(self, request: InitSessionRequest) -> SessionEntity | None:
-        if request.session_id.strip():
-            return None
-
-        return await self.session_repo.init(
-            session_id=request.session_id, title=request.title, metadata=request.metadata
+    async def create_session(self, payload: SessionCreate) -> SessionResponse:
+        """Explicitly create a new session."""
+        session_id = uuid4().hex
+        entity = SessionEntity(
+            id=session_id,
+            title=payload.title or f"Session {session_id[:8]}",
+            status=SessionStatus.ACTIVE,
+            metadata=payload.metadata,
+        )
+        created = await self.session_repo.create(entity)
+        return SessionResponse(
+            id=created.id,
+            title=created.title,
+            status=created.status.value
+            if hasattr(created.status, "value")
+            else str(created.status),
+            created_at=created.created_at,
+            last_activity_at=created.last_activity_at,
+            total_tool_calls=0,
         )
 
     async def list_sessions(
@@ -69,7 +82,7 @@ class SessionExplorerService:
         status: str | None = None,
     ) -> PaginatedResponse[SessionResponse]:
         """Retrieve paginated sessions with optional search and status filtering."""
-        items, total = await self.session_repo.list_by_query(
+        items, total = await self.session_repo.list(
             page=page,
             page_size=page_size,
             search=search,
@@ -209,9 +222,3 @@ class SessionExplorerService:
             arguments=mask_sensitive_data(call.arguments),
             response=mask_sensitive_data(call.response) if call.response else None,
         )
-
-    async def update_status(self, session_id: str, status: str) -> bool:
-        if session_id.strip() and status in SessionStatus:
-            return False
-
-        return await self.session_repo.update_status(session_id, status)

@@ -3,14 +3,14 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, FastAPI, Request, status
+from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.routing import Route
 
-from app.api.dependencies import get_connection_manager, get_mcp_server, get_tool_catalog
+from app.api.dependencies import get_connection_manager, get_mcp_gateway, get_tool_catalog
 from app.api.v1.executions_route import router as executions_router
 from app.api.v1.servers_route import router as servers_router
 from app.api.v1.sessions_route import router as sessions_router
@@ -31,10 +31,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info(f"Starting {settings.PROJECT_NAME} v{settings.VERSION} [{settings.ENVIRONMENT}]")
 
     # Preload discovered tools into catalog cache
-    # tool_catalog = get_tool_catalog()
-    # await tool_catalog.initialize_cache()
+    tool_catalog = get_tool_catalog()
+    await tool_catalog.initialize_cache()
 
-    yield
+    # Start MCP Gateway Streamable HTTP lifecycle
+    mcp_gateway = get_mcp_gateway()
+    async with mcp_gateway.run():
+        yield
 
     logger.info("Initiating graceful shutdown...")
     connection_manager = get_connection_manager()
@@ -155,22 +158,24 @@ def create_app() -> FastAPI:
     app.include_router(system_router)
 
     # Mount API v1 routes
+    from fastapi import APIRouter
+
     v1_router = APIRouter(prefix=settings.API_V1_STR)
     v1_router.include_router(servers_router)
     v1_router.include_router(tools_router)
     v1_router.include_router(executions_router)
     v1_router.include_router(sessions_router)
-    # v1_router.include_router(system_router, prefix="/system")
+    v1_router.include_router(system_router, prefix="/system")
 
     app.include_router(v1_router)
 
-    # Mount unified Streamable HTTP MCP Server endpoint at /mcp
-    mcp_server = get_mcp_server()
+    # Mount unified Streamable HTTP MCP Gateway endpoint at /mcp
+    mcp_gateway = get_mcp_gateway()
     app.routes.append(
         Route(
             "/mcp",
-            endpoint=mcp_server.get_proxy_asgi_app(),
-            name="mcp_server",
+            endpoint=mcp_gateway.get_proxy_asgi_app(),
+            name="mcp_gateway",
             include_in_schema=False,
         )
     )

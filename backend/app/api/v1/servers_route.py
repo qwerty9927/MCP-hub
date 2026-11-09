@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Query, status
 
 from app.api.dependencies import (
     get_connection_manager,
-    get_mcp_server,
+    get_mcp_gateway,
     get_server_registry_service,
     get_tool_catalog,
 )
@@ -20,8 +20,8 @@ from app.schemas.server import (
     ServerUpdate,
 )
 from app.schemas.tool import ToolResponse
-from app.mcp.mcp_server import MCPServer
 from app.services.connection_manager import ConnectionManager
+from app.services.mcp_gateway import MCPGatewayService
 from app.services.server_registry import ServerRegistryService
 from app.services.tool_catalog import ToolCatalogService
 
@@ -99,11 +99,11 @@ async def update_server(
     server_id: UUID,
     payload: ServerUpdate,
     registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
-    mcp_server: Annotated[MCPServer, Depends(get_mcp_server)],
+    gateway: Annotated[MCPGatewayService, Depends(get_mcp_gateway)],
 ) -> ServerResponse:
     """Update configuration attributes of an existing MCP server."""
     result = await registry.update_server(server_id, payload)
-    await mcp_server.notify_tools_changed()
+    await gateway.notify_tools_changed()
     return result
 
 
@@ -117,13 +117,13 @@ async def delete_server(
     registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
     connection_mgr: Annotated[ConnectionManager, Depends(get_connection_manager)],
     tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog)],
-    mcp_server: Annotated[MCPServer, Depends(get_mcp_server)],
+    gateway: Annotated[MCPGatewayService, Depends(get_mcp_gateway)],
 ) -> None:
     """Remove server registration, close active connections, and purge cached tools."""
     await connection_mgr.disconnect(server_id)
     await tool_cat.remove_server_tools(server_id)
     await registry.delete_server(server_id)
-    await mcp_server.notify_tools_changed()
+    await gateway.notify_tools_changed()
 
 
 @router.post(
@@ -136,7 +136,7 @@ async def connect_server(
     registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
     connection_mgr: Annotated[ConnectionManager, Depends(get_connection_manager)],
     tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog)],
-    mcp_server: Annotated[MCPServer, Depends(get_mcp_server)],
+    gateway: Annotated[MCPGatewayService, Depends(get_mcp_gateway)],
 ) -> ServerResponse:
     """Establish active session to the server and discover available tools."""
     server = await registry.get_server_entity(server_id)
@@ -144,7 +144,7 @@ async def connect_server(
         await connection_mgr.get_or_create_session(server)
         tools = await tool_cat.refresh_server_tools(server, connection_mgr)
         await registry.update_health(server_id, ServerHealthStatus.HEALTHY, len(tools))
-        await mcp_server.notify_tools_changed()
+        await gateway.notify_tools_changed()
     except Exception:
         await registry.update_health(server_id, ServerHealthStatus.UNHEALTHY)
         raise
@@ -161,13 +161,13 @@ async def disconnect_server(
     server_id: UUID,
     registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
     connection_mgr: Annotated[ConnectionManager, Depends(get_connection_manager)],
-    mcp_server: Annotated[MCPServer, Depends(get_mcp_server)],
+    gateway: Annotated[MCPGatewayService, Depends(get_mcp_gateway)],
 ) -> ServerResponse:
     """Disconnect active session for the given server."""
     await registry.get_server_entity(server_id)
     await connection_mgr.disconnect(server_id)
     await registry.update_health(server_id, ServerHealthStatus.DISCONNECTED)
-    await mcp_server.notify_tools_changed()
+    await gateway.notify_tools_changed()
     return await registry.get_server(server_id)
 
 
@@ -205,13 +205,13 @@ async def refresh_server_tools(
     registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
     connection_mgr: Annotated[ConnectionManager, Depends(get_connection_manager)],
     tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog)],
-    mcp_server: Annotated[MCPServer, Depends(get_mcp_server)],
+    gateway: Annotated[MCPGatewayService, Depends(get_mcp_gateway)],
 ) -> list[ToolResponse]:
     """Query the MCP server for tools and update the unified catalog cache."""
     server = await registry.get_server_entity(server_id)
     tools = await tool_cat.refresh_server_tools(server, connection_mgr)
     await registry.update_health(server_id, ServerHealthStatus.HEALTHY, len(tools))
-    await mcp_server.notify_tools_changed()
+    await gateway.notify_tools_changed()
 
     return [
         ToolResponse(

@@ -143,7 +143,7 @@ async def test_session_repository_crud_and_metrics():
     assert matched[0].total_tool_calls == 3
 
     # 6. Update status
-    updated = await session_repo.update_metric(session_id, "completed")
+    updated = await session_repo.update_status(session_id, "completed")
     assert updated is True
     detail_after = await session_repo.get_by_id(session_id)
     assert detail_after.status == SessionStatus.COMPLETED
@@ -167,7 +167,7 @@ async def test_execution_repo_list_by_session_sorting_and_filtering():
     )
 
     session_id = uuid4().hex
-    await session_repo.create(session_id, title="Sorting Test")
+    await session_repo.get_or_create(session_id, title="Sorting Test")
 
     # Add 3 tool calls at sequential timestamps
     t1 = datetime(2026, 11, 8, 10, 0, 0, tzinfo=UTC)
