@@ -44,9 +44,7 @@ class SessionModel(Base):
         return SessionEntity(
             id=self.id,
             title=self.title,
-            status=SessionStatus(self.status)
-            if self.status in SessionStatus._value2member_map_
-            else SessionStatus.ACTIVE,
+            status=SessionStatus(self.status) if self.status in SessionStatus._value2member_map_ else SessionStatus.ACTIVE,
             metadata=self.metadata_json,
             created_at=self.created_at,
             last_activity_at=self.last_activity_at,
@@ -59,9 +57,7 @@ class SessionModel(Base):
         return self(
             id=str(entity.id),
             title=entity.title,
-            status=str(entity.status.value)
-            if hasattr(entity.status, "value")
-            else str(entity.status),
+            status=str(entity.status.value) if hasattr(entity.status, "value") else str(entity.status),
             metadata_json=entity.metadata,
             created_at=entity.created_at,
             last_activity_at=entity.last_activity_at,

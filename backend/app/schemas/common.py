@@ -1,27 +1,25 @@
 """Common schemas and response models."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class PaginatedResponse[T](BaseModel):
     """Standard pagination envelope."""
 
-    items: list[T] = Field(description="List of records for the current page")
-    total: int = Field(description="Total number of items matching filter criteria")
-    page: int = Field(default=1, description="Current page number (1-indexed)")
-    page_size: int = Field(default=20, description="Number of items per page")
-    total_pages: int = Field(description="Total number of pages")
+    items: list[T]
+    total: int
+    page: int = 1
+    page_size: int = 20
+    total_pages: int
 
 
 class ErrorDetail(BaseModel):
     """Detailed error object."""
 
-    code: str | int = Field(description="Machine-readable error code or HTTP status code")
-    message: str = Field(description="Human-readable error description")
-    details: dict | list | str | None = Field(default=None, description="Optional error metadata")
-    correlation_id: str | None = Field(
-        default=None, description="Request correlation ID for tracing"
-    )
+    code: str | int
+    message: str
+    details: dict | list | str | None = None
+    correlation_id: str | None = None
 
 
 class ErrorResponse(BaseModel):

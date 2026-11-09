@@ -37,9 +37,7 @@ def http_mcp_server_url():
     server.should_exit = True
 
 
-async def test_streamable_http_server_lifecycle(
-    async_client: AsyncClient, http_mcp_server_url: str
-):
+async def test_streamable_http_server_lifecycle(async_client: AsyncClient, http_mcp_server_url: str):
     """Test full cycle of streamable-http server: register, connect, discover, execute."""
     # 1. Register HTTP MCP server
     payload = {

@@ -195,13 +195,7 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
             order_clean = order.strip().lower() if order else "asc"
             order_clause = desc(col) if order_clean == "desc" else asc(col)
 
-            stmt = (
-                select(ExecutionModel)
-                .where(where_clause)
-                .order_by(order_clause)
-                .offset((page - 1) * page_size)
-                .limit(page_size)
-            )
+            stmt = select(ExecutionModel).where(where_clause).order_by(order_clause).offset((page - 1) * page_size).limit(page_size)
 
             result = await session.execute(stmt)
             models = result.scalars().all()

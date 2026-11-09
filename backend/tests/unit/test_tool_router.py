@@ -22,9 +22,7 @@ class MockConnectionManager(ConnectionManager):
     def __init__(self):
         super().__init__()
 
-    async def list_tools(
-        self, server: ServerEntity, timeout: float | None = None
-    ) -> list[mcp_types.Tool]:
+    async def list_tools(self, server: ServerEntity, timeout: float | None = None) -> list[mcp_types.Tool]:
         return [
             mcp_types.Tool(
                 name="add",

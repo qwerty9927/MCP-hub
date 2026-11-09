@@ -30,11 +30,7 @@ class CorrelationAndLoggingMiddleware:
 
         async def send_wrapper(message):
             if message["type"] == "http.response.start":
-                resp_headers = [
-                    (k, v)
-                    for k, v in message.get("headers", [])
-                    if k.lower() != b"x-correlation-id"
-                ]
+                resp_headers = [(k, v) for k, v in message.get("headers", []) if k.lower() != b"x-correlation-id"]
                 resp_headers.append((b"x-correlation-id", corr_id.encode("latin1")))
                 message["headers"] = resp_headers
             await send(message)

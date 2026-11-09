@@ -14,27 +14,17 @@ from app.schemas.connection import ConnectionConfigRead, HttpConfig, StdioConfig
 class ServerBase(BaseModel):
     """Common properties of an MCP Server."""
 
-    name: str = Field(
-        ..., min_length=1, max_length=100, description="Unique human-readable server name"
-    )
-    description: str | None = Field(default=None, max_length=500, description="Server description")
-    transport: TransportType = Field(
-        ..., description="Transport protocol: 'stdio' or 'streamable-http'"
-    )
-    enabled: bool = Field(
-        default=True, description="Whether this server is enabled for tool execution"
-    )
+    name: str = Field(..., min_length=1, max_length=100)
+    description: str | None = Field(default=None, max_length=500)
+    transport: TransportType
+    enabled: bool = True
 
 
 class ServerCreate(ServerBase):
     """Schema for registering a new MCP Server."""
 
-    stdio_config: StdioConfig | None = Field(
-        default=None, description="Configuration for stdio transport"
-    )
-    http_config: HttpConfig | None = Field(
-        default=None, description="Configuration for streamable-http transport"
-    )
+    stdio_config: StdioConfig | None = None
+    http_config: HttpConfig | None = None
 
     @model_validator(mode="after")
     def validate_transport_configuration(self) -> "ServerCreate":
@@ -120,21 +110,11 @@ class ServerResponse(BaseModel):
             )
 
         # For object attributes
-        headers = (
-            mask_sensitive_headers(server.http_config.headers)
-            if hasattr(server, "http_config") and server.http_config
-            else None
-        )
+        headers = mask_sensitive_headers(server.http_config.headers) if hasattr(server, "http_config") and server.http_config else None
         config_read = ConnectionConfigRead(
-            command=server.stdio_config.command
-            if server.transport == TransportType.STDIO and server.stdio_config
-            else None,
-            args=server.stdio_config.args
-            if server.transport == TransportType.STDIO and server.stdio_config
-            else None,
-            url=server.http_config.url
-            if server.transport == TransportType.STREAMABLE_HTTP and server.http_config
-            else None,
+            command=server.stdio_config.command if server.transport == TransportType.STDIO and server.stdio_config else None,
+            args=server.stdio_config.args if server.transport == TransportType.STDIO and server.stdio_config else None,
+            url=server.http_config.url if server.transport == TransportType.STREAMABLE_HTTP and server.http_config else None,
             headers=headers if server.transport == TransportType.STREAMABLE_HTTP else None,
         )
 

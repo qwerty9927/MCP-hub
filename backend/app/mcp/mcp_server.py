@@ -147,11 +147,7 @@ class MCPServer(Server):
         params: CallToolRequestParams,
     ) -> CallToolResult:
         """Handle incoming tools/call request by routing strictly to meta-tools."""
-        if (
-            ctx.session is None
-            or ctx.session._connection is None
-            or ctx.session._connection.session_id is None
-        ):
+        if ctx.session is None or ctx.session._connection is None or ctx.session._connection.session_id is None:
             return CallToolResult(
                 is_error=True,
                 content=[
@@ -169,9 +165,7 @@ class MCPServer(Server):
             return await self._handle_search_tools_call(params.arguments)
 
         if params.name == MULTI_EXECUTE_TOOLS_NAME:
-            return await self._handle_multi_execute_tools_call(
-                params.arguments, session_id=session_id
-            )
+            return await self._handle_multi_execute_tools_call(params.arguments, session_id=session_id)
 
         return CallToolResult(
             is_error=True,
@@ -229,17 +223,13 @@ class MCPServer(Server):
         """Handle execution of SEARCH_TOOLS querying directly from mcp_servers and discovered_tools."""
         try:
             # 1. Fetch enabled servers from mcp_servers table
-            servers_response = await self.server_registry.list_servers(
-                page=1, page_size=1000, enabled=True
-            )
+            servers_response = await self.server_registry.list_servers(page=1, page_size=1000, enabled=True)
             enabled_servers = [s for s in servers_response.items if s.enabled]
 
             # 2. Collect candidate tools from discovered_tools for enabled servers
             candidates: list[dict[str, Any]] = []
             for srv in enabled_servers:
-                tools_response = await self.tool_catalog.list_tools(
-                    server_id=srv.id, page=1, page_size=1000
-                )
+                tools_response = await self.tool_catalog.list_tools(server_id=srv.id, page=1, page_size=1000)
                 srv_slug = slugify(srv.name)
 
                 for tool in tools_response.items:
@@ -306,9 +296,7 @@ class MCPServer(Server):
                 # Format 1: {server_slug}__{tool_name}
                 if "__" in tool_slug:
                     srv_slug_part, tool_name_part = tool_slug.split("__", 1)
-                    servers_resp = await self.server_registry.list_servers(
-                        page=1, page_size=1000, enabled=True
-                    )
+                    servers_resp = await self.server_registry.list_servers(page=1, page_size=1000, enabled=True)
                     for srv in servers_resp.items:
                         base_slug = slugify(srv.name)
                         short_id = str(srv.id).replace("-", "")[:6]
@@ -320,9 +308,7 @@ class MCPServer(Server):
                             if not server_ent.enabled:
                                 return None
                             try:
-                                tool_ent = await self.tool_catalog.get_tool(
-                                    tool_name_part, server_id=srv.id
-                                )
+                                tool_ent = await self.tool_catalog.get_tool(tool_name_part, server_id=srv.id)
                                 return tool_ent, server_ent
                             except NotFoundError:
                                 return None
@@ -335,9 +321,7 @@ class MCPServer(Server):
                         server_ent = await self.server_registry.get_server_entity(srv_uuid)
                         if not server_ent.enabled:
                             return None
-                        tool_ent = await self.tool_catalog.get_tool(
-                            tool_name_part, server_id=srv_uuid
-                        )
+                        tool_ent = await self.tool_catalog.get_tool(tool_name_part, server_id=srv_uuid)
                         return tool_ent, server_ent
                     except (ValueError, NotFoundError):
                         return None

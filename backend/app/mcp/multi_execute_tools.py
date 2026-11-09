@@ -159,11 +159,7 @@ async def handle_multi_execute_tools(
                     "data": None,
                     "error": f"Unknown or unavailable tool: '{slug}'",
                 }
-            server_id_val = (
-                mapping.server_id
-                if isinstance(mapping.server_id, UUID)
-                else UUID(str(mapping.server_id))
-            )
+            server_id_val = mapping.server_id if isinstance(mapping.server_id, UUID) else UUID(str(mapping.server_id))
             server_name = getattr(mapping, "server_name", "server")
             original_tool_name = getattr(mapping, "original_tool_name", slug)
             if server_registry is not None:
@@ -201,9 +197,7 @@ async def handle_multi_execute_tools(
                 error_msg = ""
                 if result.content:
                     error_msg = (
-                        " ".join(
-                            getattr(c, "text", str(c)) for c in result.content if hasattr(c, "text")
-                        )
+                        " ".join(getattr(c, "text", str(c)) for c in result.content if hasattr(c, "text"))
                         or "Downstream tool reported an error"
                     )
                 return {
@@ -224,10 +218,7 @@ async def handle_multi_execute_tools(
                     except Exception:
                         data_output = text_val
                 else:
-                    data_output = [
-                        c.model_dump() if hasattr(c, "model_dump") else str(c)
-                        for c in result.content
-                    ]
+                    data_output = [c.model_dump() if hasattr(c, "model_dump") else str(c) for c in result.content]
 
             return {
                 "tool_slug": slug,

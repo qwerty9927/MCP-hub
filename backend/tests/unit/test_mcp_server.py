@@ -50,9 +50,7 @@ def mock_session_explorer():
 
 
 @pytest.fixture
-def mcp_server_instance(
-    mock_registry, mock_tool_catalog, mock_connection_mgr, mock_tool_router, mock_session_explorer
-):
+def mcp_server_instance(mock_registry, mock_tool_catalog, mock_connection_mgr, mock_tool_router, mock_session_explorer):
     return MCPServer(
         server_registry=mock_registry,
         tool_catalog=mock_tool_catalog,
@@ -91,10 +89,7 @@ async def test_handle_list_tools_strictly_two_tools(mcp_server_instance, mock_co
 
 def test_get_tool_input_schema_meta_tools(mcp_server_instance):
     assert mcp_server_instance.get_tool_input_schema(SEARCH_TOOLS_NAME) == SEARCH_TOOLS_SCHEMA
-    assert (
-        mcp_server_instance.get_tool_input_schema(MULTI_EXECUTE_TOOLS_NAME)
-        == MULTI_EXECUTE_TOOLS_SCHEMA
-    )
+    assert mcp_server_instance.get_tool_input_schema(MULTI_EXECUTE_TOOLS_NAME) == MULTI_EXECUTE_TOOLS_SCHEMA
     assert mcp_server_instance.get_tool_input_schema("non_existent") is None
 
 
@@ -111,9 +106,7 @@ async def test_handle_call_tool_requires_session_id(mcp_server_instance):
 
 
 @pytest.mark.asyncio
-async def test_handle_call_tool_rejects_unadvertised_direct_tool(
-    mcp_server_instance, mock_context
-):
+async def test_handle_call_tool_rejects_unadvertised_direct_tool(mcp_server_instance, mock_context):
     params = types.CallToolRequestParams(name="math_server__calculate", arguments={})
     res = await mcp_server_instance.handle_call_tool(mock_context, params)
 
@@ -124,9 +117,7 @@ async def test_handle_call_tool_rejects_unadvertised_direct_tool(
 
 
 @pytest.mark.asyncio
-async def test_handle_call_tool_search_tools(
-    mcp_server_instance, mock_registry, mock_tool_catalog, mock_context
-):
+async def test_handle_call_tool_search_tools(mcp_server_instance, mock_registry, mock_tool_catalog, mock_context):
     server_id = uuid4()
     now = datetime.now(UTC)
 
@@ -181,9 +172,7 @@ async def test_handle_call_tool_search_tools(
 
 
 @pytest.mark.asyncio
-async def test_handle_call_tool_multi_execute_tools(
-    mcp_server_instance, mock_registry, mock_tool_catalog, mock_tool_router, mock_context
-):
+async def test_handle_call_tool_multi_execute_tools(mcp_server_instance, mock_registry, mock_tool_catalog, mock_tool_router, mock_context):
     server_id = uuid4()
     now = datetime.now(UTC)
 
