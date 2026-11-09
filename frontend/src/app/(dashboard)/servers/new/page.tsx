@@ -34,11 +34,7 @@ export default function NewServerPage() {
                 description="Configure a new Model Context Protocol server. The backend will validate transport parameters."
             />
 
-            <ServerForm
-                onSubmit={handleSubmit}
-                isLoading={createMutation.isPending}
-                onCancel={() => router.push("/servers")}
-            />
+            <ServerForm onSubmit={handleSubmit} isLoading={createMutation.isPending} onCancel={() => router.push("/servers")} />
         </div>
     );
 }

@@ -58,12 +58,7 @@ export function Sidebar({ onItemClick, className }: SidebarProps) {
     });
 
     return (
-        <div
-            className={cn(
-                "flex h-full flex-col justify-between border-r border-border bg-card/60 backdrop-blur-md px-3 py-4",
-                className
-            )}
-        >
+        <div className={cn("flex h-full flex-col justify-between border-r border-border bg-card/60 backdrop-blur-md px-3 py-4", className)}>
             <div className="space-y-6">
                 {/* Brand Header */}
                 <div className="flex items-center gap-3 px-3 py-2">
@@ -71,12 +66,8 @@ export function Sidebar({ onItemClick, className }: SidebarProps) {
                         <Cpu className="h-5 w-5" />
                     </div>
                     <div className="flex flex-col">
-                        <span className="font-bold text-sm tracking-tight text-foreground">
-                            MCP Hub
-                        </span>
-                        <span className="text-xs text-muted-foreground font-mono">
-                            Admin Console
-                        </span>
+                        <span className="font-bold text-sm tracking-tight text-foreground">MCP Hub</span>
+                        <span className="text-xs text-muted-foreground font-mono">Admin Console</span>
                     </div>
                 </div>
 
@@ -85,9 +76,7 @@ export function Sidebar({ onItemClick, className }: SidebarProps) {
                     {NAV_ITEMS.map((item) => {
                         const Icon = item.icon;
                         const isActive =
-                            item.href === "/overview"
-                                ? pathname === "/overview" || pathname === "/"
-                                : pathname.startsWith(item.href);
+                            item.href === "/overview" ? pathname === "/overview" || pathname === "/" : pathname.startsWith(item.href);
 
                         return (
                             <Link
@@ -114,20 +103,11 @@ export function Sidebar({ onItemClick, className }: SidebarProps) {
                 <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Backend API</span>
                     <span className="flex items-center gap-1.5 font-medium">
-                        <span
-                            className={cn(
-                                "h-2 w-2 rounded-full",
-                                isError ? "bg-red-500" : health ? "bg-emerald-500" : "bg-amber-500"
-                            )}
-                        />
+                        <span className={cn("h-2 w-2 rounded-full", isError ? "bg-red-500" : health ? "bg-emerald-500" : "bg-amber-500")} />
                         {isError ? "Offline" : health ? "Online" : "Connecting"}
                     </span>
                 </div>
-                {health && (
-                    <div className="mt-1 text-[11px] text-muted-foreground font-mono">
-                        v{health.version}
-                    </div>
-                )}
+                {health && <div className="mt-1 text-[11px] text-muted-foreground font-mono">v{health.version}</div>}
             </div>
         </div>
     );

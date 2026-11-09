@@ -25,22 +25,13 @@ export function useExecuteTool() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: ({
-            serverId,
-            toolName,
-            payload,
-        }: {
-            serverId: string;
-            toolName: string;
-            payload: ToolExecuteRequest;
-        }) => toolsApi.execute(serverId, toolName, payload),
+        mutationFn: ({ serverId, toolName, payload }: { serverId: string; toolName: string; payload: ToolExecuteRequest }) =>
+            toolsApi.execute(serverId, toolName, payload),
         onSuccess: (res) => {
             queryClient.invalidateQueries({ queryKey: ["executions"] });
             queryClient.invalidateQueries({ queryKey: ["system-metrics"] });
             if (res.is_error) {
-                toast.error(
-                    `Tool execution completed with error (${res.duration_ms.toFixed(1)}ms)`
-                );
+                toast.error(`Tool execution completed with error (${res.duration_ms.toFixed(1)}ms)`);
             } else {
                 toast.success(`Tool executed successfully in ${res.duration_ms.toFixed(1)}ms`);
             }

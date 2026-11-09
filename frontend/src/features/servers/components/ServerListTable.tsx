@@ -15,14 +15,7 @@ import { HealthBadge } from "@/components/common/HealthBadge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -40,13 +33,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
     MoreHorizontal,
     Play,
@@ -126,17 +113,10 @@ export function ServerListTable({ servers, isLoading }: ServerListTableProps) {
                     </TableHeader>
                     <TableBody>
                         {servers.map((server) => {
-                            const isConnecting =
-                                connectMutation.isPending &&
-                                connectMutation.variables === server.id;
-                            const isDisconnecting =
-                                disconnectMutation.isPending &&
-                                disconnectMutation.variables === server.id;
-                            const isTesting =
-                                testMutation.isPending && testMutation.variables === server.id;
-                            const isRefreshing =
-                                refreshToolsMutation.isPending &&
-                                refreshToolsMutation.variables === server.id;
+                            const isConnecting = connectMutation.isPending && connectMutation.variables === server.id;
+                            const isDisconnecting = disconnectMutation.isPending && disconnectMutation.variables === server.id;
+                            const isTesting = testMutation.isPending && testMutation.variables === server.id;
+                            const isRefreshing = refreshToolsMutation.isPending && refreshToolsMutation.variables === server.id;
 
                             return (
                                 <TableRow key={server.id} className="group">
@@ -193,9 +173,7 @@ export function ServerListTable({ servers, isLoading }: ServerListTableProps) {
                                         </Link>
                                     </TableCell>
 
-                                    <TableCell className="text-xs text-muted-foreground">
-                                        {formatDate(server.last_connected_at)}
-                                    </TableCell>
+                                    <TableCell className="text-xs text-muted-foreground">{formatDate(server.last_connected_at)}</TableCell>
 
                                     <TableCell className="text-right">
                                         <DropdownMenu>
@@ -204,17 +182,9 @@ export function ServerListTable({ servers, isLoading }: ServerListTableProps) {
                                                     variant="ghost"
                                                     size="icon"
                                                     className="h-8 w-8"
-                                                    disabled={
-                                                        isConnecting ||
-                                                        isDisconnecting ||
-                                                        isTesting ||
-                                                        isRefreshing
-                                                    }
+                                                    disabled={isConnecting || isDisconnecting || isTesting || isRefreshing}
                                                 >
-                                                    {isConnecting ||
-                                                    isDisconnecting ||
-                                                    isTesting ||
-                                                    isRefreshing ? (
+                                                    {isConnecting || isDisconnecting || isTesting || isRefreshing ? (
                                                         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                                                     ) : (
                                                         <MoreHorizontal className="h-4 w-4" />
@@ -224,28 +194,20 @@ export function ServerListTable({ servers, isLoading }: ServerListTableProps) {
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end" className="w-48">
                                                 <DropdownMenuItem asChild>
-                                                    <Link
-                                                        href={`/servers/${server.id}`}
-                                                        className="cursor-pointer"
-                                                    >
+                                                    <Link href={`/servers/${server.id}`} className="cursor-pointer">
                                                         <ExternalLink className="mr-2 h-4 w-4 text-muted-foreground" />
                                                         View Details
                                                     </Link>
                                                 </DropdownMenuItem>
 
-                                                <DropdownMenuItem
-                                                    onClick={() => handleTestConnection(server)}
-                                                    className="cursor-pointer"
-                                                >
+                                                <DropdownMenuItem onClick={() => handleTestConnection(server)} className="cursor-pointer">
                                                     <Activity className="mr-2 h-4 w-4 text-muted-foreground" />
                                                     Test Connection
                                                 </DropdownMenuItem>
 
                                                 {server.health_status === "HEALTHY" ? (
                                                     <DropdownMenuItem
-                                                        onClick={() =>
-                                                            disconnectMutation.mutate(server.id)
-                                                        }
+                                                        onClick={() => disconnectMutation.mutate(server.id)}
                                                         className="cursor-pointer"
                                                     >
                                                         <Square className="mr-2 h-4 w-4 text-amber-500" />
@@ -253,9 +215,7 @@ export function ServerListTable({ servers, isLoading }: ServerListTableProps) {
                                                     </DropdownMenuItem>
                                                 ) : (
                                                     <DropdownMenuItem
-                                                        onClick={() =>
-                                                            connectMutation.mutate(server.id)
-                                                        }
+                                                        onClick={() => connectMutation.mutate(server.id)}
                                                         className="cursor-pointer"
                                                     >
                                                         <Play className="mr-2 h-4 w-4 text-emerald-500" />
@@ -264,9 +224,7 @@ export function ServerListTable({ servers, isLoading }: ServerListTableProps) {
                                                 )}
 
                                                 <DropdownMenuItem
-                                                    onClick={() =>
-                                                        refreshToolsMutation.mutate(server.id)
-                                                    }
+                                                    onClick={() => refreshToolsMutation.mutate(server.id)}
                                                     className="cursor-pointer"
                                                 >
                                                     <RefreshCw className="mr-2 h-4 w-4 text-muted-foreground" />
@@ -276,10 +234,7 @@ export function ServerListTable({ servers, isLoading }: ServerListTableProps) {
                                                 <DropdownMenuSeparator />
 
                                                 <DropdownMenuItem asChild>
-                                                    <Link
-                                                        href={`/servers/${server.id}/edit`}
-                                                        className="cursor-pointer"
-                                                    >
+                                                    <Link href={`/servers/${server.id}/edit`} className="cursor-pointer">
                                                         <Edit className="mr-2 h-4 w-4 text-muted-foreground" />
                                                         Edit Configuration
                                                     </Link>
@@ -303,32 +258,24 @@ export function ServerListTable({ servers, isLoading }: ServerListTableProps) {
             </div>
 
             {/* Delete Confirmation Alert Dialog */}
-            <AlertDialog
-                open={Boolean(deleteTarget)}
-                onOpenChange={(open) => !open && setDeleteTarget(null)}
-            >
+            <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            This will permanently delete the server{" "}
-                            <strong className="text-foreground">"{deleteTarget?.name}"</strong>,
-                            terminate any active connection sessions, and remove all its discovered
-                            tools from the MCP catalog. This action cannot be undone.
+                            This will permanently delete the server <strong className="text-foreground">"{deleteTarget?.name}"</strong>,
+                            terminate any active connection sessions, and remove all its discovered tools from the MCP catalog. This action
+                            cannot be undone.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel disabled={deleteMutation.isPending}>
-                            Cancel
-                        </AlertDialogCancel>
+                        <AlertDialogCancel disabled={deleteMutation.isPending}>Cancel</AlertDialogCancel>
                         <AlertDialogAction
                             onClick={handleDeleteConfirm}
                             disabled={deleteMutation.isPending}
                             className="bg-destructive text-destructive-foreground hover:bg-destructive/90 gap-2"
                         >
-                            {deleteMutation.isPending && (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                            )}
+                            {deleteMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                             Delete Server
                         </AlertDialogAction>
                     </AlertDialogFooter>
@@ -336,10 +283,7 @@ export function ServerListTable({ servers, isLoading }: ServerListTableProps) {
             </AlertDialog>
 
             {/* Connection Test Result Dialog */}
-            <Dialog
-                open={Boolean(testResult)}
-                onOpenChange={(open) => !open && setTestResult(null)}
-            >
+            <Dialog open={Boolean(testResult)} onOpenChange={(open) => !open && setTestResult(null)}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
@@ -351,19 +295,14 @@ export function ServerListTable({ servers, isLoading }: ServerListTableProps) {
                             Connection Test Result
                         </DialogTitle>
                         <DialogDescription>
-                            Test probe for server:{" "}
-                            <span className="font-semibold text-foreground">
-                                {testResult?.server.name}
-                            </span>
+                            Test probe for server: <span className="font-semibold text-foreground">{testResult?.server.name}</span>
                         </DialogDescription>
                     </DialogHeader>
 
                     {testResult && (
                         <div className="space-y-3 pt-2">
                             <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
-                                <p className="font-medium text-foreground">
-                                    {testResult.result.message}
-                                </p>
+                                <p className="font-medium text-foreground">{testResult.result.message}</p>
                             </div>
 
                             <div className="grid grid-cols-2 gap-3 text-sm">
@@ -374,12 +313,8 @@ export function ServerListTable({ servers, isLoading }: ServerListTableProps) {
                                     </p>
                                 </div>
                                 <div className="rounded-lg border border-border p-3">
-                                    <span className="text-xs text-muted-foreground">
-                                        Discovered Tools
-                                    </span>
-                                    <p className="text-lg font-bold font-mono text-foreground mt-0.5">
-                                        {testResult.result.tools_count}
-                                    </p>
+                                    <span className="text-xs text-muted-foreground">Discovered Tools</span>
+                                    <p className="text-lg font-bold font-mono text-foreground mt-0.5">{testResult.result.tools_count}</p>
                                 </div>
                             </div>
                         </div>

@@ -35,6 +35,5 @@ if (!global.crypto) {
     (global as any).crypto = {};
 }
 if (!global.crypto.randomUUID) {
-    global.crypto.randomUUID = () =>
-        "12345678-1234-1234-1234-123456789abc" as `${string}-${string}-${string}-${string}-${string}`;
+    global.crypto.randomUUID = () => "12345678-1234-1234-1234-123456789abc" as `${string}-${string}-${string}-${string}-${string}`;
 }

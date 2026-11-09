@@ -5,13 +5,7 @@ import { Search, X, RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ExecutionFilterParams } from "@/types";
 import { useServers } from "@/features/servers/hooks/use-servers";
 import { cn } from "@/lib/utils";
@@ -36,9 +30,7 @@ export function ExecutionFilterBar({
     const { data: serversData } = useServers({ page: 1, page_size: 100 });
     const servers = serversData?.items || [];
 
-    const hasActiveFilters = Boolean(
-        filters.tool_name || filters.server_id || filters.is_error !== undefined
-    );
+    const hasActiveFilters = Boolean(filters.tool_name || filters.server_id || filters.is_error !== undefined);
 
     const handleClear = () => {
         onChange({
@@ -96,13 +88,7 @@ export function ExecutionFilterBar({
 
                 {/* Status Filter */}
                 <Select
-                    value={
-                        filters.is_error === undefined
-                            ? "all"
-                            : filters.is_error
-                              ? "error"
-                              : "success"
-                    }
+                    value={filters.is_error === undefined ? "all" : filters.is_error ? "error" : "success"}
                     onValueChange={(val) =>
                         onChange({
                             ...filters,
@@ -151,9 +137,7 @@ export function ExecutionFilterBar({
                             <span
                                 className={cn(
                                     "h-1.5 w-1.5 rounded-full transition-colors",
-                                    autoRefresh
-                                        ? "bg-emerald-500 animate-pulse"
-                                        : "bg-muted-foreground/40"
+                                    autoRefresh ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground/40"
                                 )}
                             />
                             Live (10s)
@@ -162,19 +146,8 @@ export function ExecutionFilterBar({
                 )}
 
                 {onRefresh && (
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={onRefresh}
-                        disabled={isRefreshing}
-                        className="h-9 gap-1.5 text-xs"
-                    >
-                        <RefreshCw
-                            className={cn(
-                                "h-3.5 w-3.5",
-                                isRefreshing && "animate-spin text-primary"
-                            )}
-                        />
+                    <Button variant="outline" size="sm" onClick={onRefresh} disabled={isRefreshing} className="h-9 gap-1.5 text-xs">
+                        <RefreshCw className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin text-primary")} />
                         Refresh
                     </Button>
                 )}

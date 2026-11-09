@@ -18,9 +18,7 @@ axiosInstance.interceptors.request.use(
         // Generate correlation ID if not set
         if (!config.headers["X-Correlation-ID"]) {
             config.headers["X-Correlation-ID"] =
-                typeof crypto !== "undefined" && crypto.randomUUID
-                    ? crypto.randomUUID()
-                    : `req-${Date.now()}`;
+                typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `req-${Date.now()}`;
         }
 
         // Auth hook: If an auth token is in memory or localStorage in the future, attach here

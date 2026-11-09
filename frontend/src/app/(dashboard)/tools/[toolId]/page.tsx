@@ -2,30 +2,13 @@
 
 import React, { use, useState } from "react";
 import Link from "next/link";
-import {
-    ArrowLeft,
-    Play,
-    Server,
-    Code,
-    FileText,
-    CheckCircle2,
-    Copy,
-    Check,
-    Terminal,
-} from "lucide-react";
+import { ArrowLeft, Play, Server, Code, FileText, CheckCircle2, Copy, Check, Terminal } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/common/PageHeader";
 import { HealthBadge } from "@/components/common/HealthBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TableSkeleton } from "@/components/common/TableSkeleton";
@@ -160,11 +143,7 @@ async with streamable_http_client("http://localhost:8000/mcp") as (read_stream, 
                 description={tool.description || "No description provided by server."}
                 actions={
                     <Button asChild className="gap-2">
-                        <Link
-                            href={`/playground?server=${tool.server_id}&tool=${encodeURIComponent(
-                                tool.name
-                            )}`}
-                        >
+                        <Link href={`/playground?server=${tool.server_id}&tool=${encodeURIComponent(tool.name)}`}>
                             <Play className="h-4 w-4" />
                             Test in Playground
                         </Link>
@@ -177,10 +156,7 @@ async with streamable_http_client("http://localhost:8000/mcp") as (read_stream, 
                     <span className="text-xs text-muted-foreground font-medium">Server</span>
                     <div className="mt-2 flex items-center gap-2">
                         <Server className="h-4 w-4 text-primary shrink-0" />
-                        <Link
-                            href={`/servers/${tool.server_id}`}
-                            className="font-medium text-foreground hover:underline truncate"
-                        >
+                        <Link href={`/servers/${tool.server_id}`} className="font-medium text-foreground hover:underline truncate">
                             {tool.server_name}
                         </Link>
                     </div>
@@ -196,10 +172,7 @@ async with streamable_http_client("http://localhost:8000/mcp") as (read_stream, 
                 <Card className="p-4">
                     <span className="text-xs text-muted-foreground font-medium">Qualified ID</span>
                     <div className="mt-2 flex items-center justify-between gap-1">
-                        <code
-                            className="text-xs font-mono text-foreground truncate"
-                            title={tool.id}
-                        >
+                        <code className="text-xs font-mono text-foreground truncate" title={tool.id}>
                             {tool.id}
                         </code>
                         <button
@@ -218,38 +191,22 @@ async with streamable_http_client("http://localhost:8000/mcp") as (read_stream, 
                 </Card>
 
                 <Card className="p-4">
-                    <span className="text-xs text-muted-foreground font-medium">
-                        Last Discovered
-                    </span>
-                    <p className="mt-2 text-sm font-mono text-foreground">
-                        {formatDate(tool.last_discovered_at)}
-                    </p>
+                    <span className="text-xs text-muted-foreground font-medium">Last Discovered</span>
+                    <p className="mt-2 text-sm font-mono text-foreground">{formatDate(tool.last_discovered_at)}</p>
                 </Card>
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TabsList className="grid w-full grid-cols-3 max-w-md">
-                    <TabsTrigger
-                        value="schema"
-                        onClick={() => setActiveTab("schema")}
-                        className="gap-1.5"
-                    >
+                    <TabsTrigger value="schema" onClick={() => setActiveTab("schema")} className="gap-1.5">
                         <FileText className="h-4 w-4" />
                         Parameters ({propertyEntries.length})
                     </TabsTrigger>
-                    <TabsTrigger
-                        value="raw"
-                        onClick={() => setActiveTab("raw")}
-                        className="gap-1.5"
-                    >
+                    <TabsTrigger value="raw" onClick={() => setActiveTab("raw")} className="gap-1.5">
                         <Code className="h-4 w-4" />
                         JSON Schema
                     </TabsTrigger>
-                    <TabsTrigger
-                        value="code"
-                        onClick={() => setActiveTab("code")}
-                        className="gap-1.5"
-                    >
+                    <TabsTrigger value="code" onClick={() => setActiveTab("code")} className="gap-1.5">
                         <Terminal className="h-4 w-4" />
                         Invocation API
                     </TabsTrigger>
@@ -260,16 +217,11 @@ async with streamable_http_client("http://localhost:8000/mcp") as (read_stream, 
                     <Card>
                         <CardHeader>
                             <CardTitle className="text-lg">Input Schema Fields</CardTitle>
-                            <CardDescription>
-                                Parameters accepted by this tool when executing an invocation
-                                request.
-                            </CardDescription>
+                            <CardDescription>Parameters accepted by this tool when executing an invocation request.</CardDescription>
                         </CardHeader>
                         <CardContent>
                             {propertyEntries.length === 0 ? (
-                                <p className="text-sm text-muted-foreground">
-                                    This tool accepts no arguments (empty input schema).
-                                </p>
+                                <p className="text-sm text-muted-foreground">This tool accepts no arguments (empty input schema).</p>
                             ) : (
                                 <div className="rounded-md border border-border overflow-hidden">
                                     <Table>
@@ -288,15 +240,11 @@ async with streamable_http_client("http://localhost:8000/mcp") as (read_stream, 
 
                                                 return (
                                                     <TableRow key={name}>
-                                                        <TableCell className="font-mono font-semibold">
-                                                            {name}
-                                                        </TableCell>
+                                                        <TableCell className="font-mono font-semibold">{name}</TableCell>
                                                         <TableCell>
                                                             <span className="rounded bg-muted px-2 py-0.5 font-mono text-xs text-primary">
                                                                 {prop.type || "any"}
-                                                                {prop.format
-                                                                    ? ` (${prop.format})`
-                                                                    : ""}
+                                                                {prop.format ? ` (${prop.format})` : ""}
                                                             </span>
                                                         </TableCell>
                                                         <TableCell>
@@ -306,23 +254,17 @@ async with streamable_http_client("http://localhost:8000/mcp") as (read_stream, 
                                                                     Required
                                                                 </span>
                                                             ) : (
-                                                                <span className="text-xs text-muted-foreground">
-                                                                    Optional
-                                                                </span>
+                                                                <span className="text-xs text-muted-foreground">Optional</span>
                                                             )}
                                                         </TableCell>
                                                         <TableCell className="font-mono text-xs text-muted-foreground">
-                                                            {prop.default !== undefined
-                                                                ? String(prop.default)
-                                                                : "-"}
+                                                            {prop.default !== undefined ? String(prop.default) : "-"}
                                                         </TableCell>
                                                         <TableCell className="text-xs text-muted-foreground max-w-md space-y-1">
                                                             <p>{prop.description || "-"}</p>
                                                             {prop.enum && (
                                                                 <div className="flex flex-wrap items-center gap-1 mt-1">
-                                                                    <span className="text-[11px] font-medium text-foreground">
-                                                                        Enum:
-                                                                    </span>
+                                                                    <span className="text-[11px] font-medium text-foreground">Enum:</span>
                                                                     {prop.enum.map((val: any) => (
                                                                         <span
                                                                             key={String(val)}
@@ -333,11 +275,9 @@ async with streamable_http_client("http://localhost:8000/mcp") as (read_stream, 
                                                                     ))}
                                                                 </div>
                                                             )}
-                                                            {(prop.minimum !== undefined ||
-                                                                prop.maximum !== undefined) && (
+                                                            {(prop.minimum !== undefined || prop.maximum !== undefined) && (
                                                                 <div className="text-[11px] font-mono text-muted-foreground">
-                                                                    Range: [{prop.minimum ?? "-∞"},{" "}
-                                                                    {prop.maximum ?? "+∞"}]
+                                                                    Range: [{prop.minimum ?? "-∞"}, {prop.maximum ?? "+∞"}]
                                                                 </div>
                                                             )}
                                                         </TableCell>
@@ -359,21 +299,13 @@ async with streamable_http_client("http://localhost:8000/mcp") as (read_stream, 
                             <div className="flex items-center justify-between">
                                 <div>
                                     <CardTitle className="text-lg">JSON Schema</CardTitle>
-                                    <CardDescription>
-                                        Complete standard JSON Schema specification returned by MCP
-                                        server.
-                                    </CardDescription>
+                                    <CardDescription>Complete standard JSON Schema specification returned by MCP server.</CardDescription>
                                 </div>
                                 <Button
                                     type="button"
                                     variant="outline"
                                     size="sm"
-                                    onClick={() =>
-                                        copyToClipboard(
-                                            JSON.stringify(tool.input_schema, null, 2),
-                                            "JSON Schema"
-                                        )
-                                    }
+                                    onClick={() => copyToClipboard(JSON.stringify(tool.input_schema, null, 2), "JSON Schema")}
                                     className="gap-1.5 text-xs"
                                 >
                                     {copiedSnippet === "JSON Schema" ? (
@@ -403,9 +335,7 @@ async with streamable_http_client("http://localhost:8000/mcp") as (read_stream, 
                                         <Terminal className="h-4 w-4 text-primary" />
                                         REST API Execution (cURL)
                                     </CardTitle>
-                                    <CardDescription>
-                                        Execute directly via the MCP Hub backend REST endpoint.
-                                    </CardDescription>
+                                    <CardDescription>Execute directly via the MCP Hub backend REST endpoint.</CardDescription>
                                 </div>
                                 <Button
                                     type="button"
@@ -439,17 +369,14 @@ async with streamable_http_client("http://localhost:8000/mcp") as (read_stream, 
                                         Unified MCP Gateway (/mcp) Python Client
                                     </CardTitle>
                                     <CardDescription>
-                                        Connect standard MCP clients directly to the aggregated
-                                        streamable gateway.
+                                        Connect standard MCP clients directly to the aggregated streamable gateway.
                                     </CardDescription>
                                 </div>
                                 <Button
                                     type="button"
                                     variant="outline"
                                     size="sm"
-                                    onClick={() =>
-                                        copyToClipboard(pythonGatewaySnippet, "Python snippet")
-                                    }
+                                    onClick={() => copyToClipboard(pythonGatewaySnippet, "Python snippet")}
                                     className="gap-1.5 text-xs"
                                 >
                                     {copiedSnippet === "Python snippet" ? (

@@ -77,9 +77,7 @@ describe("ToolListTable Component", () => {
         await waitFor(() => {
             expect(screen.getByRole("dialog")).toBeInTheDocument();
             expect(screen.getByText("Parameters (2)")).toBeInTheDocument();
-            expect(screen.getAllByText("Perform math calculation").length).toBeGreaterThanOrEqual(
-                2
-            );
+            expect(screen.getAllByText("Perform math calculation").length).toBeGreaterThanOrEqual(2);
         });
     });
 

@@ -88,9 +88,7 @@ describe("ToolDetailPage Component", () => {
 
         await waitFor(() => {
             expect(screen.getByText("calculate")).toBeInTheDocument();
-            expect(
-                screen.getByText("Evaluates mathematical expression safely")
-            ).toBeInTheDocument();
+            expect(screen.getByText("Evaluates mathematical expression safely")).toBeInTheDocument();
             expect(screen.getByText("math-server")).toBeInTheDocument();
             expect(screen.getByText("Available")).toBeInTheDocument();
         });
@@ -118,9 +116,7 @@ describe("ToolDetailPage Component", () => {
 
         await waitFor(() => {
             expect(screen.getByText(/REST API Execution \(cURL\)/i)).toBeInTheDocument();
-            expect(
-                screen.getByText(/Unified MCP Gateway \(\/mcp\) Python Client/i)
-            ).toBeInTheDocument();
+            expect(screen.getByText(/Unified MCP Gateway \(\/mcp\) Python Client/i)).toBeInTheDocument();
         });
 
         const copyBtns = screen.getAllByRole("button", { name: /Copy cURL/i });

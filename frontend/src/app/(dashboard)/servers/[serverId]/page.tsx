@@ -29,14 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -47,13 +40,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ErrorAlert } from "@/components/common/ErrorAlert";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -133,11 +120,7 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                     </div>
                 </div>
                 <CardGridSkeleton count={4} />
-                <TableSkeleton
-                    columns={["Tool Name", "Description", "Parameters", "Action"]}
-                    rowCount={4}
-                    showPagination={false}
-                />
+                <TableSkeleton columns={["Tool Name", "Description", "Parameters", "Action"]} rowCount={4} showPagination={false} />
             </div>
         );
     }
@@ -153,10 +136,7 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                 </Button>
                 <ErrorAlert
                     title="Server Not Found"
-                    message={
-                        (error as any)?.message ||
-                        "The requested MCP server does not exist or has been removed."
-                    }
+                    message={(error as any)?.message || "The requested MCP server does not exist or has been removed."}
                     correlationId={(error as any)?.correlationId}
                     onRetry={() => refetch()}
                 />
@@ -165,10 +145,7 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
     }
 
     const isActionLoading =
-        connectMutation.isPending ||
-        disconnectMutation.isPending ||
-        testMutation.isPending ||
-        refreshToolsMutation.isPending;
+        connectMutation.isPending || disconnectMutation.isPending || testMutation.isPending || refreshToolsMutation.isPending;
 
     const tools = toolsData?.items || [];
     const executions = executionsData?.items || [];
@@ -191,13 +168,7 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                 description={server.description || "No description provided."}
                 actions={
                     <div className="flex flex-wrap items-center gap-2">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleTestConnection}
-                            disabled={isActionLoading}
-                            className="gap-1.5"
-                        >
+                        <Button variant="outline" size="sm" onClick={handleTestConnection} disabled={isActionLoading} className="gap-1.5">
                             {testMutation.isPending ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
@@ -229,11 +200,7 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                                 disabled={isActionLoading}
                                 className="gap-1.5 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
                             >
-                                {connectMutation.isPending ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                    <Play className="h-4 w-4" />
-                                )}
+                                {connectMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
                                 Connect
                             </Button>
                         )}
@@ -284,9 +251,7 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                 </Card>
 
                 <Card className="p-4">
-                    <span className="text-xs text-muted-foreground font-medium">
-                        Transport Protocol
-                    </span>
+                    <span className="text-xs text-muted-foreground font-medium">Transport Protocol</span>
                     <div className="mt-2 flex items-center gap-1.5">
                         {server.transport === "stdio" ? (
                             <Badge variant="outline" className="gap-1 font-mono text-xs">
@@ -303,25 +268,15 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                 </Card>
 
                 <Card className="p-4">
-                    <span className="text-xs text-muted-foreground font-medium">
-                        Execution Status
-                    </span>
+                    <span className="text-xs text-muted-foreground font-medium">Execution Status</span>
                     <div className="mt-2">
-                        {server.enabled ? (
-                            <Badge variant="success">Enabled</Badge>
-                        ) : (
-                            <Badge variant="secondary">Disabled</Badge>
-                        )}
+                        {server.enabled ? <Badge variant="success">Enabled</Badge> : <Badge variant="secondary">Disabled</Badge>}
                     </div>
                 </Card>
 
                 <Card className="p-4">
-                    <span className="text-xs text-muted-foreground font-medium">
-                        Discovered Tools
-                    </span>
-                    <p className="mt-1 text-2xl font-bold font-mono text-foreground">
-                        {server.discovered_tool_count}
-                    </p>
+                    <span className="text-xs text-muted-foreground font-medium">Discovered Tools</span>
+                    <p className="mt-1 text-2xl font-bold font-mono text-foreground">{server.discovered_tool_count}</p>
                 </Card>
             </div>
 
@@ -333,9 +288,8 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                         <div className="flex-1 space-y-1">
                             <h4 className="font-semibold text-sm">Server Connectivity Failure</h4>
                             <p className="text-sm opacity-90">
-                                This MCP server failed its health check or subprocess communication
-                                broke down. Discovered tools are currently unavailable for execution
-                                until connectivity is re-established.
+                                This MCP server failed its health check or subprocess communication broke down. Discovered tools are
+                                currently unavailable for execution until connectivity is re-established.
                             </p>
                         </div>
                         <Button
@@ -355,35 +309,19 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
             {/* Detailed Information Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TabsList className="grid w-full grid-cols-4 max-w-xl">
-                    <TabsTrigger
-                        value="tools"
-                        onClick={() => setActiveTab("tools")}
-                        className="gap-1.5"
-                    >
+                    <TabsTrigger value="tools" onClick={() => setActiveTab("tools")} className="gap-1.5">
                         <Wrench className="h-4 w-4" />
                         Tools ({tools.length})
                     </TabsTrigger>
-                    <TabsTrigger
-                        value="executions"
-                        onClick={() => setActiveTab("executions")}
-                        className="gap-1.5"
-                    >
+                    <TabsTrigger value="executions" onClick={() => setActiveTab("executions")} className="gap-1.5">
                         <History className="h-4 w-4" />
                         Executions ({executions.length})
                     </TabsTrigger>
-                    <TabsTrigger
-                        value="config"
-                        onClick={() => setActiveTab("config")}
-                        className="gap-1.5"
-                    >
+                    <TabsTrigger value="config" onClick={() => setActiveTab("config")} className="gap-1.5">
                         <Layers className="h-4 w-4" />
                         Configuration
                     </TabsTrigger>
-                    <TabsTrigger
-                        value="telemetry"
-                        onClick={() => setActiveTab("telemetry")}
-                        className="gap-1.5"
-                    >
+                    <TabsTrigger value="telemetry" onClick={() => setActiveTab("telemetry")} className="gap-1.5">
                         <Clock className="h-4 w-4" />
                         Timestamps
                     </TabsTrigger>
@@ -395,8 +333,7 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                         <CardHeader>
                             <CardTitle className="text-lg">Discovered MCP Tools</CardTitle>
                             <CardDescription>
-                                Tools provided by this server that can be executed from the
-                                playground or REST API.
+                                Tools provided by this server that can be executed from the playground or REST API.
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -434,11 +371,8 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                                         </TableHeader>
                                         <TableBody>
                                             {tools.map((tool) => {
-                                                const requiredParams =
-                                                    tool.input_schema?.required?.length || 0;
-                                                const totalProps = Object.keys(
-                                                    tool.input_schema?.properties || {}
-                                                ).length;
+                                                const requiredParams = tool.input_schema?.required?.length || 0;
+                                                const totalProps = Object.keys(tool.input_schema?.properties || {}).length;
 
                                                 return (
                                                     <TableRow key={tool.id}>
@@ -455,16 +389,11 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                                                         </TableCell>
                                                         <TableCell className="text-xs">
                                                             <span className="font-mono bg-muted px-2 py-0.5 rounded">
-                                                                {totalProps} props ({requiredParams}{" "}
-                                                                required)
+                                                                {totalProps} props ({requiredParams} required)
                                                             </span>
                                                         </TableCell>
                                                         <TableCell className="text-right">
-                                                            <Button
-                                                                asChild
-                                                                size="sm"
-                                                                variant="outline"
-                                                            >
+                                                            <Button asChild size="sm" variant="outline">
                                                                 <Link
                                                                     href={`/playground?server=${server.id}&tool=${encodeURIComponent(
                                                                         tool.name
@@ -491,8 +420,7 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                         <CardHeader>
                             <CardTitle className="text-lg">Recent Tool Invocations</CardTitle>
                             <CardDescription>
-                                Historical execution logs and latency benchmarks strictly for this
-                                MCP server.
+                                Historical execution logs and latency benchmarks strictly for this MCP server.
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -508,9 +436,7 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                                     description="No tools on this server have been executed yet. Run a tool in the Playground to see results logged here."
                                     action={
                                         <Button asChild size="sm">
-                                            <Link href={`/playground?server=${server.id}`}>
-                                                Open Playground
-                                            </Link>
+                                            <Link href={`/playground?server=${server.id}`}>Open Playground</Link>
                                         </Button>
                                     }
                                 />
@@ -534,26 +460,18 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                                                     <TableRow key={exec.id}>
                                                         <TableCell>
                                                             {exec.is_error ? (
-                                                                <Badge
-                                                                    variant="destructive"
-                                                                    className="gap-1 font-medium text-xs"
-                                                                >
+                                                                <Badge variant="destructive" className="gap-1 font-medium text-xs">
                                                                     <XCircle className="h-3 w-3" />
                                                                     Failed
                                                                 </Badge>
                                                             ) : (
-                                                                <Badge
-                                                                    variant="success"
-                                                                    className="gap-1 font-medium text-xs"
-                                                                >
+                                                                <Badge variant="success" className="gap-1 font-medium text-xs">
                                                                     <CheckCircle2 className="h-3 w-3" />
                                                                     Success
                                                                 </Badge>
                                                             )}
                                                         </TableCell>
-                                                        <TableCell className="font-mono font-medium text-sm">
-                                                            {exec.tool_name}
-                                                        </TableCell>
+                                                        <TableCell className="font-mono font-medium text-sm">{exec.tool_name}</TableCell>
                                                         <TableCell className="max-w-xs text-xs font-mono text-muted-foreground truncate">
                                                             {argsString === "{}" ? "-" : argsString}
                                                         </TableCell>
@@ -564,17 +482,8 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                                                             {formatDate(exec.executed_at)}
                                                         </TableCell>
                                                         <TableCell className="text-right">
-                                                            <Button
-                                                                asChild
-                                                                size="sm"
-                                                                variant="outline"
-                                                                className="h-8 text-xs"
-                                                            >
-                                                                <Link
-                                                                    href={`/executions/${exec.id}`}
-                                                                >
-                                                                    Details
-                                                                </Link>
+                                                            <Button asChild size="sm" variant="outline" className="h-8 text-xs">
+                                                                <Link href={`/executions/${exec.id}`}>Details</Link>
                                                             </Button>
                                                         </TableCell>
                                                     </TableRow>
@@ -592,12 +501,9 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                 <TabsContent value="config" className="mt-4">
                     <Card>
                         <CardHeader>
-                            <CardTitle className="text-lg">
-                                Sanitized Connection Configuration
-                            </CardTitle>
+                            <CardTitle className="text-lg">Sanitized Connection Configuration</CardTitle>
                             <CardDescription>
-                                Parameters used to initialize client sessions. Sensitive
-                                authentication credentials are redacted.
+                                Parameters used to initialize client sessions. Sensitive authentication credentials are redacted.
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
@@ -605,18 +511,14 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                                 <div className="space-y-4">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div className="rounded-lg border border-border p-3">
-                                            <span className="text-xs text-muted-foreground font-medium">
-                                                Command
-                                            </span>
+                                            <span className="text-xs text-muted-foreground font-medium">Command</span>
                                             <p className="mt-1 font-mono text-sm font-semibold text-foreground">
                                                 {server.connection_config.command || "-"}
                                             </p>
                                         </div>
 
                                         <div className="rounded-lg border border-border p-3">
-                                            <span className="text-xs text-muted-foreground font-medium">
-                                                Arguments
-                                            </span>
+                                            <span className="text-xs text-muted-foreground font-medium">Arguments</span>
                                             <p className="mt-1 font-mono text-sm text-foreground">
                                                 {server.connection_config.args?.join(" ") || "None"}
                                             </p>
@@ -626,9 +528,7 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                             ) : (
                                 <div className="space-y-4">
                                     <div className="rounded-lg border border-border p-3">
-                                        <span className="text-xs text-muted-foreground font-medium">
-                                            Endpoint URL
-                                        </span>
+                                        <span className="text-xs text-muted-foreground font-medium">Endpoint URL</span>
                                         <p className="mt-1 font-mono text-sm font-semibold text-foreground break-all">
                                             {server.connection_config.url || "-"}
                                         </p>
@@ -639,19 +539,12 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                                             <Shield className="h-3.5 w-3.5 text-emerald-500" />
                                             <span>HTTP Headers (Masked)</span>
                                         </div>
-                                        {server.connection_config.headers &&
-                                        Object.keys(server.connection_config.headers).length > 0 ? (
+                                        {server.connection_config.headers && Object.keys(server.connection_config.headers).length > 0 ? (
                                             <pre className="font-mono text-xs bg-muted p-2 rounded overflow-x-auto">
-                                                {JSON.stringify(
-                                                    server.connection_config.headers,
-                                                    null,
-                                                    2
-                                                )}
+                                                {JSON.stringify(server.connection_config.headers, null, 2)}
                                             </pre>
                                         ) : (
-                                            <p className="text-xs text-muted-foreground">
-                                                No custom headers configured.
-                                            </p>
+                                            <p className="text-xs text-muted-foreground">No custom headers configured.</p>
                                         )}
                                     </div>
                                 </div>
@@ -669,34 +562,22 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                         <CardContent>
                             <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                                 <div className="rounded-lg border border-border p-3">
-                                    <dt className="text-xs text-muted-foreground">
-                                        Last Connected At
-                                    </dt>
-                                    <dd className="mt-1 font-mono font-medium text-foreground">
-                                        {formatDate(server.last_connected_at)}
-                                    </dd>
+                                    <dt className="text-xs text-muted-foreground">Last Connected At</dt>
+                                    <dd className="mt-1 font-mono font-medium text-foreground">{formatDate(server.last_connected_at)}</dd>
                                 </div>
                                 <div className="rounded-lg border border-border p-3">
-                                    <dt className="text-xs text-muted-foreground">
-                                        Last Health Check At
-                                    </dt>
+                                    <dt className="text-xs text-muted-foreground">Last Health Check At</dt>
                                     <dd className="mt-1 font-mono font-medium text-foreground">
                                         {formatDate(server.last_health_check_at)}
                                     </dd>
                                 </div>
                                 <div className="rounded-lg border border-border p-3">
                                     <dt className="text-xs text-muted-foreground">Registered At</dt>
-                                    <dd className="mt-1 font-mono font-medium text-foreground">
-                                        {formatDate(server.created_at)}
-                                    </dd>
+                                    <dd className="mt-1 font-mono font-medium text-foreground">{formatDate(server.created_at)}</dd>
                                 </div>
                                 <div className="rounded-lg border border-border p-3">
-                                    <dt className="text-xs text-muted-foreground">
-                                        Last Updated At
-                                    </dt>
-                                    <dd className="mt-1 font-mono font-medium text-foreground">
-                                        {formatDate(server.updated_at)}
-                                    </dd>
+                                    <dt className="text-xs text-muted-foreground">Last Updated At</dt>
+                                    <dd className="mt-1 font-mono font-medium text-foreground">{formatDate(server.updated_at)}</dd>
                                 </div>
                             </dl>
                         </CardContent>
@@ -710,23 +591,18 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                     <AlertDialogHeader>
                         <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            This action will permanently delete server{" "}
-                            <strong>"{server.name}"</strong>, terminate all active transport
+                            This action will permanently delete server <strong>"{server.name}"</strong>, terminate all active transport
                             sessions, and purge its tools from the catalog.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel disabled={deleteMutation.isPending}>
-                            Cancel
-                        </AlertDialogCancel>
+                        <AlertDialogCancel disabled={deleteMutation.isPending}>Cancel</AlertDialogCancel>
                         <AlertDialogAction
                             onClick={handleDelete}
                             disabled={deleteMutation.isPending}
                             className="bg-destructive text-destructive-foreground hover:bg-destructive/90 gap-2"
                         >
-                            {deleteMutation.isPending && (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                            )}
+                            {deleteMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                             Confirm Delete
                         </AlertDialogAction>
                     </AlertDialogFooter>
@@ -734,10 +610,7 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
             </AlertDialog>
 
             {/* Connection Test Result Dialog */}
-            <Dialog
-                open={Boolean(testResult)}
-                onOpenChange={(open) => !open && setTestResult(null)}
-            >
+            <Dialog open={Boolean(testResult)} onOpenChange={(open) => !open && setTestResult(null)}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
@@ -749,8 +622,7 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                             Connection Test Result
                         </DialogTitle>
                         <DialogDescription>
-                            Connectivity check to{" "}
-                            <strong className="text-foreground">{server.name}</strong>
+                            Connectivity check to <strong className="text-foreground">{server.name}</strong>
                         </DialogDescription>
                     </DialogHeader>
 
@@ -768,12 +640,8 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                                     </p>
                                 </div>
                                 <div className="rounded-lg border border-border p-3">
-                                    <span className="text-xs text-muted-foreground">
-                                        Discovered Tools
-                                    </span>
-                                    <p className="text-lg font-bold font-mono text-foreground mt-0.5">
-                                        {testResult.tools_count}
-                                    </p>
+                                    <span className="text-xs text-muted-foreground">Discovered Tools</span>
+                                    <p className="text-lg font-bold font-mono text-foreground mt-0.5">{testResult.tools_count}</p>
                                 </div>
                             </div>
                         </div>

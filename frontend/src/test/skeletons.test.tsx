@@ -8,13 +8,7 @@ import DashboardLoading from "@/app/(dashboard)/loading";
 
 describe("Skeleton UI Components", () => {
     it("renders TableSkeleton with specified columns and rows", () => {
-        const { container } = render(
-            <TableSkeleton
-                columns={["Col 1", "Col 2", "Col 3", "Actions"]}
-                rowCount={4}
-                showPagination={true}
-            />
-        );
+        const { container } = render(<TableSkeleton columns={["Col 1", "Col 2", "Col 3", "Actions"]} rowCount={4} showPagination={true} />);
 
         const table = screen.getByRole("table");
         expect(table).toBeInTheDocument();

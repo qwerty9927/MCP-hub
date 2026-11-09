@@ -7,13 +7,7 @@ export class AppApiError extends Error {
     public details?: any;
     public correlationId?: string;
 
-    constructor(
-        message: string,
-        code = "UNKNOWN_ERROR",
-        status?: number,
-        details?: any,
-        correlationId?: string
-    ) {
+    constructor(message: string, code = "UNKNOWN_ERROR", status?: number, details?: any, correlationId?: string) {
         super(message);
         this.name = "AppApiError";
         this.code = code;
@@ -48,11 +42,7 @@ export function normalizeApiError(error: unknown): AppApiError {
         }
 
         if (error.code === "ECONNABORTED") {
-            return new AppApiError(
-                "Request timed out while contacting MCP Hub backend",
-                "TIMEOUT_ERROR",
-                408
-            );
+            return new AppApiError("Request timed out while contacting MCP Hub backend", "TIMEOUT_ERROR", 408);
         }
 
         if (!error.response) {
@@ -63,13 +53,7 @@ export function normalizeApiError(error: unknown): AppApiError {
             );
         }
 
-        return new AppApiError(
-            error.message || "Request failed",
-            `HTTP_${status}`,
-            status,
-            undefined,
-            correlationId
-        );
+        return new AppApiError(error.message || "Request failed", `HTTP_${status}`, status, undefined, correlationId);
     }
 
     if (error instanceof Error) {

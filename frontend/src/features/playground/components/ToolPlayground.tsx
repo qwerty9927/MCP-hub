@@ -23,13 +23,7 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -48,19 +42,7 @@ import { useTools, useExecuteTool } from "@/features/tools/hooks/use-tools";
 import { ToolExecuteResponse, ToolRead } from "@/types";
 import { formatDuration } from "@/lib/utils";
 
-const DESTRUCTIVE_KEYWORDS = [
-    "delete",
-    "remove",
-    "drop",
-    "destroy",
-    "exec",
-    "write",
-    "purge",
-    "kill",
-    "truncate",
-    "format",
-    "reset",
-];
+const DESTRUCTIVE_KEYWORDS = ["delete", "remove", "drop", "destroy", "exec", "write", "purge", "kill", "truncate", "format", "reset"];
 
 export function ToolPlayground() {
     const searchParams = useSearchParams();
@@ -148,9 +130,7 @@ export function ToolPlayground() {
         setSelectedToolName(toolName);
         setFieldErrors({});
         setResult(null);
-        router.replace(
-            `/playground?server=${selectedServerId}&tool=${encodeURIComponent(toolName)}`
-        );
+        router.replace(`/playground?server=${selectedServerId}&tool=${encodeURIComponent(toolName)}`);
     };
 
     const handleJsonChange = (text: string) => {
@@ -288,16 +268,12 @@ export function ToolPlayground() {
                         <ServerIcon className="h-4 w-4 text-primary" />
                         Target Server & Tool Selection
                     </CardTitle>
-                    <CardDescription>
-                        Select an active MCP server and discovered tool to test invocations.
-                    </CardDescription>
+                    <CardDescription>Select an active MCP server and discovered tool to test invocations.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-muted-foreground">
-                                MCP Server
-                            </label>
+                            <label className="text-xs font-medium text-muted-foreground">MCP Server</label>
                             <Select value={selectedServerId} onValueChange={handleServerChange}>
                                 <SelectTrigger className="h-9">
                                     <SelectValue placeholder="Select an MCP Server..." />
@@ -313,14 +289,8 @@ export function ToolPlayground() {
                         </div>
 
                         <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-muted-foreground">
-                                MCP Tool
-                            </label>
-                            <Select
-                                value={selectedToolName}
-                                onValueChange={handleToolChange}
-                                disabled={!selectedServerId || toolsLoading}
-                            >
+                            <label className="text-xs font-medium text-muted-foreground">MCP Tool</label>
+                            <Select value={selectedToolName} onValueChange={handleToolChange} disabled={!selectedServerId || toolsLoading}>
                                 <SelectTrigger className="h-9">
                                     <SelectValue
                                         placeholder={
@@ -361,16 +331,11 @@ export function ToolPlayground() {
                                             {currentTool.name}
                                         </CardTitle>
                                         {currentTool.description && (
-                                            <CardDescription className="mt-1">
-                                                {currentTool.description}
-                                            </CardDescription>
+                                            <CardDescription className="mt-1">{currentTool.description}</CardDescription>
                                         )}
                                     </div>
 
-                                    <Tabs
-                                        value={inputMode}
-                                        onValueChange={(val: any) => setInputMode(val)}
-                                    >
+                                    <Tabs value={inputMode} onValueChange={(val: any) => setInputMode(val)}>
                                         <TabsList className="h-8">
                                             <TabsTrigger
                                                 value="visual"
@@ -380,11 +345,7 @@ export function ToolPlayground() {
                                                 <FileText className="h-3 w-3" />
                                                 Form
                                             </TabsTrigger>
-                                            <TabsTrigger
-                                                value="json"
-                                                onClick={() => setInputMode("json")}
-                                                className="h-7 text-xs gap-1"
-                                            >
+                                            <TabsTrigger value="json" onClick={() => setInputMode("json")} className="h-7 text-xs gap-1">
                                                 <Code className="h-3 w-3" />
                                                 JSON
                                             </TabsTrigger>
@@ -404,9 +365,7 @@ export function ToolPlayground() {
                                 ) : (
                                     <div className="space-y-2">
                                         <div className="flex items-center justify-between">
-                                            <span className="text-xs text-muted-foreground font-mono">
-                                                JSON Arguments Payload
-                                            </span>
+                                            <span className="text-xs text-muted-foreground font-mono">JSON Arguments Payload</span>
                                             <Button
                                                 type="button"
                                                 variant="ghost"
@@ -426,20 +385,13 @@ export function ToolPlayground() {
                                             disabled={executeMutation.isPending}
                                             placeholder="{}"
                                         />
-                                        {jsonError && (
-                                            <p className="text-xs text-destructive font-mono">
-                                                {jsonError}
-                                            </p>
-                                        )}
+                                        {jsonError && <p className="text-xs text-destructive font-mono">{jsonError}</p>}
                                     </div>
                                 )}
 
                                 <div className="flex items-center justify-between pt-2 border-t border-border">
                                     <div className="text-xs text-muted-foreground">
-                                        Server:{" "}
-                                        <span className="font-semibold text-foreground">
-                                            {currentTool.server_name}
-                                        </span>
+                                        Server: <span className="font-semibold text-foreground">{currentTool.server_name}</span>
                                     </div>
                                     <Button
                                         onClick={triggerExecution}
@@ -497,12 +449,7 @@ export function ToolPlayground() {
                                             >
                                                 <Trash2 className="h-3.5 w-3.5" />
                                             </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={handleCopyResult}
-                                                className="h-8 gap-1.5 text-xs"
-                                            >
+                                            <Button variant="ghost" size="sm" onClick={handleCopyResult} className="h-8 gap-1.5 text-xs">
                                                 {copiedResult ? (
                                                     <Check className="h-3.5 w-3.5 text-emerald-500" />
                                                 ) : (
@@ -519,9 +466,7 @@ export function ToolPlayground() {
                                     <div className="flex flex-col items-center justify-center p-12 text-center text-muted-foreground">
                                         <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
                                         <p className="text-sm font-medium">Invoking MCP tool...</p>
-                                        <p className="text-xs text-muted-foreground mt-1">
-                                            Executing on backend through transport session
-                                        </p>
+                                        <p className="text-xs text-muted-foreground mt-1">Executing on backend through transport session</p>
                                     </div>
                                 ) : result ? (
                                     <div className="space-y-4">
@@ -530,21 +475,15 @@ export function ToolPlayground() {
                                             <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive flex items-start gap-2">
                                                 <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
                                                 <div>
-                                                    <p className="font-semibold">
-                                                        Tool execution returned an error
-                                                    </p>
+                                                    <p className="font-semibold">Tool execution returned an error</p>
                                                     <p className="mt-0.5 opacity-90">
-                                                        The MCP server processed the invocation but
-                                                        flagged the response as an error.
+                                                        The MCP server processed the invocation but flagged the response as an error.
                                                     </p>
                                                 </div>
                                             </div>
                                         )}
 
-                                        <Tabs
-                                            value={outputTab}
-                                            onValueChange={(v: any) => setOutputTab(v)}
-                                        >
+                                        <Tabs value={outputTab} onValueChange={(v: any) => setOutputTab(v)}>
                                             <TabsList className="h-7 w-full grid grid-cols-2 max-w-[200px]">
                                                 <TabsTrigger
                                                     value="formatted"
@@ -553,19 +492,12 @@ export function ToolPlayground() {
                                                 >
                                                     Content
                                                 </TabsTrigger>
-                                                <TabsTrigger
-                                                    value="raw"
-                                                    onClick={() => setOutputTab("raw")}
-                                                    className="text-xs h-6"
-                                                >
+                                                <TabsTrigger value="raw" onClick={() => setOutputTab("raw")} className="text-xs h-6">
                                                     Raw JSON
                                                 </TabsTrigger>
                                             </TabsList>
 
-                                            <TabsContent
-                                                value="formatted"
-                                                className="mt-3 space-y-3"
-                                            >
+                                            <TabsContent value="formatted" className="mt-3 space-y-3">
                                                 {/* Textual content items */}
                                                 {result.content && result.content.length > 0 ? (
                                                     <div className="space-y-2">
@@ -578,15 +510,12 @@ export function ToolPlayground() {
                                                                 key={idx}
                                                                 className="rounded-lg border border-border bg-muted/40 p-3 text-sm font-mono overflow-x-auto whitespace-pre-wrap break-all"
                                                             >
-                                                                {item.text ||
-                                                                    JSON.stringify(item, null, 2)}
+                                                                {item.text || JSON.stringify(item, null, 2)}
                                                             </div>
                                                         ))}
                                                     </div>
                                                 ) : (
-                                                    <p className="text-xs text-muted-foreground">
-                                                        No textual content returned.
-                                                    </p>
+                                                    <p className="text-xs text-muted-foreground">No textual content returned.</p>
                                                 )}
 
                                                 {/* Structured Content if present */}
@@ -596,11 +525,7 @@ export function ToolPlayground() {
                                                             Structured Result:
                                                         </span>
                                                         <pre className="rounded-lg border border-border bg-muted/40 p-3 text-xs font-mono overflow-x-auto">
-                                                            {JSON.stringify(
-                                                                result.structured_content,
-                                                                null,
-                                                                2
-                                                            )}
+                                                            {JSON.stringify(result.structured_content, null, 2)}
                                                         </pre>
                                                     </div>
                                                 )}
@@ -615,15 +540,8 @@ export function ToolPlayground() {
 
                                         {/* Execution Audit Link */}
                                         <div className="flex items-center justify-between pt-2 border-t border-border text-xs text-muted-foreground">
-                                            <span className="font-mono">
-                                                ID: {result.execution_id.slice(0, 8)}...
-                                            </span>
-                                            <Button
-                                                asChild
-                                                variant="link"
-                                                size="sm"
-                                                className="h-auto p-0 text-xs"
-                                            >
+                                            <span className="font-mono">ID: {result.execution_id.slice(0, 8)}...</span>
+                                            <Button asChild variant="link" size="sm" className="h-auto p-0 text-xs">
                                                 <Link href={`/executions/${result.execution_id}`}>
                                                     <History className="mr-1 h-3 w-3" />
                                                     View Execution Log
@@ -636,8 +554,7 @@ export function ToolPlayground() {
                                         <Play className="h-8 w-8 opacity-40 mb-2" />
                                         <p className="text-sm">Ready to execute</p>
                                         <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-                                            Configure your arguments and click "Execute Tool" to
-                                            view response payloads.
+                                            Configure your arguments and click "Execute Tool" to view response payloads.
                                         </p>
                                     </div>
                                 )}
@@ -650,8 +567,7 @@ export function ToolPlayground() {
                     <Wrench className="h-10 w-10 text-muted-foreground mx-auto mb-3 opacity-50" />
                     <h3 className="text-base font-semibold text-foreground">No Tool Selected</h3>
                     <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
-                        Choose an MCP server and tool from the selector above to test interactive
-                        invocations.
+                        Choose an MCP server and tool from the selector above to test interactive invocations.
                     </p>
                 </Card>
             )}
@@ -665,9 +581,8 @@ export function ToolPlayground() {
                             Potentially Destructive Action
                         </AlertDialogTitle>
                         <AlertDialogDescription>
-                            Tool <strong>"{currentTool?.name}"</strong> has an action name
-                            indicating write, delete, or system execution. Are you sure you want to
-                            run this tool on server <strong>"{currentTool?.server_name}"</strong>?
+                            Tool <strong>"{currentTool?.name}"</strong> has an action name indicating write, delete, or system execution.
+                            Are you sure you want to run this tool on server <strong>"{currentTool?.server_name}"</strong>?
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     {pendingArgs && Object.keys(pendingArgs).length > 0 && (

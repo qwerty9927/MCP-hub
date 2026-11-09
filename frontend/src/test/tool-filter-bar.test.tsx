@@ -26,18 +26,14 @@ describe("ToolFilterBar Component", () => {
     it("renders search input and trigger selects", () => {
         renderWithClient(<ToolFilterBar filters={{ page: 1, page_size: 20 }} onChange={vi.fn()} />);
 
-        expect(
-            screen.getByPlaceholderText(/Search tools by name, description, server.../i)
-        ).toBeInTheDocument();
+        expect(screen.getByPlaceholderText(/Search tools by name, description, server.../i)).toBeInTheDocument();
         expect(screen.getByText("All Servers")).toBeInTheDocument();
         expect(screen.getByText("All Statuses")).toBeInTheDocument();
     });
 
     it("triggers onChange when user types in search input", () => {
         const onChange = vi.fn();
-        renderWithClient(
-            <ToolFilterBar filters={{ page: 1, page_size: 20 }} onChange={onChange} />
-        );
+        renderWithClient(<ToolFilterBar filters={{ page: 1, page_size: 20 }} onChange={onChange} />);
 
         const input = screen.getByPlaceholderText(/Search tools by name, description, server.../i);
         fireEvent.change(input, { target: { value: "calc" } });
@@ -47,12 +43,7 @@ describe("ToolFilterBar Component", () => {
 
     it("displays reset button when filters are active and clears filters on click", () => {
         const onChange = vi.fn();
-        renderWithClient(
-            <ToolFilterBar
-                filters={{ page: 2, page_size: 20, search: "math" }}
-                onChange={onChange}
-            />
-        );
+        renderWithClient(<ToolFilterBar filters={{ page: 2, page_size: 20, search: "math" }} onChange={onChange} />);
 
         const resetBtn = screen.getByRole("button", { name: /Reset/i });
         expect(resetBtn).toBeInTheDocument();

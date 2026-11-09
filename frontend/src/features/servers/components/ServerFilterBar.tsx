@@ -4,13 +4,7 @@ import React from "react";
 import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ServerFilterParams, ServerHealthStatus, TransportType } from "@/types";
 
 interface ServerFilterBarProps {
@@ -19,12 +13,7 @@ interface ServerFilterBarProps {
 }
 
 export function ServerFilterBar({ filters, onChange }: ServerFilterBarProps) {
-    const hasActiveFilters = Boolean(
-        filters.search ||
-        filters.transport ||
-        filters.health_status ||
-        filters.enabled !== undefined
-    );
+    const hasActiveFilters = Boolean(filters.search || filters.transport || filters.health_status || filters.enabled !== undefined);
 
     const handleClear = () => {
         onChange({
@@ -48,9 +37,7 @@ export function ServerFilterBar({ filters, onChange }: ServerFilterBarProps) {
                     <Input
                         placeholder="Search servers by name..."
                         value={filters.search || ""}
-                        onChange={(e) =>
-                            onChange({ ...filters, search: e.target.value || undefined, page: 1 })
-                        }
+                        onChange={(e) => onChange({ ...filters, search: e.target.value || undefined, page: 1 })}
                         className="pl-8 h-9"
                     />
                 </div>
@@ -102,13 +89,7 @@ export function ServerFilterBar({ filters, onChange }: ServerFilterBarProps) {
 
                 {/* Enabled Filter */}
                 <Select
-                    value={
-                        filters.enabled === undefined
-                            ? "all"
-                            : filters.enabled
-                              ? "enabled"
-                              : "disabled"
-                    }
+                    value={filters.enabled === undefined ? "all" : filters.enabled ? "enabled" : "disabled"}
                     onValueChange={(val) =>
                         onChange({
                             ...filters,

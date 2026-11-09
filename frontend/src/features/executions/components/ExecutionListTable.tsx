@@ -5,14 +5,7 @@ import Link from "next/link";
 import { ExecutionRecord } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CheckCircle2, XCircle, Clock, ExternalLink } from "lucide-react";
 import { formatDate, formatDuration } from "@/lib/utils";
 
@@ -43,18 +36,12 @@ export function ExecutionListTable({ executions }: ExecutionListTableProps) {
                             <TableRow key={exec.id} className="group">
                                 <TableCell>
                                     {exec.is_error ? (
-                                        <Badge
-                                            variant="destructive"
-                                            className="gap-1 font-medium text-xs"
-                                        >
+                                        <Badge variant="destructive" className="gap-1 font-medium text-xs">
                                             <XCircle className="h-3 w-3" />
                                             Failed
                                         </Badge>
                                     ) : (
-                                        <Badge
-                                            variant="success"
-                                            className="gap-1 font-medium text-xs"
-                                        >
+                                        <Badge variant="success" className="gap-1 font-medium text-xs">
                                             <CheckCircle2 className="h-3 w-3" />
                                             Success
                                         </Badge>
@@ -72,10 +59,7 @@ export function ExecutionListTable({ executions }: ExecutionListTableProps) {
                                 </TableCell>
 
                                 <TableCell>
-                                    <Link
-                                        href={`/servers/${exec.server_id}`}
-                                        className="text-xs hover:underline text-muted-foreground"
-                                    >
+                                    <Link href={`/servers/${exec.server_id}`} className="text-xs hover:underline text-muted-foreground">
                                         {exec.server_name}
                                     </Link>
                                 </TableCell>
@@ -91,17 +75,10 @@ export function ExecutionListTable({ executions }: ExecutionListTableProps) {
                                     </span>
                                 </TableCell>
 
-                                <TableCell className="text-xs text-muted-foreground">
-                                    {formatDate(exec.executed_at)}
-                                </TableCell>
+                                <TableCell className="text-xs text-muted-foreground">{formatDate(exec.executed_at)}</TableCell>
 
                                 <TableCell className="text-right">
-                                    <Button
-                                        asChild
-                                        size="sm"
-                                        variant="outline"
-                                        className="h-8 text-xs"
-                                    >
+                                    <Button asChild size="sm" variant="outline" className="h-8 text-xs">
                                         <Link href={`/executions/${exec.id}`}>Details</Link>
                                     </Button>
                                 </TableCell>

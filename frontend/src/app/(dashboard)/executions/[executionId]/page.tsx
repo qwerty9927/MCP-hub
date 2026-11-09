@@ -2,19 +2,7 @@
 
 import React, { use, useState } from "react";
 import Link from "next/link";
-import {
-    ArrowLeft,
-    Clock,
-    Server,
-    Wrench,
-    Play,
-    CheckCircle2,
-    XCircle,
-    Copy,
-    Check,
-    FileCode2,
-    Terminal,
-} from "lucide-react";
+import { ArrowLeft, Clock, Server, Wrench, Play, CheckCircle2, XCircle, Copy, Check, FileCode2, Terminal } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -97,10 +85,7 @@ export default function ExecutionDetailPage({ params }: ExecutionDetailPageProps
                 </Button>
                 <ErrorAlert
                     title="Execution Record Not Found"
-                    message={
-                        (error as any)?.message ||
-                        "Could not locate execution record with the given ID."
-                    }
+                    message={(error as any)?.message || "Could not locate execution record with the given ID."}
                     onRetry={() => refetch()}
                 />
             </div>
@@ -123,25 +108,12 @@ export default function ExecutionDetailPage({ params }: ExecutionDetailPageProps
                 description={`Audit record for invocation ID ${execution.id}`}
                 actions={
                     <div className="flex items-center gap-2">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleCopyJson}
-                            className="gap-1.5"
-                        >
-                            {copiedJson ? (
-                                <Check className="h-4 w-4 text-emerald-500" />
-                            ) : (
-                                <Copy className="h-4 w-4" />
-                            )}
+                        <Button variant="outline" size="sm" onClick={handleCopyJson} className="gap-1.5">
+                            {copiedJson ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
                             Copy JSON
                         </Button>
                         <Button asChild size="sm" className="gap-1.5">
-                            <Link
-                                href={`/playground?server=${execution.server_id}&tool=${encodeURIComponent(
-                                    execution.tool_name
-                                )}`}
-                            >
+                            <Link href={`/playground?server=${execution.server_id}&tool=${encodeURIComponent(execution.tool_name)}`}>
                                 <Play className="h-4 w-4" />
                                 Re-run in Playground
                             </Link>
@@ -191,9 +163,7 @@ export default function ExecutionDetailPage({ params }: ExecutionDetailPageProps
 
                 <Card className="p-4">
                     <span className="text-xs text-muted-foreground font-medium">Executed At</span>
-                    <p className="mt-2 text-xs font-mono text-muted-foreground">
-                        {formatDate(execution.executed_at)}
-                    </p>
+                    <p className="mt-2 text-xs font-mono text-muted-foreground">{formatDate(execution.executed_at)}</p>
                 </Card>
             </div>
 
@@ -236,11 +206,7 @@ export default function ExecutionDetailPage({ params }: ExecutionDetailPageProps
                             onClick={handleCopyArgs}
                             className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
                         >
-                            {copiedArgs ? (
-                                <Check className="h-3.5 w-3.5 text-emerald-500" />
-                            ) : (
-                                <Copy className="h-3.5 w-3.5" />
-                            )}
+                            {copiedArgs ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
                             Copy
                         </Button>
                     </CardHeader>
@@ -259,9 +225,7 @@ export default function ExecutionDetailPage({ params }: ExecutionDetailPageProps
                                 <FileCode2 className="h-4 w-4 text-primary" />
                                 Tool Output Response
                             </CardTitle>
-                            <CardDescription>
-                                Payload returned by downstream MCP server
-                            </CardDescription>
+                            <CardDescription>Payload returned by downstream MCP server</CardDescription>
                         </div>
                         {execution.response && (
                             <Button
@@ -270,11 +234,7 @@ export default function ExecutionDetailPage({ params }: ExecutionDetailPageProps
                                 onClick={handleCopyResponse}
                                 className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
                             >
-                                {copiedResponse ? (
-                                    <Check className="h-3.5 w-3.5 text-emerald-500" />
-                                ) : (
-                                    <Copy className="h-3.5 w-3.5" />
-                                )}
+                                {copiedResponse ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
                                 Copy
                             </Button>
                         )}
@@ -285,32 +245,22 @@ export default function ExecutionDetailPage({ params }: ExecutionDetailPageProps
                                 <Terminal className="h-8 w-8 opacity-40 mx-auto mb-2" />
                                 <p className="text-sm font-medium">No response payload recorded</p>
                                 <p className="text-xs text-muted-foreground mt-1">
-                                    This execution entry does not contain a saved downstream
-                                    response.
+                                    This execution entry does not contain a saved downstream response.
                                 </p>
                             </div>
                         ) : (
                             <Tabs value={responseTab} onValueChange={(v: any) => setResponseTab(v)}>
                                 <TabsList className="h-7 max-w-[200px] grid grid-cols-2 mb-3">
-                                    <TabsTrigger
-                                        value="formatted"
-                                        onClick={() => setResponseTab("formatted")}
-                                        className="text-xs h-6"
-                                    >
+                                    <TabsTrigger value="formatted" onClick={() => setResponseTab("formatted")} className="text-xs h-6">
                                         Content
                                     </TabsTrigger>
-                                    <TabsTrigger
-                                        value="raw"
-                                        onClick={() => setResponseTab("raw")}
-                                        className="text-xs h-6"
-                                    >
+                                    <TabsTrigger value="raw" onClick={() => setResponseTab("raw")} className="text-xs h-6">
                                         Raw JSON
                                     </TabsTrigger>
                                 </TabsList>
 
                                 <TabsContent value="formatted" className="space-y-3 mt-0">
-                                    {execution.response.content &&
-                                    execution.response.content.length > 0 ? (
+                                    {execution.response.content && execution.response.content.length > 0 ? (
                                         <div className="space-y-2">
                                             <span className="text-xs font-medium text-muted-foreground">
                                                 Content Blocks ({execution.response.content.length}
@@ -326,22 +276,14 @@ export default function ExecutionDetailPage({ params }: ExecutionDetailPageProps
                                             ))}
                                         </div>
                                     ) : (
-                                        <p className="text-xs text-muted-foreground italic">
-                                            No text content blocks in response.
-                                        </p>
+                                        <p className="text-xs text-muted-foreground italic">No text content blocks in response.</p>
                                     )}
 
                                     {execution.response.structured_content && (
                                         <div className="space-y-1.5 pt-2">
-                                            <span className="text-xs font-medium text-muted-foreground">
-                                                Structured Output:
-                                            </span>
+                                            <span className="text-xs font-medium text-muted-foreground">Structured Output:</span>
                                             <pre className="rounded-lg border border-border bg-muted/40 p-3 text-xs font-mono overflow-x-auto max-h-80">
-                                                {JSON.stringify(
-                                                    execution.response.structured_content,
-                                                    null,
-                                                    2
-                                                )}
+                                                {JSON.stringify(execution.response.structured_content, null, 2)}
                                             </pre>
                                         </div>
                                     )}

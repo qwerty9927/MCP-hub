@@ -6,10 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function PlaygroundPage() {
     return (
         <div className="space-y-6">
-            <PageHeader
-                title="Tool Playground"
-                description="Safely test and inspect MCP tool execution against active server sessions."
-            />
+            <PageHeader title="Tool Playground" description="Safely test and inspect MCP tool execution against active server sessions." />
 
             <Suspense
                 fallback={

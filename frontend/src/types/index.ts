@@ -5,8 +5,7 @@
 
 export type TransportType = "stdio" | "streamable-http";
 
-export type ServerHealthStatus =
-    "UNKNOWN" | "HEALTHY" | "UNHEALTHY" | "CONNECTING" | "DISCONNECTED";
+export type ServerHealthStatus = "UNKNOWN" | "HEALTHY" | "UNHEALTHY" | "CONNECTING" | "DISCONNECTED";
 
 export interface StdioConfig {
     command: string;

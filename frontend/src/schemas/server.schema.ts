@@ -6,15 +6,8 @@ export const serverFormSchema = z
             .string()
             .min(1, "Server name is required")
             .max(100, "Server name cannot exceed 100 characters")
-            .regex(
-                /^[a-zA-Z0-9_\-\.]+$/,
-                "Name can only contain alphanumeric characters, hyphens, underscores, and dots"
-            ),
-        description: z
-            .string()
-            .max(500, "Description cannot exceed 500 characters")
-            .optional()
-            .or(z.literal("")),
+            .regex(/^[a-zA-Z0-9_\-\.]+$/, "Name can only contain alphanumeric characters, hyphens, underscores, and dots"),
+        description: z.string().max(500, "Description cannot exceed 500 characters").optional().or(z.literal("")),
         transport: z.enum(["stdio", "streamable-http"]),
         enabled: z.boolean().default(true),
 
