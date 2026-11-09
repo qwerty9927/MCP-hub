@@ -165,11 +165,7 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
                 return None
 
             model, total, successful, failed = row
-            status_val = (
-                SessionStatus(model.status)
-                if model.status in SessionStatus._value2member_map_
-                else SessionStatus.ACTIVE
-            )
+            status_val = SessionStatus(model.status) if model.status in SessionStatus._value2member_map_ else SessionStatus.ACTIVE
             return SessionDetailEntity(
                 id=model.id,
                 status=status_val,
@@ -230,11 +226,7 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
     async def update_status(self, session_id: str, status: SessionStatus | str) -> bool:
         status_val = status.value if hasattr(status, "value") else str(status)
         async with self.session_factory() as db_session:
-            stmt = (
-                update(SessionModel)
-                .where(SessionModel.id == session_id)
-                .values(status=status_val, last_activity_at=datetime.now(UTC))
-            )
+            stmt = update(SessionModel).where(SessionModel.id == session_id).values(status=status_val, last_activity_at=datetime.now(UTC))
             result = await db_session.execute(stmt)
             await db_session.commit()
             return result.rowcount > 0
@@ -242,10 +234,6 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
     async def update_activity(self, session_id: str, timestamp: datetime | None = None) -> None:
         now = timestamp or datetime.now(UTC)
         async with self.session_factory() as db_session:
-            stmt = (
-                update(SessionModel)
-                .where(SessionModel.id == session_id)
-                .values(last_activity_at=now)
-            )
+            stmt = update(SessionModel).where(SessionModel.id == session_id).values(last_activity_at=now)
             await db_session.execute(stmt)
             await db_session.commit()

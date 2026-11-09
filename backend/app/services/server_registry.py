@@ -43,9 +43,7 @@ class ServerRegistryService:
         )
 
         saved = await self.repository.create(server)
-        logger.info(
-            f"Registered MCP server '{saved.name}' (id: {saved.id}, transport: {saved.transport})"
-        )
+        logger.info(f"Registered MCP server '{saved.name}' (id: {saved.id}, transport: {saved.transport})")
         return ServerResponse.from_domain(saved)
 
     async def get_server(self, server_id: UUID) -> ServerResponse:

@@ -195,39 +195,26 @@ class MCPGatewayService:
                 slug = slugify(srv.name)
 
                 # Fetch cached or persisted tools for this server
-                tools_response = await self.tool_catalog.list_tools(
-                    server_id=srv.id, page=1, page_size=1000
-                )
+                tools_response = await self.tool_catalog.list_tools(server_id=srv.id, page=1, page_size=1000)
                 tools = tools_response.items
 
                 # If no tools in catalog yet and server is healthy, attempt an auto-refresh
                 if not tools and srv.health_status == "HEALTHY":
                     try:
                         server_ent = await self.server_registry.get_server_entity(srv.id)
-                        refreshed = await self.tool_catalog.refresh_server_tools(
-                            server_ent, self.connection_manager
-                        )
-                        tools_response = await self.tool_catalog.list_tools(
-                            server_id=srv.id, page=1, page_size=1000
-                        )
+                        refreshed = await self.tool_catalog.refresh_server_tools(server_ent, self.connection_manager)
+                        tools_response = await self.tool_catalog.list_tools(server_id=srv.id, page=1, page_size=1000)
                         tools = tools_response.items
-                        await self.server_registry.update_health(
-                            srv.id, srv.health_status, len(refreshed)
-                        )
+                        await self.server_registry.update_health(srv.id, srv.health_status, len(refreshed))
                     except Exception as exc:
-                        logger.warning(
-                            f"Could not auto-refresh tools for server '{srv.name}': {exc}"
-                        )
+                        logger.warning(f"Could not auto-refresh tools for server '{srv.name}': {exc}")
 
                 for tool in tools:
                     # Construct namespaced tool name: <server_slug>__<tool_name>
                     candidate_name = f"{slug}__{tool.name}"
 
                     # Handle duplicate server slugs across different servers
-                    if (
-                        candidate_name in new_tool_map
-                        and new_tool_map[candidate_name].server_id != srv.id
-                    ):
+                    if candidate_name in new_tool_map and new_tool_map[candidate_name].server_id != srv.id:
                         short_id = str(srv.id).replace("-", "")[:6]
                         candidate_name = f"{slug}_{short_id}__{tool.name}"
 
@@ -242,9 +229,7 @@ class MCPGatewayService:
                     )
 
             self._tool_map = new_tool_map
-            logger.info(
-                f"Aggregated {len(self._tool_map)} tools from {len(enabled_servers)} enabled downstream servers"
-            )
+            logger.info(f"Aggregated {len(self._tool_map)} tools from {len(enabled_servers)} enabled downstream servers")
             return self._tool_map
 
     async def handle_list_tools(
@@ -271,8 +256,7 @@ class MCPGatewayService:
             mcp_tools.append(
                 types.Tool(
                     name=mapping.hub_tool_name,
-                    description=mapping.description
-                    or f"Tool '{mapping.original_tool_name}' from {mapping.server_name}",
+                    description=mapping.description or f"Tool '{mapping.original_tool_name}' from {mapping.server_name}",
                     input_schema=mapping.input_schema,
                 )
             )
@@ -337,13 +321,9 @@ class MCPGatewayService:
             return self._handle_search_tools_call(params.arguments)
 
         if params.name == MULTI_EXECUTE_TOOLS_NAME:
-            return await self._handle_multi_execute_tools_call(
-                params.arguments, session_id=session_id
-            )
+            return await self._handle_multi_execute_tools_call(params.arguments, session_id=session_id)
 
-        return await self._handle_downstream_tool_call(
-            params.name, params.arguments, session_id=session_id
-        )
+        return await self._handle_downstream_tool_call(params.name, params.arguments, session_id=session_id)
 
     def _handle_search_tools_call(
         self,

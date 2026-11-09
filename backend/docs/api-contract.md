@@ -574,9 +574,7 @@ async def main():
     ):
         # 1. Initialize MCP Session
         init_result = await session.initialize()
-        print(
-            f"Connected to Gateway: {init_result.server_info.name} v{init_result.server_info.version}"
-        )
+        print(f"Connected to Gateway: {init_result.server_info.name} v{init_result.server_info.version}")
 
         # 2. Discover Aggregated Tools
         tools_result = await session.list_tools()
@@ -584,15 +582,11 @@ async def main():
             print(f"- {tool.name}: {tool.description}")
 
         # 3. Call Tool on Downstream Server A
-        math_result = await session.call_tool(
-            "math_server__calculate", arguments={"expression": "10 * 5 + 2"}
-        )
+        math_result = await session.call_tool("math_server__calculate", arguments={"expression": "10 * 5 + 2"})
         print("Math Result:", math_result.content[0].text)
 
         # 4. Call Duplicate Tool on Downstream Server B
-        text_result = await session.call_tool(
-            "text_server__calculate", arguments={"expression": "10 * 5 + 2"}
-        )
+        text_result = await session.call_tool("text_server__calculate", arguments={"expression": "10 * 5 + 2"})
         print("Server B Result:", text_result.content[0].text)
 
 

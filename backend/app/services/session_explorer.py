@@ -66,9 +66,7 @@ class SessionExplorerService:
         return SessionResponse(
             id=created.id,
             title=created.title,
-            status=created.status.value
-            if hasattr(created.status, "value")
-            else str(created.status),
+            status=created.status.value if hasattr(created.status, "value") else str(created.status),
             created_at=created.created_at,
             last_activity_at=created.last_activity_at,
             total_tool_calls=0,

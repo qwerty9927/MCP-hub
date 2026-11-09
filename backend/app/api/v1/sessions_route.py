@@ -41,12 +41,8 @@ async def list_sessions(
     service: Annotated[SessionExplorerService, Depends(get_session_explorer_service)],
     page: int = Query(default=1, ge=1, description="Page number"),
     page_size: int = Query(default=20, ge=1, le=100, description="Items per page"),
-    search: str | None = Query(
-        default=None, description="Search term matching session ID or title"
-    ),
-    status: str | None = Query(
-        default=None, description="Filter by session status (active, completed, failed)"
-    ),
+    search: str | None = Query(default=None, description="Search term matching session ID or title"),
+    status: str | None = Query(default=None, description="Filter by session status (active, completed, failed)"),
 ) -> PaginatedResponse[SessionResponse]:
     """Retrieve existing MCP sessions with database-side pagination and filters."""
     return await service.list_sessions(
@@ -85,9 +81,7 @@ async def list_session_tool_calls(
         description="Sort field (created_at, started_at, completed_at, duration_ms, server_name, tool_name, status)",
     ),
     order: str = Query(default="asc", pattern="^(asc|desc)$", description="Sort order (asc, desc)"),
-    status: str | None = Query(
-        default=None, description="Filter by tool call status (running, completed, failed)"
-    ),
+    status: str | None = Query(default=None, description="Filter by tool call status (running, completed, failed)"),
     server_name: str | None = Query(default=None, description="Filter by server name"),
     tool_name: str | None = Query(default=None, description="Filter by tool name"),
 ) -> PaginatedResponse[ToolCallResponse]:

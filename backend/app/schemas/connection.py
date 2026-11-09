@@ -14,9 +14,7 @@ class StdioConfig(BaseModel):
 class HttpConfig(BaseModel):
     """Configuration for remote Streamable HTTP transport."""
 
-    url: str = Field(
-        ..., description="Full Streamable HTTP endpoint URL (e.g. 'http://localhost:8000/mcp')"
-    )
+    url: str = Field(..., description="Full Streamable HTTP endpoint URL (e.g. 'http://localhost:8000/mcp')")
     headers: dict[str, str] = Field(default_factory=dict, description="Custom HTTP headers")
 
 

@@ -239,9 +239,7 @@ async def test_execution_repo_list_by_session_sorting_and_filtering():
     ]
 
     # Filter by status: failed
-    calls_failed, count_failed = await exec_repo.list_by_session(
-        session_id=session_id, status="failed"
-    )
+    calls_failed, count_failed = await exec_repo.list_by_session(session_id=session_id, status="failed")
     assert count_failed == 1
     assert calls_failed[0].tool_name == "second_call"
     assert calls_failed[0].status == ToolCallStatus.FAILED

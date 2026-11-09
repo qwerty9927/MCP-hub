@@ -115,9 +115,7 @@ async def test_handle_multi_execute_tools_failure_isolation():
     mock_registry = AsyncMock()
 
     server1 = ServerEntity(id=srv1_id, name="math", transport=TransportType.STDIO, enabled=True)
-    server2_disabled = ServerEntity(
-        id=srv2_id, name="disabled_srv", transport=TransportType.STDIO, enabled=False
-    )
+    server2_disabled = ServerEntity(id=srv2_id, name="disabled_srv", transport=TransportType.STDIO, enabled=False)
 
     def get_server_mock(sid):
         if sid == srv1_id:
@@ -129,9 +127,7 @@ async def test_handle_multi_execute_tools_failure_isolation():
     # Router handles call for tool1 (success), tool2 (validation error), tool3 (downstream error)
     async def execute_mcp_mock(server_id, tool_name, arguments):
         if tool_name == "calc":
-            return types.CallToolResult(
-                content=[types.TextContent(type="text", text="42")], is_error=False
-            )
+            return types.CallToolResult(content=[types.TextContent(type="text", text="42")], is_error=False)
         if tool_name == "bad_args":
             raise ValidationError("Missing property 'x'")
         if tool_name == "crash":
@@ -270,9 +266,7 @@ async def test_handle_multi_execute_tools_payload_validation():
     # Extra item argument (extra="forbid")
     with pytest.raises(ValidationError):
         await handle_multi_execute_tools(
-            arguments={
-                "executions": [{"tool_slug": "calc", "arguments": {}, "extra_item_key": 123}]
-            },
+            arguments={"executions": [{"tool_slug": "calc", "arguments": {}, "extra_item_key": 123}]},
             tool_map={},
             tool_router=mock_router,
             server_registry=mock_registry,

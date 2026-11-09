@@ -169,9 +169,7 @@ async def handle_multi_execute_tools(
                 error_msg = ""
                 if result.content:
                     error_msg = (
-                        " ".join(
-                            getattr(c, "text", str(c)) for c in result.content if hasattr(c, "text")
-                        )
+                        " ".join(getattr(c, "text", str(c)) for c in result.content if hasattr(c, "text"))
                         or "Downstream tool reported an error"
                     )
                 return {
@@ -192,10 +190,7 @@ async def handle_multi_execute_tools(
                     except Exception:
                         data_output = text_val
                 else:
-                    data_output = [
-                        c.model_dump() if hasattr(c, "model_dump") else str(c)
-                        for c in result.content
-                    ]
+                    data_output = [c.model_dump() if hasattr(c, "model_dump") else str(c) for c in result.content]
 
             return {
                 "tool_slug": slug,

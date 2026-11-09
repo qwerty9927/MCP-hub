@@ -53,15 +53,9 @@ async def list_servers(
     page_size: int = Query(default=20, ge=1, le=100, description="Items per page"),
     enabled: bool | None = Query(default=None, description="Filter by enabled status"),
     transport: TransportType | None = Query(default=None, description="Filter by transport type"),
-    health_status: ServerHealthStatus | None = Query(
-        default=None, description="Filter by health status"
-    ),
-    search: str | None = Query(
-        default=None, description="Search query matching server name or description"
-    ),
-    sort_by: str = Query(
-        default="created_at", description="Sort field (created_at, name, updated_at)"
-    ),
+    health_status: ServerHealthStatus | None = Query(default=None, description="Filter by health status"),
+    search: str | None = Query(default=None, description="Search query matching server name or description"),
+    sort_by: str = Query(default="created_at", description="Sort field (created_at, name, updated_at)"),
     sort_order: str = Query(default="desc", pattern="^(asc|desc)$", description="Sort order"),
 ) -> PaginatedResponse[ServerResponse]:
     """Retrieve paginated MCP servers with optional filtering and sorting."""
