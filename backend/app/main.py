@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.routing import Route
 
-from app.api.dependencies import get_connection_manager, get_mcp_gateway, get_tool_catalog
+from app.api.dependencies import get_connection_manager, get_mcp_server, get_tool_catalog
 from app.api.v1.executions_route import router as executions_router
 from app.api.v1.servers_route import router as servers_router
 from app.api.v1.sessions_route import router as sessions_router
@@ -34,9 +34,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     tool_catalog = get_tool_catalog()
     await tool_catalog.initialize_cache()
 
-    # Start MCP Gateway Streamable HTTP lifecycle
-    mcp_gateway = get_mcp_gateway()
-    async with mcp_gateway.run():
+    # Start MCP Server Streamable HTTP lifecycle
+    mcp_server = get_mcp_server()
+    async with mcp_server.run():
         yield
 
     logger.info("Initiating graceful shutdown...")
@@ -167,13 +167,13 @@ def create_app() -> FastAPI:
 
     app.include_router(v1_router)
 
-    # Mount unified Streamable HTTP MCP Gateway endpoint at /mcp
-    mcp_gateway = get_mcp_gateway()
+    # Mount unified Streamable HTTP MCP Server endpoint at /mcp
+    mcp_server = get_mcp_server()
     app.routes.append(
         Route(
             "/mcp",
-            endpoint=mcp_gateway.get_proxy_asgi_app(),
-            name="mcp_gateway",
+            endpoint=mcp_server.get_proxy_asgi_app(),
+            name="mcp_server",
             include_in_schema=False,
         )
     )

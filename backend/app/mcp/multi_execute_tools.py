@@ -6,14 +6,15 @@ import json
 from typing import Annotated, Any
 from uuid import UUID
 
-import mcp.types as types
+from mcp.types import Tool
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from pydantic import ValidationError as PydanticValidationError
 
 from app.core.constants.meta_tools import META_TOOL_NAMES, MULTI_EXECUTE_TOOLS_NAME
-from app.core.exceptions import AppError, ValidationError
+from app.core.exceptions import AppError, NotFoundError, ValidationError
 from app.core.logging import logger
 from app.helpers.errors import format_mcp_error
+from app.helpers.text import slugify
 
 MULTI_EXECUTE_TOOLS_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -59,9 +60,9 @@ MULTI_EXECUTE_TOOLS_SCHEMA: dict[str, Any] = {
 }
 
 
-def get_multi_execute_tool_definition() -> types.Tool:
+def get_multi_execute_tool_definition() -> Tool:
     """Return MCP Tool definition for MULTI_EXECUTE_TOOLS."""
-    return types.Tool(
+    return Tool(
         name=MULTI_EXECUTE_TOOLS_NAME,
         description=inspect.cleandoc(
             """Concurrently execute one or more downstream tools discovered via `SEARCH_TOOLS`.
@@ -77,9 +78,9 @@ def get_multi_execute_tool_definition() -> types.Tool:
                  (e.g., `channel_id` returned by `list_channels`), execute Tool A first, inspect its response,
                  and then call `MULTI_EXECUTE_TOOLS` for Tool B in the next turn.
             3. **Partial Failure Handling:** Each tool execution in the batch is isolated and returns its own
-               `status` (`"success"`, `"validation_error"`, or `"error"`).
-               - If an item returns `"validation_error"`, read the error details, fix the missing/invalid
-                 arguments according to the tool's `input_schema`, and retry only the failed tool."""
+                `status` (`"success"`, `"validation_error"`, or `"error"`).
+                - If an item returns `"validation_error"`, read the error details, fix the missing/invalid
+                  arguments according to the tool's `input_schema`, and retry only the failed tool."""
         ),
         input_schema=MULTI_EXECUTE_TOOLS_SCHEMA,
     )
@@ -102,11 +103,157 @@ class MultiExecuteToolsInput(BaseModel):
     executions: list[ToolExecutionItem] = Field(..., min_length=1)
 
 
-async def handle_multi_execute_tools(
-    arguments: dict[str, Any],
-    tool_map: dict[str, Any],
+async def execute_single_tool(
+    item: ToolExecutionItem,
     tool_router: Any,
     server_registry: Any,
+    tool_catalog: Any | None = None,
+    tool_map: dict[str, Any] | None = None,
+    session_id: str | None = None,
+) -> dict[str, Any]:
+    """Execute a single tool call with isolated error and validation handling (no nested functions)."""
+    slug = item.tool_slug
+
+    # Disallow recursive meta-tool execution
+    if slug in META_TOOL_NAMES or slug in ("Search", "Multi-Execute"):
+        return {
+            "tool_slug": slug,
+            "status": "error",
+            "data": None,
+            "error": f"Executing meta-tool '{slug}' via {MULTI_EXECUTE_TOOLS_NAME} is not permitted.",
+        }
+
+    # Resolve target tool and server
+    server_id: UUID | None = None
+    server_name: str = ""
+    original_tool_name: str = slug
+
+    # Priority 1: Direct lookup via tool_catalog (discovered_tools table)
+    if tool_catalog:
+        tool_entity = None
+        try:
+            tool_entity = await tool_catalog.get_tool(slug)
+        except NotFoundError:
+            # Try parsing <server_slug>__<tool_name>
+            if "__" in slug:
+                server_part, tool_part = slug.split("__", 1)
+                cat_res = await tool_catalog.list_tools(tool_name=tool_part, page=1, page_size=100)
+                for cand in cat_res.items:
+                    if slugify(cand.server_name) == server_part:
+                        tool_entity = cand
+                        break
+
+        if tool_entity:
+            server_id = tool_entity.server_id
+            server_name = tool_entity.server_name
+            original_tool_name = tool_entity.name
+
+    # Priority 2: Fallback to tool_map if provided
+    if server_id is None and tool_map and slug in tool_map:
+        mapping = tool_map[slug]
+        raw_id = getattr(mapping, "server_id", None)
+        if isinstance(raw_id, str):
+            raw_id = UUID(raw_id)
+        server_id = raw_id
+        server_name = getattr(mapping, "server_name", "")
+        original_tool_name = getattr(mapping, "original_tool_name", slug)
+
+    if server_id is None:
+        return {
+            "tool_slug": slug,
+            "status": "error",
+            "data": None,
+            "error": f"Unknown or unavailable tool: '{slug}'",
+        }
+
+    try:
+        # Check server availability against mcp_servers table
+        server = await server_registry.get_server_entity(server_id)
+        if not server.enabled:
+            return {
+                "tool_slug": slug,
+                "status": "error",
+                "data": None,
+                "error": f"Target server '{server_name or server.name}' is currently disabled",
+            }
+
+        kwargs = {}
+        if session_id and isinstance(session_id, str):
+            kwargs["session_id"] = session_id
+
+        result = await tool_router.execute_mcp_tool(
+            server_id=server_id,
+            tool_name=original_tool_name,
+            arguments=item.arguments,
+            **kwargs,
+        )
+
+        if result.is_error:
+            error_msg = ""
+            if result.content:
+                error_msg = (
+                    " ".join(getattr(c, "text", str(c)) for c in result.content if hasattr(c, "text"))
+                    or "Downstream tool reported an error"
+                )
+            return {
+                "tool_slug": slug,
+                "status": "error",
+                "data": None,
+                "error": error_msg,
+            }
+
+        # Unpack content for result data
+        data_output: Any = None
+        if result.content:
+            if len(result.content) == 1 and hasattr(result.content[0], "text"):
+                text_val = result.content[0].text
+                try:
+                    parsed = json.loads(text_val)
+                    data_output = parsed if isinstance(parsed, (dict, list)) else text_val
+                except Exception:
+                    data_output = text_val
+            else:
+                data_output = [c.model_dump() if hasattr(c, "model_dump") else str(c) for c in result.content]
+
+        return {
+            "tool_slug": slug,
+            "status": "success",
+            "data": data_output,
+            "error": None,
+        }
+
+    except ValidationError as val_err:
+        logger.warning(f"Validation error in multi-execute item '{slug}': {val_err.message}")
+        return {
+            "tool_slug": slug,
+            "status": "validation_error",
+            "data": None,
+            "error": f"Argument validation failed: {val_err.message}",
+        }
+    except AppError as app_err:
+        logger.error(f"AppError in multi-execute item '{slug}': {app_err}")
+        return {
+            "tool_slug": slug,
+            "status": "error",
+            "data": None,
+            "error": format_mcp_error(app_err),
+        }
+    except Exception as exc:
+        logger.error(f"Unexpected error in multi-execute item '{slug}': {exc}")
+        return {
+            "tool_slug": slug,
+            "status": "error",
+            "data": None,
+            "error": format_mcp_error(exc),
+        }
+
+
+async def handle_multi_execute_tools(
+    arguments: dict[str, Any],
+    tool_router: Any,
+    server_registry: Any,
+    tool_catalog: Any | None = None,
+    tool_map: dict[str, Any] | None = None,
     session_id: str | None = None,
 ) -> dict[str, Any]:
     """Execute MULTI_EXECUTE_TOOLS parallel dispatcher with isolated failure handling."""
@@ -118,113 +265,17 @@ async def handle_multi_execute_tools(
             details={"errors": err.errors()},
         ) from err
 
-    async def _execute_single(item: ToolExecutionItem) -> dict[str, Any]:
-        slug = item.tool_slug
-
-        # Disallow recursive meta-tool execution
-        if slug in META_TOOL_NAMES:
-            return {
-                "tool_slug": slug,
-                "status": "error",
-                "data": None,
-                "error": f"Executing meta-tool '{slug}' via {MULTI_EXECUTE_TOOLS_NAME} is not permitted.",
-            }
-
-        mapping = tool_map.get(slug)
-        if not mapping:
-            return {
-                "tool_slug": slug,
-                "status": "error",
-                "data": None,
-                "error": f"Unknown or unavailable tool: '{slug}'",
-            }
-
-        try:
-            # Check server availability
-            server_id_val = mapping.server_id
-            if isinstance(server_id_val, str):
-                server_id_val = UUID(server_id_val)
-
-            server = await server_registry.get_server_entity(server_id_val)
-            if not server.enabled:
-                return {
-                    "tool_slug": slug,
-                    "status": "error",
-                    "data": None,
-                    "error": f"Target server '{mapping.server_name}' is currently disabled",
-                }
-
-            kwargs = {}
-            if session_id and isinstance(session_id, str):
-                kwargs["session_id"] = session_id
-
-            result = await tool_router.execute_mcp_tool(
-                server_id=server_id_val,
-                tool_name=mapping.original_tool_name,
-                arguments=item.arguments,
-                **kwargs,
-            )
-
-            if result.is_error:
-                error_msg = ""
-                if result.content:
-                    error_msg = (
-                        " ".join(getattr(c, "text", str(c)) for c in result.content if hasattr(c, "text"))
-                        or "Downstream tool reported an error"
-                    )
-                return {
-                    "tool_slug": slug,
-                    "status": "error",
-                    "data": None,
-                    "error": error_msg,
-                }
-
-            # Unpack content for result data
-            data_output: Any = None
-            if result.content:
-                if len(result.content) == 1 and hasattr(result.content[0], "text"):
-                    text_val = result.content[0].text
-                    try:
-                        parsed = json.loads(text_val)
-                        data_output = parsed if isinstance(parsed, (dict, list)) else text_val
-                    except Exception:
-                        data_output = text_val
-                else:
-                    data_output = [c.model_dump() if hasattr(c, "model_dump") else str(c) for c in result.content]
-
-            return {
-                "tool_slug": slug,
-                "status": "success",
-                "data": data_output,
-                "error": None,
-            }
-
-        except ValidationError as val_err:
-            logger.warning(f"Validation error in multi-execute item '{slug}': {val_err.message}")
-            return {
-                "tool_slug": slug,
-                "status": "validation_error",
-                "data": None,
-                "error": f"Argument validation failed: {val_err.message}",
-            }
-        except AppError as app_err:
-            logger.error(f"AppError in multi-execute item '{slug}': {app_err}")
-            return {
-                "tool_slug": slug,
-                "status": "error",
-                "data": None,
-                "error": format_mcp_error(app_err),
-            }
-        except Exception as exc:
-            logger.error(f"Unexpected error in multi-execute item '{slug}': {exc}")
-            return {
-                "tool_slug": slug,
-                "status": "error",
-                "data": None,
-                "error": format_mcp_error(exc),
-            }
-
-    tasks = [_execute_single(item) for item in validated.executions]
+    tasks = [
+        execute_single_tool(
+            item=item,
+            tool_router=tool_router,
+            server_registry=server_registry,
+            tool_catalog=tool_catalog,
+            tool_map=tool_map,
+            session_id=session_id,
+        )
+        for item in validated.executions
+    ]
     results = await asyncio.gather(*tasks)
 
     return {"results": list(results)}

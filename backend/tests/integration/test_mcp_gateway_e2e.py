@@ -1,16 +1,17 @@
-"""End-to-End integration test for the MCP Gateway Streamable HTTP transport.
+"""End-to-End integration test for the MCP Server Streamable HTTP transport.
 
 Verifies:
 1. Hub connects to two independent downstream MCP servers (Server A & Server B).
-2. MCP Client connects ONLY to the Hub's unified '/mcp' Streamable HTTP endpoint.
-3. Client dynamically discovers tools from both servers with collision-free namespacing.
-4. Client successfully invokes tools from Server A and Server B, receiving native responses.
-5. Duplicate tool names across servers ('calculate') route independently and correctly.
-6. Dynamic updates (disabling/re-enabling/refreshing downstream servers) update tools dynamically.
-7. Execution audit logs record tool invocations made through the gateway.
+2. MCP Client connects to the Hub's unified '/mcp' Streamable HTTP endpoint.
+3. Client receives strictly the two supported meta-tools: SEARCH_TOOLS and MULTI_EXECUTE_TOOLS.
+4. Client discovers tools across servers via SEARCH_TOOLS.
+5. Client invokes tools from Server A and Server B via MULTI_EXECUTE_TOOLS.
+6. Dynamic updates (disabling/re-enabling downstream servers) update SEARCH_TOOLS candidates.
+7. Execution audit logs record tool invocations.
 """
 
 import asyncio
+import json
 import socket
 import sys
 from collections.abc import AsyncGenerator
@@ -22,6 +23,10 @@ import uvicorn
 from mcp.client.session import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
+from app.core.constants.meta_tools import (
+    MULTI_EXECUTE_TOOLS_NAME,
+    SEARCH_TOOLS_NAME,
+)
 from app.main import app
 
 DEMO_SERVER_A = str(Path(__file__).resolve().parent.parent.parent / "demo_server" / "server.py")
@@ -61,7 +66,7 @@ async def test_mcp_gateway_e2e_two_servers_and_dynamic_lifecycle(
     running_hub_server: tuple[str, int],
 ):
     base_url, port = running_hub_server
-    gateway_mcp_url = f"{base_url}/mcp"
+    server_mcp_url = f"{base_url}/mcp"
 
     async with httpx.AsyncClient(base_url=base_url, timeout=30.0) as rest_client:
         # 1. Register Downstream Server A (math_server)
@@ -107,96 +112,94 @@ async def test_mcp_gateway_e2e_two_servers_and_dynamic_lifecycle(
         assert connect_b.status_code == 200, connect_b.text
         assert connect_b.json()["health_status"] == "HEALTHY"
 
-        # 4. Connect MCP Client ONLY to the Hub's /mcp Streamable HTTP endpoint
-        # Upstream client does NOT know downstream addresses or transport configurations!
+        # 4. Connect MCP Client to the Hub's /mcp Streamable HTTP endpoint
         async with (
-            streamable_http_client(gateway_mcp_url) as (read_stream, write_stream),
+            streamable_http_client(server_mcp_url) as (read_stream, write_stream),
             ClientSession(read_stream, write_stream) as session,
         ):
             init_res = await session.initialize()
-            assert init_res.server_info.name == "mcp-hub-gateway"
+            assert init_res.server_info.name == "mcp-hub-server"
             assert init_res.capabilities.tools is not None
             assert init_res.capabilities.tools.list_changed is True
 
-            # 5. Discover tools from unified gateway
+            # 5. List tools: strictly SEARCH_TOOLS and MULTI_EXECUTE_TOOLS
             tools_res = await session.list_tools()
             tool_names = [t.name for t in tools_res.tools]
-            tool_map = {t.name: t for t in tools_res.tools}
+            assert len(tool_names) == 2
+            assert SEARCH_TOOLS_NAME in tool_names
+            assert MULTI_EXECUTE_TOOLS_NAME in tool_names
 
-            # Verify tools from Server A are present and namespaced
-            assert "math_server__calculate" in tool_names
-            assert "math_server__echo" in tool_names
-            assert "math_server__system_ping" in tool_names
-
-            # Verify tools from Server B are present and namespaced
-            assert "text_server__calculate" in tool_names
-            assert "text_server__text_transform" in tool_names
-            assert "text_server__json_prettify" in tool_names
-
-            # Verify input schemas and descriptions preserved
-            math_calc = tool_map["math_server__calculate"]
-            assert math_calc.description is not None
-            assert "expression" in math_calc.input_schema.get("properties", {})
-
-            text_trans = tool_map["text_server__text_transform"]
-            assert "mode" in text_trans.input_schema.get("properties", {})
-
-            # 6. Execute tool on Server A: 'calculate' -> expression '25 * 4 + 10' = '110'
-            call_a = await session.call_tool(
-                "math_server__calculate",
-                arguments={"expression": "25 * 4 + 10"},
+            # 6. Discover candidate tools via SEARCH_TOOLS
+            search_call = await session.call_tool(
+                SEARCH_TOOLS_NAME,
+                arguments={"queries": ["math calculate", "text transform"]},
             )
-            assert call_a.is_error is False
-            assert len(call_a.content) > 0
-            assert call_a.content[0].text == "110"
+            assert search_call.is_error is False
+            search_data = json.loads(search_call.content[0].text)
+            discovered_slugs = [t["tool_slug"] for t in search_data["tools"]]
+            assert "math_server__calculate" in discovered_slugs
+            assert "text_server__text_transform" in discovered_slugs
 
-            # 7. Execute duplicate-named tool on Server B: 'calculate' -> returns Server B format
-            call_b = await session.call_tool(
-                "text_server__calculate",
-                arguments={"expression": "25 * 4 + 10"},
+            # 7. Execute tools on Server A & Server B via MULTI_EXECUTE_TOOLS
+            multi_call = await session.call_tool(
+                MULTI_EXECUTE_TOOLS_NAME,
+                arguments={
+                    "executions": [
+                        {
+                            "tool_slug": "math_server__calculate",
+                            "arguments": {"expression": "25 * 4 + 10"},
+                        },
+                        {
+                            "tool_slug": "text_server__text_transform",
+                            "arguments": {"text": "mcp hub", "mode": "uppercase"},
+                        },
+                    ]
+                },
             )
-            assert call_b.is_error is False
-            assert len(call_b.content) > 0
-            assert call_b.content[0].text == "[Server B Result for '25 * 4 + 10']"
+            assert multi_call.is_error is False
+            multi_data = json.loads(multi_call.content[0].text)
+            results = multi_data["results"]
+            assert len(results) == 2
+            assert results[0]["status"] == "success"
+            assert results[0]["data"] == "110"
+            assert results[1]["status"] == "success"
+            assert results[1]["data"] == "MCP HUB"
 
-            # 8. Execute another tool on Server B: 'text_transform' -> 'MCP HUB'
-            call_b_transform = await session.call_tool(
-                "text_server__text_transform",
-                arguments={"text": "mcp hub gateway", "mode": "uppercase"},
-            )
-            assert call_b_transform.is_error is False
-            assert call_b_transform.content[0].text == "MCP HUB GATEWAY"
-
-            # 9. Test dynamic update: Disable Server B via REST API
+            # 8. Test dynamic update: Disable Server B via REST API
             disable_resp = await rest_client.patch(
                 f"/api/v1/servers/{server_b_id}",
                 json={"enabled": False},
             )
             assert disable_resp.status_code == 200
 
-            # Refresh tools via client: Server B tools must be removed dynamically
-            tools_res_after_disable = await session.list_tools()
-            names_after_disable = [t.name for t in tools_res_after_disable.tools]
-            assert "math_server__calculate" in names_after_disable
-            assert "text_server__calculate" not in names_after_disable
-            assert "text_server__text_transform" not in names_after_disable
-
-            # Calling a tool on the disabled server fails cleanly without whole-system crash
-            disabled_call = await session.call_tool(
-                "text_server__calculate",
-                arguments={"expression": "1 + 1"},
+            # SEARCH_TOOLS after disable: Server B tools must no longer be discoverable
+            search_after_disable = await session.call_tool(
+                SEARCH_TOOLS_NAME,
+                arguments={"queries": ["text transform"]},
             )
-            assert disabled_call.is_error is True
+            assert search_after_disable.is_error is False
+            data_after = json.loads(search_after_disable.content[0].text)
+            slugs_after = [t["tool_slug"] for t in data_after["tools"]]
+            assert "text_server__text_transform" not in slugs_after
 
-            # Server A tools continue to work uninterrupted
-            echo_call = await session.call_tool(
-                "math_server__echo",
-                arguments={"message": "hello gateway", "reverse": True},
+            # Calling a disabled tool via MULTI_EXECUTE_TOOLS fails cleanly with server disabled error
+            multi_disabled_call = await session.call_tool(
+                MULTI_EXECUTE_TOOLS_NAME,
+                arguments={
+                    "executions": [
+                        {
+                            "tool_slug": "text_server__calculate",
+                            "arguments": {"expression": "1 + 1"},
+                        }
+                    ]
+                },
             )
-            assert echo_call.is_error is False
-            assert echo_call.content[0].text == "yawetag olleh"
+            assert multi_disabled_call.is_error is False
+            disabled_res = json.loads(multi_disabled_call.content[0].text)["results"][0]
+            assert disabled_res["status"] == "error"
+            assert "disabled" in disabled_res["error"]
 
-            # 10. Re-enable Server B via REST API
+            # 9. Re-enable Server B via REST API
             enable_resp = await rest_client.patch(
                 f"/api/v1/servers/{server_b_id}",
                 json={"enabled": True},
@@ -205,26 +208,21 @@ async def test_mcp_gateway_e2e_two_servers_and_dynamic_lifecycle(
             refresh_b = await rest_client.post(f"/api/v1/servers/{server_b_id}/refresh-tools")
             assert refresh_b.status_code == 200
 
-            # Verify tools dynamically reappear
-            tools_res_re_enabled = await session.list_tools()
-            names_re_enabled = [t.name for t in tools_res_re_enabled.tools]
-            assert "text_server__calculate" in names_re_enabled
-
-            # Execute Server B tool again successfully
-            call_b_resumed = await session.call_tool(
-                "text_server__calculate",
-                arguments={"expression": "50 + 50"},
+            # Verify Server B tools reappear in search
+            search_re_enabled = await session.call_tool(
+                SEARCH_TOOLS_NAME,
+                arguments={"queries": ["text transform"]},
             )
-            assert call_b_resumed.is_error is False
-            assert call_b_resumed.content[0].text == "[Server B Result for '50 + 50']"
+            data_re_enabled = json.loads(search_re_enabled.content[0].text)
+            slugs_re_enabled = [t["tool_slug"] for t in data_re_enabled["tools"]]
+            assert "text_server__text_transform" in slugs_re_enabled
 
-        # 11. Verify execution audit logs in Hub database
+        # 10. Verify execution audit logs in Hub database
         audit_res = await rest_client.get("/api/v1/executions")
         assert audit_res.status_code == 200
         audit_items = audit_res.json()["items"]
-        assert len(audit_items) >= 4
+        assert len(audit_items) >= 2
 
         tool_names_in_audit = [item["tool_name"] for item in audit_items]
         assert "calculate" in tool_names_in_audit
         assert "text_transform" in tool_names_in_audit
-        assert "echo" in tool_names_in_audit

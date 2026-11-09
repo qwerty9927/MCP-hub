@@ -9,13 +9,13 @@ from app.core.constants.meta_tools import (
     SEARCH_TOOLS_NAME,
 )
 from app.core.exceptions import ValidationError
+from app.domain.tool_entity import ToolEntity
 from app.mcp.search_tools import (
     SEARCH_TOOLS_SCHEMA,
     get_search_tool_definition,
     handle_search_tools,
     score_tool_match,
 )
-from app.services.mcp_gateway import GatewayToolMapping
 
 
 def test_search_tool_definition_and_schema():
@@ -93,12 +93,12 @@ def test_handle_search_tools_ranking_and_deduplication():
     srv1_id = uuid4()
     srv2_id = uuid4()
 
-    tool_map = {
-        "math_server__calculate": GatewayToolMapping(
-            hub_tool_name="math_server__calculate",
+    tool_list = [
+        ToolEntity(
+            id=f"{srv1_id}:calculate",
             server_id=srv1_id,
             server_name="math_server",
-            original_tool_name="calculate",
+            name="calculate",
             input_schema={
                 "type": "object",
                 "properties": {
@@ -112,11 +112,11 @@ def test_handle_search_tools_ranking_and_deduplication():
             description="Evaluate mathematical expressions",
             availability_status="AVAILABLE",
         ),
-        "text_server__transform": GatewayToolMapping(
-            hub_tool_name="text_server__transform",
+        ToolEntity(
+            id=f"{srv2_id}:transform",
             server_id=srv2_id,
             server_name="text_server",
-            original_tool_name="transform",
+            name="transform",
             input_schema={
                 "type": "object",
                 "properties": {
@@ -128,21 +128,21 @@ def test_handle_search_tools_ranking_and_deduplication():
             description="Transforms text case",
             availability_status="AVAILABLE",
         ),
-        "text_server__echo": GatewayToolMapping(
-            hub_tool_name="text_server__echo",
+        ToolEntity(
+            id=f"{srv2_id}:echo",
             server_id=srv2_id,
             server_name="text_server",
-            original_tool_name="echo",
+            name="echo",
             input_schema={"type": "object", "properties": {"message": {"type": "string"}}},
             description="Echo message",
             availability_status="AVAILABLE",
         ),
-    }
+    ]
 
     # Query matching calculate via schema parameter 'expression'
     res = handle_search_tools(
         arguments={"queries": ["math expression", "evaluate math"]},
-        tool_map=tool_map,
+        tools=tool_list,
     )
     assert res["matched_count"] == 1
     assert res["tools"][0]["tool_slug"] == "math_server__calculate"
@@ -152,7 +152,7 @@ def test_handle_search_tools_ranking_and_deduplication():
     # Multiple queries with top_k=1 per query
     res_multi = handle_search_tools(
         arguments={"queries": ["math calculate", "text uppercase transform"], "top_k": 1},
-        tool_map=tool_map,
+        tools=tool_list,
     )
     assert res_multi["matched_count"] == 2
     slugs = [t["tool_slug"] for t in res_multi["tools"]]
@@ -161,45 +161,45 @@ def test_handle_search_tools_ranking_and_deduplication():
     # Top-k limit
     res_top_k = handle_search_tools(
         arguments={"queries": ["text"], "top_k": 1},
-        tool_map=tool_map,
+        tools=tool_list,
     )
     assert res_top_k["matched_count"] == 1
 
 
 def test_handle_search_tools_filters_meta_tools():
-    tool_map = {
-        SEARCH_TOOLS_NAME: GatewayToolMapping(
-            hub_tool_name=SEARCH_TOOLS_NAME,
+    tool_list = [
+        ToolEntity(
+            id="hub:SEARCH_TOOLS",
             server_id=uuid4(),
             server_name="hub",
-            original_tool_name=SEARCH_TOOLS_NAME,
+            name=SEARCH_TOOLS_NAME,
             input_schema={},
             description="Meta tool",
             availability_status="AVAILABLE",
         ),
-        MULTI_EXECUTE_TOOLS_NAME: GatewayToolMapping(
-            hub_tool_name=MULTI_EXECUTE_TOOLS_NAME,
+        ToolEntity(
+            id="hub:MULTI_EXECUTE_TOOLS",
             server_id=uuid4(),
             server_name="hub",
-            original_tool_name=MULTI_EXECUTE_TOOLS_NAME,
+            name=MULTI_EXECUTE_TOOLS_NAME,
             input_schema={},
             description="Meta tool",
             availability_status="AVAILABLE",
         ),
-        "srv__real_tool": GatewayToolMapping(
-            hub_tool_name="srv__real_tool",
+        ToolEntity(
+            id="srv:real_tool",
             server_id=uuid4(),
             server_name="srv",
-            original_tool_name="real_tool",
+            name="real_tool",
             input_schema={},
             description="Real tool",
             availability_status="AVAILABLE",
         ),
-    }
+    ]
 
     res = handle_search_tools(
         arguments={"queries": ["meta search execute tool"]},
-        tool_map=tool_map,
+        tools=tool_list,
     )
     slugs = [t["tool_slug"] for t in res["tools"]]
     assert SEARCH_TOOLS_NAME not in slugs
@@ -210,31 +210,31 @@ def test_handle_search_tools_filters_meta_tools():
 def test_handle_search_tools_validation_error():
     # Empty queries list
     with pytest.raises(ValidationError):
-        handle_search_tools(arguments={"queries": []}, tool_map={})
+        handle_search_tools(arguments={"queries": []}, tools=[])
 
     # Missing queries
     with pytest.raises(ValidationError):
-        handle_search_tools(arguments={"top_k": 5}, tool_map={})
+        handle_search_tools(arguments={"top_k": 5}, tools=[])
 
     # top_k out of bounds
     with pytest.raises(ValidationError):
-        handle_search_tools(arguments={"queries": ["test"], "top_k": 50}, tool_map={})
+        handle_search_tools(arguments={"queries": ["test"], "top_k": 50}, tools=[])
 
     # Extra unexpected argument (extra="forbid")
     with pytest.raises(ValidationError):
         handle_search_tools(
             arguments={"queries": ["test"], "unexpected_field": True},
-            tool_map={},
+            tools=[],
         )
 
     # Empty string query item (min_length=1)
     with pytest.raises(ValidationError):
-        handle_search_tools(arguments={"queries": [""]}, tool_map={})
+        handle_search_tools(arguments={"queries": [""]}, tools=[])
 
     # Whitespace-only query item (stripped to empty)
     with pytest.raises(ValidationError):
-        handle_search_tools(arguments={"queries": ["   "]}, tool_map={})
+        handle_search_tools(arguments={"queries": ["   "]}, tools=[])
 
     # Query string exceeding max length 256
     with pytest.raises(ValidationError):
-        handle_search_tools(arguments={"queries": ["a" * 257]}, tool_map={})
+        handle_search_tools(arguments={"queries": ["a" * 257]}, tools=[])

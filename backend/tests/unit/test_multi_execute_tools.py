@@ -1,10 +1,12 @@
 """Unit tests for MULTI_EXECUTE_TOOLS parallel dispatcher meta-tool."""
 
+from dataclasses import dataclass
+from typing import Any
 from unittest.mock import AsyncMock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
-import mcp.types as types
 import pytest
+from mcp.types import CallToolResult, TextContent
 
 from app.core.constants.meta_tools import (
     MULTI_EXECUTE_TOOLS_NAME,
@@ -13,12 +15,23 @@ from app.core.constants.meta_tools import (
 from app.core.enums.server_enum import TransportType
 from app.core.exceptions import ValidationError
 from app.domain.server_entity import ServerEntity
+from app.domain.tool_entity import ToolEntity
 from app.mcp.multi_execute_tools import (
     MULTI_EXECUTE_TOOLS_SCHEMA,
     get_multi_execute_tool_definition,
     handle_multi_execute_tools,
 )
-from app.services.mcp_gateway import GatewayToolMapping
+
+
+@dataclass
+class MockMapping:
+    hub_tool_name: str
+    server_id: UUID
+    server_name: str
+    original_tool_name: str
+    input_schema: dict[str, Any]
+    description: str | None = None
+    availability_status: str = "AVAILABLE"
 
 
 def test_multi_execute_tool_definition_and_schema():
@@ -51,34 +64,32 @@ async def test_handle_multi_execute_tools_success():
     mock_registry.get_server_entity.return_value = mock_server
 
     mock_router.execute_mcp_tool.side_effect = [
-        types.CallToolResult(
-            content=[types.TextContent(type="text", text="42")],
+        CallToolResult(
+            content=[TextContent(type="text", text="42")],
             is_error=False,
         ),
-        types.CallToolResult(
-            content=[types.TextContent(type="text", text='{"status": "ok", "value": 100}')],
+        CallToolResult(
+            content=[TextContent(type="text", text='{"status": "ok", "value": 100}')],
             is_error=False,
         ),
     ]
 
     tool_map = {
-        "math__calc": GatewayToolMapping(
+        "math__calc": MockMapping(
             hub_tool_name="math__calc",
             server_id=srv_id,
             server_name="math",
             original_tool_name="calc",
             input_schema={"type": "object"},
             description="Calculate",
-            availability_status="AVAILABLE",
         ),
-        "math__eval": GatewayToolMapping(
+        "math__eval": MockMapping(
             hub_tool_name="math__eval",
             server_id=srv_id,
             server_name="math",
             original_tool_name="eval",
             input_schema={"type": "object"},
             description="Evaluate",
-            availability_status="AVAILABLE",
         ),
     }
 
@@ -108,6 +119,59 @@ async def test_handle_multi_execute_tools_success():
 
 
 @pytest.mark.asyncio
+async def test_handle_multi_execute_tools_via_tool_catalog():
+    """Verify execution resolved directly from tool_catalog and discovered_tools table."""
+    srv_id = uuid4()
+    mock_router = AsyncMock()
+    mock_registry = AsyncMock()
+    mock_catalog = AsyncMock()
+
+    mock_server = ServerEntity(
+        id=srv_id,
+        name="math",
+        transport=TransportType.STDIO,
+        enabled=True,
+    )
+    mock_registry.get_server_entity.return_value = mock_server
+
+    tool_ent = ToolEntity(
+        id=f"{srv_id}:add",
+        server_id=srv_id,
+        server_name="math",
+        name="add",
+        input_schema={"type": "object"},
+        description="Add numbers",
+    )
+    mock_catalog.get_tool.return_value = tool_ent
+
+    mock_router.execute_mcp_tool.return_value = CallToolResult(
+        content=[TextContent(type="text", text="10")],
+        is_error=False,
+    )
+
+    result = await handle_multi_execute_tools(
+        arguments={
+            "executions": [
+                {"tool_slug": f"{srv_id}:add", "arguments": {"a": 4, "b": 6}},
+            ]
+        },
+        tool_router=mock_router,
+        server_registry=mock_registry,
+        tool_catalog=mock_catalog,
+    )
+
+    results = result["results"]
+    assert len(results) == 1
+    assert results[0]["status"] == "success"
+    assert results[0]["data"] == "10"
+    mock_router.execute_mcp_tool.assert_called_once_with(
+        server_id=srv_id,
+        tool_name="add",
+        arguments={"a": 4, "b": 6},
+    )
+
+
+@pytest.mark.asyncio
 async def test_handle_multi_execute_tools_failure_isolation():
     srv1_id = uuid4()
     srv2_id = uuid4()
@@ -127,12 +191,12 @@ async def test_handle_multi_execute_tools_failure_isolation():
     # Router handles call for tool1 (success), tool2 (validation error), tool3 (downstream error)
     async def execute_mcp_mock(server_id, tool_name, arguments):
         if tool_name == "calc":
-            return types.CallToolResult(content=[types.TextContent(type="text", text="42")], is_error=False)
+            return CallToolResult(content=[TextContent(type="text", text="42")], is_error=False)
         if tool_name == "bad_args":
             raise ValidationError("Missing property 'x'")
         if tool_name == "crash":
-            return types.CallToolResult(
-                content=[types.TextContent(type="text", text="Internal computation failure")],
+            return CallToolResult(
+                content=[TextContent(type="text", text="Internal computation failure")],
                 is_error=True,
             )
         raise RuntimeError("Unexpected tool")
@@ -140,41 +204,33 @@ async def test_handle_multi_execute_tools_failure_isolation():
     mock_router.execute_mcp_tool.side_effect = execute_mcp_mock
 
     tool_map = {
-        "math__calc": GatewayToolMapping(
+        "math__calc": MockMapping(
             hub_tool_name="math__calc",
             server_id=srv1_id,
             server_name="math",
             original_tool_name="calc",
             input_schema={},
-            description=None,
-            availability_status="AVAILABLE",
         ),
-        "math__bad_args": GatewayToolMapping(
+        "math__bad_args": MockMapping(
             hub_tool_name="math__bad_args",
             server_id=srv1_id,
             server_name="math",
             original_tool_name="bad_args",
             input_schema={},
-            description=None,
-            availability_status="AVAILABLE",
         ),
-        "math__crash": GatewayToolMapping(
+        "math__crash": MockMapping(
             hub_tool_name="math__crash",
             server_id=srv1_id,
             server_name="math",
             original_tool_name="crash",
             input_schema={},
-            description=None,
-            availability_status="AVAILABLE",
         ),
-        "disabled__tool": GatewayToolMapping(
+        "disabled__tool": MockMapping(
             hub_tool_name="disabled__tool",
             server_id=srv2_id,
             server_name="disabled_srv",
             original_tool_name="tool",
             input_schema={},
-            description=None,
-            availability_status="AVAILABLE",
         ),
     }
 
