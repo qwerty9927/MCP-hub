@@ -55,6 +55,12 @@ class SessionDetailResponse(BaseModel):
     failed_tool_calls: int = Field(default=0, description="Total number of failed tool calls")
 
 
+class InitSessionRequest(BaseModel):
+    session_id: str
+    title: str | None
+    metadata: dict[str, Any] | None
+
+
 class ToolCallResponse(BaseModel):
     """Detailed tool execution record within a session."""
 

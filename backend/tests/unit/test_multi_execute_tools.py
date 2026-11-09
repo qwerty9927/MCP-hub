@@ -18,7 +18,18 @@ from app.mcp.multi_execute_tools import (
     get_multi_execute_tool_definition,
     handle_multi_execute_tools,
 )
-from app.services.mcp_gateway import GatewayToolMapping
+from dataclasses import dataclass
+
+
+@dataclass
+class MockToolMapping:
+    hub_tool_name: str
+    server_id: UUID
+    server_name: str
+    original_tool_name: str
+    input_schema: dict[str, Any]
+    description: str | None = None
+    availability_status: str = "AVAILABLE"
 
 
 def test_multi_execute_tool_definition_and_schema():
@@ -62,7 +73,7 @@ async def test_handle_multi_execute_tools_success():
     ]
 
     tool_map = {
-        "math__calc": GatewayToolMapping(
+        "math__calc": MockToolMapping(
             hub_tool_name="math__calc",
             server_id=srv_id,
             server_name="math",
@@ -71,7 +82,7 @@ async def test_handle_multi_execute_tools_success():
             description="Calculate",
             availability_status="AVAILABLE",
         ),
-        "math__eval": GatewayToolMapping(
+        "math__eval": MockToolMapping(
             hub_tool_name="math__eval",
             server_id=srv_id,
             server_name="math",
@@ -144,7 +155,7 @@ async def test_handle_multi_execute_tools_failure_isolation():
     mock_router.execute_mcp_tool.side_effect = execute_mcp_mock
 
     tool_map = {
-        "math__calc": GatewayToolMapping(
+        "math__calc": MockToolMapping(
             hub_tool_name="math__calc",
             server_id=srv1_id,
             server_name="math",
@@ -153,7 +164,7 @@ async def test_handle_multi_execute_tools_failure_isolation():
             description=None,
             availability_status="AVAILABLE",
         ),
-        "math__bad_args": GatewayToolMapping(
+        "math__bad_args": MockToolMapping(
             hub_tool_name="math__bad_args",
             server_id=srv1_id,
             server_name="math",
@@ -162,7 +173,7 @@ async def test_handle_multi_execute_tools_failure_isolation():
             description=None,
             availability_status="AVAILABLE",
         ),
-        "math__crash": GatewayToolMapping(
+        "math__crash": MockToolMapping(
             hub_tool_name="math__crash",
             server_id=srv1_id,
             server_name="math",
@@ -171,7 +182,7 @@ async def test_handle_multi_execute_tools_failure_isolation():
             description=None,
             availability_status="AVAILABLE",
         ),
-        "disabled__tool": GatewayToolMapping(
+        "disabled__tool": MockToolMapping(
             hub_tool_name="disabled__tool",
             server_id=srv2_id,
             server_name="disabled_srv",

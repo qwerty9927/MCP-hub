@@ -15,7 +15,20 @@ from app.mcp.search_tools import (
     handle_search_tools,
     score_tool_match,
 )
-from app.services.mcp_gateway import GatewayToolMapping
+from dataclasses import dataclass
+from typing import Any
+from uuid import UUID
+
+
+@dataclass
+class MockToolMapping:
+    hub_tool_name: str
+    server_id: UUID
+    server_name: str
+    original_tool_name: str
+    input_schema: dict[str, Any]
+    description: str | None = None
+    availability_status: str = "AVAILABLE"
 
 
 def test_search_tool_definition_and_schema():
@@ -94,7 +107,7 @@ def test_handle_search_tools_ranking_and_deduplication():
     srv2_id = uuid4()
 
     tool_map = {
-        "math_server__calculate": GatewayToolMapping(
+        "math_server__calculate": MockToolMapping(
             hub_tool_name="math_server__calculate",
             server_id=srv1_id,
             server_name="math_server",
@@ -112,7 +125,7 @@ def test_handle_search_tools_ranking_and_deduplication():
             description="Evaluate mathematical expressions",
             availability_status="AVAILABLE",
         ),
-        "text_server__transform": GatewayToolMapping(
+        "text_server__transform": MockToolMapping(
             hub_tool_name="text_server__transform",
             server_id=srv2_id,
             server_name="text_server",
@@ -128,7 +141,7 @@ def test_handle_search_tools_ranking_and_deduplication():
             description="Transforms text case",
             availability_status="AVAILABLE",
         ),
-        "text_server__echo": GatewayToolMapping(
+        "text_server__echo": MockToolMapping(
             hub_tool_name="text_server__echo",
             server_id=srv2_id,
             server_name="text_server",
@@ -168,7 +181,7 @@ def test_handle_search_tools_ranking_and_deduplication():
 
 def test_handle_search_tools_filters_meta_tools():
     tool_map = {
-        SEARCH_TOOLS_NAME: GatewayToolMapping(
+        SEARCH_TOOLS_NAME: MockToolMapping(
             hub_tool_name=SEARCH_TOOLS_NAME,
             server_id=uuid4(),
             server_name="hub",
@@ -177,7 +190,7 @@ def test_handle_search_tools_filters_meta_tools():
             description="Meta tool",
             availability_status="AVAILABLE",
         ),
-        MULTI_EXECUTE_TOOLS_NAME: GatewayToolMapping(
+        MULTI_EXECUTE_TOOLS_NAME: MockToolMapping(
             hub_tool_name=MULTI_EXECUTE_TOOLS_NAME,
             server_id=uuid4(),
             server_name="hub",
@@ -186,7 +199,7 @@ def test_handle_search_tools_filters_meta_tools():
             description="Meta tool",
             availability_status="AVAILABLE",
         ),
-        "srv__real_tool": GatewayToolMapping(
+        "srv__real_tool": MockToolMapping(
             hub_tool_name="srv__real_tool",
             server_id=uuid4(),
             server_name="srv",

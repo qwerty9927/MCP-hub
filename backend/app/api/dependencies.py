@@ -16,8 +16,8 @@ from app.infrastructure.repositories.tool_repo import (
     PostgresToolRepository,
     ToolRepositoryAbstract,
 )
+from app.mcp.mcp_server import MCPServer
 from app.services.connection_manager import ConnectionManager
-from app.services.mcp_gateway import MCPGatewayService
 from app.services.server_registry import ServerRegistryService
 from app.services.session_explorer import SessionExplorerService
 from app.services.tool_catalog import ToolCatalogService
@@ -30,7 +30,7 @@ _execution_repo: ExecutionRepositoryAbstract = PostgresExecutionRepository()
 _session_repo: SessionRepositoryAbstract = PostgresSessionRepository()
 _connection_manager = ConnectionManager()
 _tool_catalog = ToolCatalogService(repository=_tool_repo)
-_mcp_gateway: MCPGatewayService | None = None
+_mcp_server: MCPServer | None = None
 
 
 def get_server_repository() -> ServerRepositoryAbstract:
@@ -87,15 +87,15 @@ def get_session_explorer_service() -> SessionExplorerService:
     )
 
 
-def get_mcp_gateway() -> MCPGatewayService:
-    """Return singleton MCPGatewayService instance."""
-    global _mcp_gateway
-    if _mcp_gateway is None:
-        _mcp_gateway = MCPGatewayService(
+def get_mcp_server() -> MCPServer:
+    """Return singleton MCPServer instance."""
+    global _mcp_server
+    if _mcp_server is None:
+        _mcp_server = MCPServer(
             server_registry=get_server_registry_service(),
             tool_catalog=get_tool_catalog(),
             connection_manager=get_connection_manager(),
             tool_router=get_tool_router_service(),
-            session_repository=get_session_repository(),
+            session_explorer=get_session_explorer_service(),
         )
-    return _mcp_gateway
+    return _mcp_server

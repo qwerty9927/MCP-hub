@@ -18,20 +18,6 @@ from app.services.session_explorer import SessionExplorerService
 router = APIRouter(prefix="/sessions", tags=["Sessions"])
 
 
-@router.post(
-    "",
-    response_model=SessionResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Create a new MCP session",
-)
-async def create_session(
-    payload: SessionCreate,
-    service: Annotated[SessionExplorerService, Depends(get_session_explorer_service)],
-) -> SessionResponse:
-    """Explicitly create a new session."""
-    return await service.create_session(payload)
-
-
 @router.get(
     "",
     response_model=PaginatedResponse[SessionResponse],
