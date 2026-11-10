@@ -8,9 +8,9 @@ import pytest
 from app.core.enums.server_enum import ServerHealthStatus, TransportType
 from app.core.exceptions import ConflictError, NotFoundError
 from app.domain.server_entity import ServerEntity
-from app.infrastructure.repositories.server_repo import ServerRepositoryAbstract
-from app.schemas.connection import StdioConfig
-from app.schemas.server import (
+from app.infrastructure.repositories.server_repository import ServerRepositoryAbstract
+from app.schemas.connection_schema import StdioConfig
+from app.schemas.server_schema import (
     ServerCreate,
     ServerUpdate,
 )

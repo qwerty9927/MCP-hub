@@ -24,9 +24,9 @@ from app.mcp.mcp_proxy_asgi import MCPProxyASGI
 from app.mcp.mcp_server import MCPServer
 from app.mcp.multi_execute_tools import MULTI_EXECUTE_TOOLS_SCHEMA
 from app.mcp.search_tools import SEARCH_TOOLS_SCHEMA
-from app.schemas.common import PaginatedResponse
-from app.schemas.server import ServerResponse
-from app.schemas.tool import ToolResponse
+from app.schemas.common_schema import PaginatedResponse
+from app.schemas.server_schema import ServerResponse
+from app.schemas.tool_schema import ToolResponse
 
 
 @pytest.fixture

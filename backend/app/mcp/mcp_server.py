@@ -29,7 +29,7 @@ from app.core.constants.meta_tools import (
 )
 from app.core.exceptions import ValidationError
 from app.core.logging import logger
-from app.infrastructure.repositories.session_repo import SessionRepositoryAbstract
+from app.infrastructure.repositories.session_repository import SessionRepositoryAbstract
 from app.mcp.mcp_proxy_asgi import MCPProxyASGI
 from app.mcp.multi_execute_tools import (
     MULTI_EXECUTE_TOOLS_SCHEMA,

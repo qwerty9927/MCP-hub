@@ -6,8 +6,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies import get_tool_catalog, get_tool_router_service
-from app.schemas.common import PaginatedResponse
-from app.schemas.tool import ToolExecuteRequest, ToolExecuteResponse, ToolResponse
+from app.schemas.common_schema import PaginatedResponse
+from app.schemas.tool_schema import ToolExecuteRequest, ToolExecuteResponse, ToolResponse
 from app.services.tool_catalog import ToolCatalogService
 from app.services.tool_router import ToolRouterService
 

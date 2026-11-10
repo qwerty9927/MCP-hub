@@ -1,18 +1,18 @@
 """Dependency injection providers for FastAPI routes."""
 
-from app.infrastructure.repositories.execution_repo import (
+from app.infrastructure.repositories.execution_repository import (
     ExecutionRepositoryAbstract,
     PostgresExecutionRepository,
 )
-from app.infrastructure.repositories.server_repo import (
+from app.infrastructure.repositories.server_repository import (
     PostgresServerRepository,
     ServerRepositoryAbstract,
 )
-from app.infrastructure.repositories.session_repo import (
+from app.infrastructure.repositories.session_repository import (
     PostgresSessionRepository,
     SessionRepositoryAbstract,
 )
-from app.infrastructure.repositories.tool_repo import (
+from app.infrastructure.repositories.tool_repository import (
     PostgresToolRepository,
     ToolRepositoryAbstract,
 )

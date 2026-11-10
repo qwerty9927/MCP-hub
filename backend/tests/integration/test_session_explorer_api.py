@@ -9,7 +9,7 @@ import pytest
 from httpx import AsyncClient
 
 from app.domain.execution_entity import ExecutionEntity
-from app.infrastructure.repositories.execution_repo import PostgresExecutionRepository
+from app.infrastructure.repositories.execution_repository import PostgresExecutionRepository
 
 DEMO_SERVER = str(Path(__file__).resolve().parent.parent.parent / "demo_server" / "server.py")
 

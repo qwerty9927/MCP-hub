@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from app.core.enums.server_enum import ServerHealthStatus, TransportType
 from app.helpers.security import mask_sensitive_headers, validate_http_url, validate_stdio_command
-from app.schemas.connection import ConnectionConfigRead, HttpConfig, StdioConfig
+from app.schemas.connection_schema import ConnectionConfigResponse, HttpConfig, StdioConfig
 
 
 class ServerBase(BaseModel):
@@ -20,14 +20,14 @@ class ServerBase(BaseModel):
     enabled: bool = Field(default=True, description="Whether this server is enabled for tool execution")
 
 
-class ServerCreate(ServerBase):
+class ServerCreateRequest(ServerBase):
     """Schema for registering a new MCP Server."""
 
     stdio_config: StdioConfig | None = Field(default=None, description="Configuration for stdio transport")
     http_config: HttpConfig | None = Field(default=None, description="Configuration for streamable-http transport")
 
     @model_validator(mode="after")
-    def validate_transport_configuration(self) -> "ServerCreate":
+    def validate_transport_configuration(self) -> "ServerCreateRequest":
         if self.transport == TransportType.STDIO:
             if not self.stdio_config:
                 raise ValueError("stdio_config is required when transport is 'stdio'")
@@ -39,7 +39,11 @@ class ServerCreate(ServerBase):
         return self
 
 
-class ServerUpdate(BaseModel):
+# Backward-compatible alias
+ServerCreate = ServerCreateRequest
+
+
+class ServerUpdateRequest(BaseModel):
     """Schema for updating an existing MCP Server configuration."""
 
     name: str | None = Field(default=None, min_length=1, max_length=100)
@@ -50,7 +54,7 @@ class ServerUpdate(BaseModel):
     enabled: bool | None = None
 
     @model_validator(mode="after")
-    def validate_partial_transport(self) -> "ServerUpdate":
+    def validate_partial_transport(self) -> "ServerUpdateRequest":
         if self.transport == TransportType.STDIO and self.stdio_config:
             validate_stdio_command(self.stdio_config.command, self.stdio_config.args)
         elif self.transport == TransportType.STREAMABLE_HTTP and self.http_config:
@@ -62,6 +66,10 @@ class ServerUpdate(BaseModel):
         return self
 
 
+# Backward-compatible alias
+ServerUpdate = ServerUpdateRequest
+
+
 class ServerResponse(BaseModel):
     """Server representation returned in API responses."""
 
@@ -69,7 +77,7 @@ class ServerResponse(BaseModel):
     name: str
     description: str | None = None
     transport: TransportType
-    connection_config: ConnectionConfigRead
+    connection_config: ConnectionConfigResponse
     enabled: bool
     health_status: ServerHealthStatus
     last_connected_at: datetime | None = None
@@ -87,7 +95,7 @@ class ServerResponse(BaseModel):
             http_cfg = server.get("http_config") or {}
             headers = mask_sensitive_headers(http_cfg.get("headers")) if http_cfg else None
 
-            config_read = ConnectionConfigRead(
+            config_read = ConnectionConfigResponse(
                 command=stdio_cfg.get("command") if transport == TransportType.STDIO else None,
                 args=stdio_cfg.get("args") if transport == TransportType.STDIO else None,
                 url=http_cfg.get("url") if transport == TransportType.STREAMABLE_HTTP else None,
@@ -111,7 +119,7 @@ class ServerResponse(BaseModel):
 
         # For object attributes
         headers = mask_sensitive_headers(server.http_config.headers) if hasattr(server, "http_config") and server.http_config else None
-        config_read = ConnectionConfigRead(
+        config_read = ConnectionConfigResponse(
             command=server.stdio_config.command if server.transport == TransportType.STDIO and server.stdio_config else None,
             args=server.stdio_config.args if server.transport == TransportType.STDIO and server.stdio_config else None,
             url=server.http_config.url if server.transport == TransportType.STREAMABLE_HTTP and server.http_config else None,

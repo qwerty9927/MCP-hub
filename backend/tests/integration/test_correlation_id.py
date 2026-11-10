@@ -11,7 +11,7 @@ from httpx import ASGITransport, AsyncClient
 from app.api.dependencies import get_tool_router_service
 from app.core.config import get_settings
 from app.main import app
-from app.schemas.tool import ToolExecuteResponse
+from app.schemas.tool_schema import ToolExecuteResponse
 
 
 @pytest.fixture

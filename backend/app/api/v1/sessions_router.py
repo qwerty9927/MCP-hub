@@ -6,9 +6,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 
 from app.api.dependencies import get_session_explorer_service
-from app.schemas.common import PaginatedResponse
-from app.schemas.session import (
-    SessionCreate,
+from app.schemas.common_schema import PaginatedResponse
+from app.schemas.session_schema import (
+    SessionCreateRequest,
     SessionDetailResponse,
     SessionResponse,
     ToolCallResponse,
@@ -25,7 +25,7 @@ router = APIRouter(prefix="/sessions", tags=["Sessions"])
     summary="Create a new MCP session",
 )
 async def create_session(
-    payload: SessionCreate,
+    payload: SessionCreateRequest,
     service: Annotated[SessionExplorerService, Depends(get_session_explorer_service)],
 ) -> SessionResponse:
     """Explicitly create a new session."""

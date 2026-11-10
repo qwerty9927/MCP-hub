@@ -13,14 +13,14 @@ from app.api.dependencies import (
 )
 from app.core.enums.server_enum import ServerHealthStatus, TransportType
 from app.mcp.mcp_server import MCPServer
-from app.schemas.common import PaginatedResponse
-from app.schemas.server import (
-    ServerCreate,
+from app.schemas.common_schema import PaginatedResponse
+from app.schemas.server_schema import (
+    ServerCreateRequest,
     ServerResponse,
     ServerTestResponse,
-    ServerUpdate,
+    ServerUpdateRequest,
 )
-from app.schemas.tool import ToolResponse
+from app.schemas.tool_schema import ToolResponse
 from app.services.connection_manager import ConnectionManager
 from app.services.server_registry import ServerRegistryService
 from app.services.tool_catalog import ToolCatalogService
@@ -35,7 +35,7 @@ router = APIRouter(prefix="/servers", tags=["Servers"])
     summary="Register a new MCP server",
 )
 async def create_server(
-    payload: ServerCreate,
+    payload: ServerCreateRequest,
     registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
 ) -> ServerResponse:
     """Register an MCP server with stdio or streamable-http transport."""
@@ -91,7 +91,7 @@ async def get_server(
 )
 async def update_server(
     server_id: UUID,
-    payload: ServerUpdate,
+    payload: ServerUpdateRequest,
     registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
     mcp_server: Annotated[MCPServer, Depends(get_mcp_server)],
 ) -> ServerResponse:

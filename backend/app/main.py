@@ -11,16 +11,16 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.routing import Route
 
 from app.api.dependencies import get_connection_manager, get_mcp_server, get_tool_catalog
-from app.api.v1.executions_route import router as executions_router
-from app.api.v1.servers_route import router as servers_router
-from app.api.v1.sessions_route import router as sessions_router
-from app.api.v1.system_route import router as system_router
-from app.api.v1.tools_route import router as tools_router
+from app.api.v1.executions_router import router as executions_router
+from app.api.v1.servers_router import router as servers_router
+from app.api.v1.sessions_router import router as sessions_router
+from app.api.v1.system_router import router as system_router
+from app.api.v1.tools_router import router as tools_router
 from app.core.config import get_settings
 from app.core.exceptions import AppError
 from app.core.logging import get_correlation_id, logger, setup_logging
 from app.middlewares.correlation import CorrelationAndLoggingMiddleware
-from app.schemas.common import ErrorDetail, ErrorResponse
+from app.schemas.common_schema import ErrorDetail, ErrorResponse
 
 
 @asynccontextmanager

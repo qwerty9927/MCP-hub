@@ -8,11 +8,11 @@ from uuid import UUID, uuid4
 from app.core.enums.session_enum import SessionStatus
 from app.core.exceptions import NotFoundError
 from app.domain.session_entity import SessionEntity
-from app.infrastructure.repositories.execution_repo import ExecutionRepositoryAbstract
-from app.infrastructure.repositories.session_repo import SessionRepositoryAbstract
-from app.schemas.common import PaginatedResponse
-from app.schemas.session import (
-    SessionCreate,
+from app.infrastructure.repositories.execution_repository import ExecutionRepositoryAbstract
+from app.infrastructure.repositories.session_repository import SessionRepositoryAbstract
+from app.schemas.common_schema import PaginatedResponse
+from app.schemas.session_schema import (
+    SessionCreateRequest,
     SessionDetailResponse,
     SessionResponse,
     ToolCallResponse,
@@ -53,7 +53,7 @@ class SessionExplorerService:
         self.session_repo = session_repository
         self.execution_repo = execution_repository
 
-    async def create_session(self, payload: SessionCreate) -> SessionResponse:
+    async def create_session(self, payload: SessionCreateRequest) -> SessionResponse:
         """Explicitly create a new session."""
         session_id = uuid4().hex
         entity = SessionEntity(

@@ -13,9 +13,9 @@ from app.api.dependencies import (
 )
 from app.core.config import get_settings
 from app.core.enums.server_enum import ServerHealthStatus
-from app.infrastructure.repositories.execution_repo import ExecutionRepositoryAbstract
-from app.infrastructure.repositories.server_repo import ServerRepositoryAbstract
-from app.schemas.system import HealthResponse, MetricsResponse, ReadyResponse
+from app.infrastructure.repositories.execution_repository import ExecutionRepositoryAbstract
+from app.infrastructure.repositories.server_repository import ServerRepositoryAbstract
+from app.schemas.system_schema import HealthResponse, MetricsResponse, ReadyResponse
 from app.services.connection_manager import ConnectionManager
 
 router = APIRouter(tags=["System"])

@@ -7,10 +7,10 @@ from app.core.enums.server_enum import ServerHealthStatus, TransportType
 from app.domain.execution_entity import ExecutionEntity
 from app.domain.server_entity import ServerEntity
 from app.domain.tool_entity import ToolEntity
-from app.infrastructure.repositories.execution_repo import PostgresExecutionRepository
-from app.infrastructure.repositories.server_repo import PostgresServerRepository
-from app.infrastructure.repositories.tool_repo import PostgresToolRepository
-from app.schemas.connection import StdioConfig
+from app.infrastructure.repositories.execution_repository import PostgresExecutionRepository
+from app.infrastructure.repositories.server_repository import PostgresServerRepository
+from app.infrastructure.repositories.tool_repository import PostgresToolRepository
+from app.schemas.connection_schema import StdioConfig
 
 
 async def test_server_repository_crud():

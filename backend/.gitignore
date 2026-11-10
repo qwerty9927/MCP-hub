@@ -13,3 +13,5 @@ htmlcov/
 mcp_hub.db
 .zed
 .DS_Store
+.agents
+skills-lock.json

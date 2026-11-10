@@ -10,7 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.enums.server_enum import ServerHealthStatus, TransportType
 from app.domain.server_entity import ServerEntity
 from app.models.base_model import Base
-from app.schemas.connection import HttpConfig, StdioConfig
+from app.schemas.connection_schema import HttpConfig, StdioConfig
 
 
 class ServerModel(Base):

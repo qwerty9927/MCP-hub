@@ -14,9 +14,9 @@ from app.core.exceptions import (
 from app.core.logging import get_correlation_id
 from app.domain.execution_entity import ExecutionEntity
 from app.helpers.validation import validate_tool_arguments
-from app.infrastructure.repositories.execution_repo import ExecutionRepositoryAbstract
-from app.infrastructure.repositories.session_repo import SessionRepositoryAbstract
-from app.schemas.tool import ToolExecuteResponse
+from app.infrastructure.repositories.execution_repository import ExecutionRepositoryAbstract
+from app.infrastructure.repositories.session_repository import SessionRepositoryAbstract
+from app.schemas.tool_schema import ToolExecuteResponse
 from app.services.connection_manager import ConnectionManager
 from app.services.server_registry import ServerRegistryService
 from app.services.tool_catalog import ToolCatalogService

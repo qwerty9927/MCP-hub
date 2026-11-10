@@ -20,6 +20,25 @@ class ToolResponse(BaseModel):
     last_discovered_at: datetime = Field(..., description="Timestamp of when tool was last discovered/refreshed")
 
 
+# Backward-compatible alias
+ToolRead = ToolResponse
+
+
+class ToolSummaryResponse(BaseModel):
+    """Compact summary of a discovered tool."""
+
+    id: str = Field(..., description="Unique server-qualified identifier: '{server_id}:{tool_name}'")
+    name: str = Field(..., description="Tool name")
+    server_id: UUID = Field(..., description="Parent server UUID")
+    server_name: str = Field(..., description="Parent server name")
+    description: str | None = None
+    availability_status: str = "AVAILABLE"
+
+
+# Backward-compatible alias
+ToolSummaryRead = ToolSummaryResponse
+
+
 class ToolExecuteRequest(BaseModel):
     """Payload for executing a tool."""
 

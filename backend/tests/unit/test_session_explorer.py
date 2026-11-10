@@ -11,10 +11,10 @@ from app.core.exceptions import NotFoundError
 from app.domain.execution_entity import ExecutionEntity
 from app.domain.server_entity import ServerEntity
 from app.domain.session_entity import SessionEntity
-from app.infrastructure.repositories.execution_repo import PostgresExecutionRepository
-from app.infrastructure.repositories.server_repo import PostgresServerRepository
-from app.infrastructure.repositories.session_repo import PostgresSessionRepository
-from app.schemas.session import SessionCreate
+from app.infrastructure.repositories.execution_repository import PostgresExecutionRepository
+from app.infrastructure.repositories.server_repository import PostgresServerRepository
+from app.infrastructure.repositories.session_repository import PostgresSessionRepository
+from app.schemas.session_schema import SessionCreate
 from app.services.session_explorer import SessionExplorerService, mask_sensitive_data
 
 

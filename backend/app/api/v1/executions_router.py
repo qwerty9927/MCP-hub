@@ -8,9 +8,9 @@ from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies import get_execution_repository
 from app.core.exceptions import NotFoundError
-from app.infrastructure.repositories.execution_repo import ExecutionRepositoryAbstract
-from app.schemas.common import PaginatedResponse
-from app.schemas.execution import ExecutionResponse
+from app.infrastructure.repositories.execution_repository import ExecutionRepositoryAbstract
+from app.schemas.common_schema import PaginatedResponse
+from app.schemas.execution_schema import ExecutionResponse
 
 router = APIRouter(prefix="/executions", tags=["Executions"])
 

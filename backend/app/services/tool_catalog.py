@@ -10,9 +10,9 @@ from app.core.exceptions import NotFoundError
 from app.core.logging import logger
 from app.domain.server_entity import ServerEntity
 from app.domain.tool_entity import ToolEntity
-from app.infrastructure.repositories.tool_repo import ToolRepositoryAbstract
-from app.schemas.common import PaginatedResponse
-from app.schemas.tool import ToolResponse
+from app.infrastructure.repositories.tool_repository import ToolRepositoryAbstract
+from app.schemas.common_schema import PaginatedResponse
+from app.schemas.tool_schema import ToolResponse
 from app.services.connection_manager import ConnectionManager
 
 
