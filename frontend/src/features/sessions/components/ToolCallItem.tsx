@@ -1,10 +1,11 @@
 "use client";
 
 import React from "react";
-import { Wrench, Server, Clock, CheckCircle2, XCircle, Loader2, ChevronRight } from "lucide-react";
+import { Wrench, Server, Clock, ChevronRight } from "lucide-react";
 import { ToolCallRead } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { cn, formatDate, formatDuration } from "@/lib/utils";
+import { ToolCallStatusBadge } from "./ToolCallStatusBadge";
 
 interface ToolCallItemProps {
     call: ToolCallRead;
@@ -14,35 +15,6 @@ interface ToolCallItemProps {
 }
 
 export function ToolCallItem({ call, isSelected = false, onSelect, showServerName = true }: ToolCallItemProps) {
-    const renderStatusBadge = () => {
-        const lower = call.status.toLowerCase();
-        if (lower === "completed") {
-            return (
-                <Badge variant="success" className="gap-1.5 text-xs py-0.5">
-                    <CheckCircle2 className="h-3 w-3" />
-                    Completed
-                </Badge>
-            );
-        }
-        if (lower === "failed") {
-            return (
-                <Badge variant="destructive" className="gap-1.5 text-xs py-0.5">
-                    <XCircle className="h-3 w-3" />
-                    Failed
-                </Badge>
-            );
-        }
-        if (lower === "running") {
-            return (
-                <Badge variant="warning" className="gap-1.5 text-xs py-0.5">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    Running
-                </Badge>
-            );
-        }
-        return <Badge variant="outline">{call.status}</Badge>;
-    };
-
     return (
         <div
             onClick={() => onSelect(call)}
@@ -67,9 +39,11 @@ export function ToolCallItem({ call, isSelected = false, onSelect, showServerNam
                         "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors",
                         call.status === "failed"
                             ? "bg-destructive/10 text-destructive"
-                            : call.status === "running"
-                              ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                              : "bg-primary/10 text-primary"
+                            : call.status === "rejected"
+                              ? "bg-orange-500/10 text-orange-600 dark:text-orange-400"
+                              : call.status === "running"
+                                ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                                : "bg-primary/10 text-primary"
                     )}
                 >
                     <Wrench className="h-4 w-4" />
@@ -98,7 +72,7 @@ export function ToolCallItem({ call, isSelected = false, onSelect, showServerNam
             </div>
 
             <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-border/50">
-                {renderStatusBadge()}
+                <ToolCallStatusBadge status={call.status} className="gap-1.5 py-0.5" />
                 <ChevronRight className="h-4 w-4 text-muted-foreground opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
             </div>
         </div>

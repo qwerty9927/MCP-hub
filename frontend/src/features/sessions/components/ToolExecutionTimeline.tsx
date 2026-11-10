@@ -39,9 +39,11 @@ export function ToolExecutionTimeline({ toolCalls, selectedCallId, onSelectCall 
                                         ? "border-primary text-primary"
                                         : call.status === "failed"
                                           ? "border-destructive text-destructive"
-                                          : call.status === "running"
-                                            ? "border-amber-500 text-amber-600"
-                                            : "border-muted-foreground/40 text-muted-foreground"
+                                          : call.status === "rejected"
+                                            ? "border-orange-500 text-orange-600"
+                                            : call.status === "running"
+                                              ? "border-amber-500 text-amber-600"
+                                              : "border-muted-foreground/40 text-muted-foreground"
                                 }`}
                             >
                                 {index + 1}

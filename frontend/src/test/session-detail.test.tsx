@@ -172,3 +172,41 @@ describe("ToolCallDetailDrawer Component", () => {
         expect(screen.getByText(/"result": 4/)).toBeInTheDocument();
     });
 });
+
+describe("Rejected tool calls (ADR-0002)", () => {
+    const rejectedCall: ToolCallRead = {
+        id: "call-4",
+        session_id: "session-xyz-987",
+        server_name: "math-server",
+        tool_name: "add",
+        status: "rejected",
+        started_at: "2026-11-09T10:20:00Z",
+        completed_at: "2026-11-09T10:20:00Z",
+        duration_ms: 0,
+        error_summary: "'b' is a required property",
+        arguments: { a: 1 },
+        response: null,
+    };
+
+    it("shows a Rejected badge in the timeline", () => {
+        render(<ToolExecutionTimeline toolCalls={[rejectedCall]} selectedCallId={null} onSelectCall={vi.fn()} />);
+
+        expect(screen.getByText("Rejected")).toBeInTheDocument();
+        expect(screen.queryByText("Failed")).not.toBeInTheDocument();
+    });
+
+    it("counts rejected calls separately from failed ones in a server group", () => {
+        render(<ServerToolGroup toolCalls={[...mockToolCalls, rejectedCall]} selectedCallId={null} onSelectCall={vi.fn()} />);
+
+        expect(screen.getByText("1 failed")).toBeInTheDocument();
+        expect(screen.getByText("1 rejected")).toBeInTheDocument();
+    });
+
+    it("shows the rejection reason in the drawer", () => {
+        render(<ToolCallDetailDrawer toolCall={rejectedCall} open={true} onOpenChange={vi.fn()} />);
+
+        expect(screen.getByText("Rejected")).toBeInTheDocument();
+        expect(screen.getByText("Execution Rejected")).toBeInTheDocument();
+        expect(screen.getByText("'b' is a required property")).toBeInTheDocument();
+    });
+});

@@ -8,8 +8,9 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToolCallRead } from "@/types";
 import { formatDate, formatDuration } from "@/lib/utils";
-import { Wrench, Server, Clock, CheckCircle2, XCircle, Loader2, Copy, Check, FileCode2, Terminal, AlertTriangle } from "lucide-react";
+import { Wrench, Server, Clock, Copy, Check, FileCode2, Terminal, AlertTriangle, Ban } from "lucide-react";
 import { toast } from "sonner";
+import { ToolCallStatusBadge } from "./ToolCallStatusBadge";
 
 interface ToolCallDetailDrawerProps {
     toolCall: ToolCallRead | null;
@@ -55,42 +56,13 @@ export function ToolCallDetailDrawer({ toolCall, open, onOpenChange }: ToolCallD
         toast.success("Full tool call record copied to clipboard");
     };
 
-    const renderStatusBadge = () => {
-        const lower = toolCall.status.toLowerCase();
-        if (lower === "completed") {
-            return (
-                <Badge variant="success" className="gap-1 text-xs">
-                    <CheckCircle2 className="h-3 w-3" />
-                    Completed
-                </Badge>
-            );
-        }
-        if (lower === "failed") {
-            return (
-                <Badge variant="destructive" className="gap-1 text-xs">
-                    <XCircle className="h-3 w-3" />
-                    Failed
-                </Badge>
-            );
-        }
-        if (lower === "running") {
-            return (
-                <Badge variant="warning" className="gap-1 text-xs">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    Running
-                </Badge>
-            );
-        }
-        return <Badge variant="outline">{toolCall.status}</Badge>;
-    };
-
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetContent side="right" className="flex flex-col gap-0 p-0 sm:max-w-xl md:max-w-2xl overflow-hidden">
                 {/* Drawer Header */}
                 <SheetHeader className="p-6 border-b border-border bg-card/60 space-y-2">
                     <div className="flex items-center gap-2">
-                        {renderStatusBadge()}
+                        <ToolCallStatusBadge status={toolCall.status} />
                         <Badge variant="outline" className="gap-1 text-xs text-muted-foreground">
                             <Server className="h-3 w-3 text-primary" />
                             {toolCall.server_name}
@@ -170,6 +142,23 @@ export function ToolCallDetailDrawer({ toolCall, open, onOpenChange }: ToolCallD
                             <CardContent className="p-4 pt-0">
                                 <p className="font-mono text-xs text-destructive dark:text-red-300 whitespace-pre-wrap break-all">
                                     {toolCall.error_summary || "Tool call reported an execution failure without error summary."}
+                                </p>
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {/* Rejection Banner: the hub refused the call before contacting the downstream Server */}
+                    {toolCall.status === "rejected" && (
+                        <Card className="border-orange-500/30 bg-orange-500/10">
+                            <CardHeader className="p-4 pb-2">
+                                <CardTitle className="text-sm font-semibold text-orange-700 dark:text-orange-400 flex items-center gap-2">
+                                    <Ban className="h-4 w-4" />
+                                    Execution Rejected
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="p-4 pt-0">
+                                <p className="font-mono text-xs text-orange-700 dark:text-orange-300 whitespace-pre-wrap break-all">
+                                    {toolCall.error_summary || "The hub rejected this tool call before it reached the downstream server."}
                                 </p>
                             </CardContent>
                         </Card>

@@ -183,7 +183,7 @@ export interface ApiErrorResponse {
 }
 
 export type SessionStatus = "active" | "completed" | "failed";
-export type ToolCallStatus = "running" | "completed" | "failed";
+export type ToolCallStatus = "running" | "completed" | "failed" | "rejected";
 
 export interface SessionRead {
     id: string;

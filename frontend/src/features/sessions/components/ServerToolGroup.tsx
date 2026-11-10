@@ -21,6 +21,7 @@ interface ServerGroup {
     total: number;
     successful: number;
     failed: number;
+    rejected: number;
 }
 
 export function ServerToolGroup({ toolCalls, selectedCallId, onSelectCall }: ServerToolGroupProps) {
@@ -39,6 +40,7 @@ export function ServerToolGroup({ toolCalls, selectedCallId, onSelectCall }: Ser
             total: calls.length,
             successful: calls.filter((c) => c.status === "completed").length,
             failed: calls.filter((c) => c.status === "failed").length,
+            rejected: calls.filter((c) => c.status === "rejected").length,
         }));
     }, [toolCalls]);
 
@@ -110,6 +112,14 @@ export function ServerToolGroup({ toolCalls, selectedCallId, onSelectCall }: Ser
                                         {group.failed > 0 && (
                                             <Badge variant="destructive" className="font-mono text-[11px] py-0">
                                                 {group.failed} failed
+                                            </Badge>
+                                        )}
+                                        {group.rejected > 0 && (
+                                            <Badge
+                                                variant="outline"
+                                                className="font-mono text-[11px] py-0 border-orange-500/30 bg-orange-500/10 text-orange-700 dark:text-orange-400"
+                                            >
+                                                {group.rejected} rejected
                                             </Badge>
                                         )}
                                     </div>
