@@ -181,3 +181,58 @@ export interface ApiErrorDetail {
 export interface ApiErrorResponse {
     error: ApiErrorDetail;
 }
+
+export type SessionStatus = "active" | "completed" | "failed";
+export type ToolCallStatus = "running" | "completed" | "failed";
+
+export interface SessionRead {
+    id: string;
+    title?: string | null;
+    status: SessionStatus | string;
+    created_at: string;
+    last_activity_at: string;
+    total_tool_calls: number;
+}
+
+export interface SessionDetailRead {
+    id: string;
+    title?: string | null;
+    metadata?: Record<string, any> | null;
+    status: SessionStatus | string;
+    created_at: string;
+    last_activity_at: string;
+    total_tool_calls: number;
+    successful_tool_calls: number;
+    failed_tool_calls: number;
+}
+
+export interface ToolCallRead {
+    id: string;
+    session_id?: string | null;
+    server_name: string;
+    tool_name: string;
+    status: ToolCallStatus | string;
+    started_at: string;
+    completed_at?: string | null;
+    duration_ms?: number | null;
+    error_summary?: string | null;
+    arguments: Record<string, any>;
+    response?: any | null;
+}
+
+export interface SessionFilterParams {
+    page?: number;
+    page_size?: number;
+    search?: string;
+    status?: string;
+}
+
+export interface SessionToolCallFilterParams {
+    page?: number;
+    page_size?: number;
+    sort_by?: string;
+    order?: "asc" | "desc";
+    status?: string;
+    server_name?: string;
+    tool_name?: string;
+}

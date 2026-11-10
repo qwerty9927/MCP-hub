@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Server, Wrench, Terminal, History, Settings, Cpu } from "lucide-react";
+import { LayoutDashboard, Server, Wrench, Terminal, History, Settings, Cpu, Bot } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { systemApi } from "@/lib/api";
@@ -28,6 +28,11 @@ export const NAV_ITEMS = [
         name: "Tool Playground",
         href: "/playground",
         icon: Terminal,
+    },
+    {
+        name: "Sessions",
+        href: "/sessions",
+        icon: Bot,
     },
     {
         name: "Execution History",
