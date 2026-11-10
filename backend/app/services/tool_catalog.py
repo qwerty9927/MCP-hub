@@ -10,10 +10,27 @@ from app.core.exceptions import NotFoundError
 from app.core.logging import logger
 from app.domain.server_entity import ServerEntity
 from app.domain.tool_entity import ToolEntity
+from app.helpers.text import slugify
 from app.infrastructure.repositories.tool_repository import ToolRepositoryAbstract
 from app.schemas.common_schema import PaginatedResponse
 from app.schemas.tool_schema import ToolResponse
 from app.services.connection_manager import ConnectionManager
+
+
+def qualified_tool_id(server_id: UUID, tool_name: str) -> str:
+    """Build a Qualified Tool ID "{server_id}:{tool_name}"."""
+    return f"{server_id}:{tool_name}"
+
+
+def split_qualified_tool_id(tool_reference: str) -> tuple[UUID | None, str]:
+    """Split a Qualified Tool ID "{server_id}:{tool_name}"; returns (None, reference) for anything else."""
+    prefix, sep, tool_name = tool_reference.partition(":")
+    if not sep or not tool_name:
+        return None, tool_reference
+    try:
+        return UUID(prefix), tool_name
+    except ValueError:
+        return None, tool_reference
 
 
 class ToolCatalogService:
@@ -46,7 +63,7 @@ class ToolCatalogService:
         now = datetime.now(UTC)
 
         for mcp_tool in mcp_tools:
-            qualified_id = f"{server.id}:{mcp_tool.name}"
+            qualified_id = qualified_tool_id(server.id, mcp_tool.name)
 
             # Convert tool.input_schema to dict
             schema: dict[str, Any] = {}
@@ -164,6 +181,30 @@ class ToolCatalogService:
             total_pages=total_pages,
         )
 
+    async def resolve(self, tool_reference: str) -> ToolEntity | None:
+        """Resolve a Tool Reference (Qualified Tool ID or Tool Slug) to its Tool, or None when nothing matches."""
+        server_id, tool_name = split_qualified_tool_id(tool_reference)
+        if server_id is not None:
+            try:
+                return await self.get_tool(tool_name, server_id=server_id)
+            except NotFoundError:
+                return None
+
+        try:
+            return await self.get_tool(tool_reference)
+        except NotFoundError:
+            pass
+
+        # Tool Slug: "{server_slug}__{tool_name}"
+        if "__" not in tool_reference:
+            return None
+        server_slug, slug_tool_name = tool_reference.split("__", 1)
+        candidates = await self.list_tools(tool_name=slug_tool_name, page=1, page_size=100)
+        for candidate in candidates.items:
+            if slugify(candidate.server_name) == server_slug:
+                return await self.get_tool(candidate.id)
+        return None
+
     async def get_tool(self, tool_id_or_name: str, server_id: UUID | None = None) -> ToolEntity:
         """Find a tool by qualified ID or by name and optional server_id."""
         async with self._lock:
@@ -173,7 +214,7 @@ class ToolCatalogService:
 
             # 2. Check if server_id provided
             if server_id:
-                qualified = f"{server_id}:{tool_id_or_name}"
+                qualified = qualified_tool_id(server_id, tool_id_or_name)
                 if qualified in self._tools:
                     return self._tools[qualified]
 

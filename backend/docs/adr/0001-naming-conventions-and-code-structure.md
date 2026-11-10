@@ -27,7 +27,7 @@ We standardize on explicit, full-word role suffixes for structural modules and u
    - Models: `app/models/*_model.py` (e.g., `server_model.py`, `tool_model.py`, `execution_model.py`, `session_model.py`, `base_model.py`)
    - Domain Entities: `app/domain/*_entity.py` (e.g., `server_entity.py`, `tool_entity.py`, `execution_entity.py`, `session_entity.py`)
    - Enums: `app/core/enums/*_enum.py` (e.g., `server_enum.py`, `session_enum.py`)
-   - Services: Descriptive noun phrases without suffix in `app/services/` (e.g., `server_registry.py`, `connection_manager.py`, `tool_catalog.py`, `tool_router.py`, `session_explorer.py`)
+   - Services: Descriptive noun phrases without suffix in `app/services/` (e.g., `server_registry.py`, `connection_manager.py`, `tool_catalog.py`, `tool_executor.py`, `session_explorer.py`)
 
 2. **Schema Suffix Standard**:
    - Inbound request payloads strictly use `*Request` (e.g., `ServerCreateRequest`, `ServerUpdateRequest`, `SessionCreateRequest`, `ToolExecuteRequest`).

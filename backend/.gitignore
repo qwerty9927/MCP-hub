@@ -15,3 +15,4 @@ mcp_hub.db
 .DS_Store
 .agents
 skills-lock.json
+uv.lock

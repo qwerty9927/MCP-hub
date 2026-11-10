@@ -34,7 +34,7 @@ flowchart TD
         subgraph Services Layer
             ServerRegistry["Server Registry Service"]
             ToolCatalog["Unified Tool Catalog (Cache & Qualified IDs)"]
-            ToolRouter["Tool Execution Router (Validation & Auditing)"]
+            ToolExecutor["Execution Module (Resolve, Validate, Call & Audit)"]
             ConnManager["Connection Manager (SessionWorker per server)"]
             MCPGateway
         end
@@ -48,14 +48,14 @@ flowchart TD
     
     R_Servers --> ServerRegistry
     R_Tools --> ToolCatalog
-    R_Tools --> ToolRouter
+    R_Tools --> ToolExecutor
     
     MCPGateway --> ServerRegistry
     MCPGateway --> ToolCatalog
-    MCPGateway --> ToolRouter
+    MCPGateway --> ToolExecutor
     
-    ToolRouter --> ConnManager
-    ToolRouter --> ExecRepo
+    ToolExecutor --> ConnManager
+    ToolExecutor --> ExecRepo
     ServerRegistry --> ServerRepo
     ServerRegistry --> ConnManager
     ToolCatalog --> ToolRepo
@@ -82,7 +82,7 @@ flowchart TD
 6. **Agent-Driven Meta-Tool Architecture**:
    Exposes two native meta-tools on `/mcp` designed for autonomous upstream agents:
    - `SEARCH_TOOLS`: Pure keyword discovery with case-insensitive tokenization and substring boosting across names, descriptions, and input schema properties. Excludes meta-tools to prevent recursion and returns deduplicated candidate tools ranked by relevance.
-   - `MULTI_EXECUTE_TOOLS`: Parallel dispatcher executing multiple tool calls concurrently via `asyncio.gather` through `ToolRouterService`. Provides per-tool failure isolation (a failed downstream call does not fail sibling executions) while strictly preserving AnyIO cancel scopes, JSON schema validation, and database audit logging.
+   - `MULTI_EXECUTE_TOOLS`: Parallel dispatcher executing multiple tool calls concurrently via `asyncio.gather` through `ToolExecutor` (the Execution module). Provides per-tool failure isolation (a failed downstream call does not fail sibling executions) while strictly preserving AnyIO cancel scopes, JSON schema validation, and database audit logging.
 
 ---
 
@@ -140,7 +140,7 @@ backend/
 │   │   ├── server_registry.py           # Server CRUD business logic
 │   │   ├── session_explorer.py          # Session discovery & execution history
 │   │   ├── tool_catalog.py              # Cross-server tool aggregation cache
-│   │   └── tool_router.py               # Input validation & execution router
+│   │   └── tool_executor.py             # Execution module: resolve, validate, call, audit
 │   ├── mcp/
 │   │   ├── mcp_proxy_asgi.py            # Streamable HTTP ASGI proxy application
 │   │   ├── mcp_server.py                # MCPServer exposing the hub over Streamable HTTP (/mcp)

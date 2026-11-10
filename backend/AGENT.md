@@ -85,8 +85,9 @@ backend/
 │   │   │   ├── constants/               # Application constants partitioned by domain
 │   │   │   │   └── meta_tools.py        # Meta-tool identifiers (SEARCH_TOOLS, MULTI_EXECUTE_TOOLS)
 │   │   │   ├── enums/                   # Core enumerations partitioned by domain (no __init__.py)
+│   │   │   │   ├── execution_enum.py    # ExecutionOutcomeKind, RejectionReason
 │   │   │   │   ├── server_enum.py       # TransportType, ServerHealthStatus
-│   │   │   │   └── session_enum.py      # SessionStatus, ToolCallStatus
+│   │   │   │   └── session_enum.py      # SessionStatus, ToolCallStatus (incl. `rejected`)
 │   │   │   ├── exceptions.py            # Domain exception hierarchy (derived from AppError)
 │   │   │   └── logging.py               # Structured correlation-ID logging & contextvars
 │   │   ├── domain/                      # Domain entities partitioned by entity responsibility
@@ -132,7 +133,7 @@ backend/
 │   │       ├── server_registry.py       # Server CRUD, uniqueness validation, status management
 │   │       ├── session_explorer.py      # Session discovery and execution history
 │   │       ├── tool_catalog.py          # Unified tool aggregation cache & collision handler
-│   │       └── tool_router.py           # Tool argument validator, execution dispatcher, audit logger
+│   │       └── tool_executor.py         # Execution module: resolve Tool Reference, check, validate, call, audit (ADR-0002)
 ├── demo_server/                         # Standalone downstream demo MCP servers for E2E tests
 ├── migrations/                          # Alembic schema revision scripts
 └── tests/
@@ -156,7 +157,7 @@ Strict unidirectional dependency flow:
 - **Services**: Contain domain workflows, coordination, validations, and downstream interactions.
 - **Repositories**: Abstract all SQL/persistence operations behind `ServerRepositoryAbstract`, `ToolRepositoryAbstract`, `ExecutionRepositoryAbstract`, and `SessionRepositoryAbstract`.
 - **Domain Entities**: Transfer state between services and repositories without leaking SQLAlchemy models into external layers.
-- **Core Primitives & Enums**: Enums (`app/core/enums/server_enum.py`, `app/core/enums/session_enum.py`) and constants (`app/core/constants/meta_tools.py`) reside in `app/core/` to prevent inverted dependencies from domain/model layers into API schemas.
+- **Core Primitives & Enums**: Enums (`app/core/enums/server_enum.py`, `app/core/enums/session_enum.py`, `app/core/enums/execution_enum.py`) and constants (`app/core/constants/meta_tools.py`) reside in `app/core/` to prevent inverted dependencies from domain/model layers into API schemas.
 - **Connection Schemas**: Transport configurations (`StdioConfig`, `HttpConfig`, `ConnectionConfigResponse`) are isolated in `app/schemas/connection_schema.py`.
 
 ### AnyIO Cancel Scope Rule & `SessionWorker`
@@ -196,7 +197,7 @@ Strict unidirectional dependency flow:
     1. Strictly conform `arguments` to the target tool's `input_schema` discovered via `SEARCH_TOOLS`.
     2. Batch independent calls together; do NOT batch data-dependent calls (execute Tool A, inspect its response, then call Tool B in the next turn).
     3. Isolate partial failures and retry only items returning `"validation_error"`.
-  - Dispatches calls concurrently via `asyncio.gather(*tasks)` routing through `ToolRouterService.execute_mcp_tool`.
+  - Dispatches calls concurrently via `asyncio.gather(*tasks)` routing each item through `ToolExecutor.execute` (the Execution module), then mapping its Outcome to the item `status`.
   - Complies strictly with the AnyIO Cancel Scope Rule (routes through `ConnectionManager` `SessionWorker`).
   - Preserves argument validation and `ExecutionRepositoryAbstract` audit logging.
   - Strictly isolates failures per execution item (`"status": "success" | "validation_error" | "error"`).

@@ -8,10 +8,11 @@ from unittest.mock import MagicMock
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.api.dependencies import get_tool_router_service
+from app.api.dependencies import get_tool_executor
 from app.core.config import get_settings
+from app.core.enums.execution_enum import ExecutionOutcomeKind
 from app.main import app
-from app.schemas.tool_schema import ToolExecuteResponse
+from app.services.tool_executor import ExecutionOutcome
 
 
 @pytest.fixture
@@ -150,24 +151,23 @@ async def test_correlation_id_exposed_on_tool_execute_success(client: AsyncClien
     server_uuid = uuid.uuid4()
     exec_uuid = uuid.uuid4()
 
-    mock_router = MagicMock()
+    stub_executor = MagicMock()
 
-    async def mock_execute(server_id, tool_name, arguments, timeout=None):
-        from app.core.logging import get_correlation_id
-
-        return ToolExecuteResponse(
+    async def stub_execute(tool_reference, arguments, session_id=None, timeout=None):
+        return ExecutionOutcome(
+            kind=ExecutionOutcomeKind.SUCCEEDED,
+            tool_reference=tool_reference,
+            executed_at=datetime.now(UTC),
             execution_id=exec_uuid,
             server_id=server_uuid,
+            server_name="stub",
             tool_name="test_tool",
-            is_error=False,
             content=[{"type": "text", "text": "executed successfully"}],
             duration_ms=12.5,
-            executed_at=datetime.now(UTC),
-            correlation_id=get_correlation_id(),
         )
 
-    mock_router.execute_tool = mock_execute
-    app.dependency_overrides[get_tool_router_service] = lambda: mock_router
+    stub_executor.execute = stub_execute
+    app.dependency_overrides[get_tool_executor] = lambda: stub_executor
     try:
         response = await client.post(
             f"/api/v1/servers/{server_uuid}/tools/test_tool/execute",
@@ -180,7 +180,7 @@ async def test_correlation_id_exposed_on_tool_execute_success(client: AsyncClien
         assert body["correlation_id"] == corr_id
         assert body["execution_id"] == str(exec_uuid)
     finally:
-        app.dependency_overrides.pop(get_tool_router_service, None)
+        app.dependency_overrides.pop(get_tool_executor, None)
 
 
 # --- 2. ERROR API CALLS (404, 422, APP EXCEPTION) ---

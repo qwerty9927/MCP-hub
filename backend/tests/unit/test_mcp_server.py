@@ -1,6 +1,7 @@
 """Unit tests for MCPServer and MCPProxyASGI."""
 
 import json
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -8,18 +9,15 @@ import pytest
 from mcp.server.context import ServerRequestContext
 from mcp.types import (
     CallToolRequestParams,
-    CallToolResult,
     PaginatedRequestParams,
-    TextContent,
 )
 
 from app.core.constants.meta_tools import (
     MULTI_EXECUTE_TOOLS_NAME,
     SEARCH_TOOLS_NAME,
 )
+from app.core.enums.execution_enum import ExecutionOutcomeKind
 from app.core.enums.server_enum import ServerHealthStatus, TransportType
-from app.domain.server_entity import ServerEntity
-from app.domain.tool_entity import ToolEntity
 from app.mcp.mcp_proxy_asgi import MCPProxyASGI
 from app.mcp.mcp_server import MCPServer
 from app.mcp.multi_execute_tools import MULTI_EXECUTE_TOOLS_SCHEMA
@@ -27,6 +25,7 @@ from app.mcp.search_tools import SEARCH_TOOLS_SCHEMA
 from app.schemas.common_schema import PaginatedResponse
 from app.schemas.server_schema import ServerResponse
 from app.schemas.tool_schema import ToolResponse
+from app.services.tool_executor import ExecutionOutcome
 
 
 @pytest.fixture
@@ -45,7 +44,7 @@ def mock_connection_mgr():
 
 
 @pytest.fixture
-def mock_tool_router():
+def mock_tool_executor():
     return AsyncMock()
 
 
@@ -55,12 +54,12 @@ def mock_session_repo():
 
 
 @pytest.fixture
-def mcp_server(mock_registry, mock_tool_catalog, mock_connection_mgr, mock_tool_router, mock_session_repo):
+def mcp_server(mock_registry, mock_tool_catalog, mock_connection_mgr, mock_tool_executor, mock_session_repo):
     return MCPServer(
         server_registry=mock_registry,
         tool_catalog=mock_tool_catalog,
         connection_manager=mock_connection_mgr,
-        tool_router=mock_tool_router,
+        tool_executor=mock_tool_executor,
         session_repository=mock_session_repo,
     )
 
@@ -243,49 +242,29 @@ async def test_handle_call_tool_search(mcp_server, mock_registry, mock_tool_cata
 
 
 @pytest.mark.asyncio
-async def test_handle_call_tool_multi_execute(mcp_server, mock_registry, mock_tool_catalog, mock_tool_router):
-    """Verify Multi-Execute tool dispatches execution to ToolRouterService."""
+async def test_handle_call_tool_multi_execute(mcp_server, mock_tool_executor):
+    """Verify Multi-Execute dispatches each item to the Execution module with the discovered session."""
     srv_id = uuid4()
     ctx = _create_mock_context("sess-multi")
-
-    mock_server = ServerEntity(
-        id=srv_id,
-        name="math",
-        transport=TransportType.STDIO,
-        enabled=True,
-    )
-    mock_registry.get_server_entity.return_value = mock_server
-
-    tool_ent = ToolEntity(
-        id=f"{srv_id}:add",
-        server_id=srv_id,
-        server_name="math",
-        name="add",
-        input_schema={"type": "object"},
-        description="Add numbers",
-    )
-    mock_tool_catalog.get_tool.return_value = tool_ent
-
-    mock_tool_router.execute_mcp_tool.return_value = CallToolResult(
-        content=[TextContent(type="text", text="42")],
-        is_error=False,
+    slug = f"{srv_id}:add"
+    mock_tool_executor.execute.return_value = ExecutionOutcome(
+        kind=ExecutionOutcomeKind.SUCCEEDED,
+        tool_reference=slug,
+        executed_at=datetime.now(UTC),
+        execution_id=uuid4(),
+        content=[{"type": "text", "text": "42"}],
     )
 
     params = CallToolRequestParams(
         name=MULTI_EXECUTE_TOOLS_NAME,
-        arguments={
-            "executions": [
-                {"tool_slug": f"{srv_id}:add", "arguments": {"a": 20, "b": 22}},
-            ]
-        },
+        arguments={"executions": [{"tool_slug": slug, "arguments": {"a": 20, "b": 22}}]},
     )
 
     res = await mcp_server.handle_call_tool(ctx, params)
     assert res.is_error is False
     data = json.loads(res.content[0].text)
-    assert len(data["results"]) == 1
-    assert data["results"][0]["status"] == "success"
-    assert data["results"][0]["data"] == "42"
+    assert data["results"] == [{"tool_slug": slug, "status": "success", "data": "42", "error": None}]
+    mock_tool_executor.execute.assert_awaited_once_with(slug, {"a": 20, "b": 22}, session_id="sess-multi")
 
 
 @pytest.mark.asyncio

@@ -347,6 +347,19 @@ Invokes an MCP tool on the server with argument validation and audit logging.
 }
 ```
 
+`duration_ms` is the downstream call time and equals the value recorded on the Execution. A tool that reports an error still returns `200` with `"is_error": true`.
+
+#### Error Responses (by Execution Outcome, see ADR-0002):
+| Status | Outcome | Execution recorded? |
+| --- | --- | --- |
+| `404` | Rejected: unknown tool or server | No |
+| `400` | Rejected: server disabled | Yes (`rejected`) |
+| `409` | Rejected: tool unavailable | Yes (`rejected`) |
+| `422` | Rejected: invalid arguments | Yes (`rejected`) |
+| `502` | Failed: transport fault or timeout talking to the downstream server | Yes (`failed`) |
+
+`error.details.reason` carries the rejection reason (`unknown_tool`, `server_disabled`, `tool_unavailable`, `invalid_arguments`).
+
 ---
 
 ## 4. Execution History Endpoints
@@ -536,7 +549,7 @@ To support LLM agents orchestrating tools across many servers without exhausting
   1. **Strict Schema Compliance:** Provide exact namespaced `tool_slug` and arguments conforming to target tool schema.
   2. **Parallel vs. Sequential Chaining:** Group independent calls concurrently; if Tool B depends on Tool A's output, execute Tool A first, inspect output, then call Tool B in the next turn.
   3. **Partial Failure Isolation:** Inspect each item's `status` (`"success" | "validation_error" | "error"`). Retry only items returning `"validation_error"`.
-- **Behavior:** Concurrent execution via `asyncio.gather` through `ToolRouterService`. Fully isolates errors per tool call (partial failures do not abort sibling calls). Guarantees audit logging and blocks recursive meta-tool calls.
+- **Behavior:** Concurrent execution via `asyncio.gather` through `ToolExecutor` (the Execution module). Fully isolates errors per tool call (partial failures do not abort sibling calls). Guarantees audit logging and blocks recursive meta-tool calls.
 - **Response Format (`CallToolResult` text content):**
   ```json
   {

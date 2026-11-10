@@ -1,37 +1,48 @@
-"""Unit tests for MULTI_EXECUTE_TOOLS parallel dispatcher meta-tool."""
+"""Unit tests for the MULTI_EXECUTE_TOOLS adapter over the Execution module.
 
-from dataclasses import dataclass
+The Execution module itself is covered in test_tool_executor.py; here a stub executor returns canned
+Outcomes so only the adapter's job is exercised: payload validation, parallel fan-out with isolation,
+meta-tool recursion guard, and mapping Outcomes to the agent-facing result shape.
+"""
+
+from datetime import UTC, datetime
 from typing import Any
-from unittest.mock import AsyncMock
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
-from mcp.types import CallToolResult, TextContent
 
-from app.core.constants.meta_tools import (
-    MULTI_EXECUTE_TOOLS_NAME,
-    SEARCH_TOOLS_NAME,
-)
-from app.core.enums.server_enum import TransportType
+from app.core.constants.meta_tools import MULTI_EXECUTE_TOOLS_NAME, SEARCH_TOOLS_NAME
+from app.core.enums.execution_enum import ExecutionOutcomeKind, RejectionReason
 from app.core.exceptions import ValidationError
-from app.domain.server_entity import ServerEntity
-from app.domain.tool_entity import ToolEntity
 from app.mcp.multi_execute_tools import (
     MULTI_EXECUTE_TOOLS_SCHEMA,
     get_multi_execute_tool_definition,
     handle_multi_execute_tools,
 )
+from app.services.tool_executor import ExecutionOutcome
 
 
-@dataclass
-class MockMapping:
-    hub_tool_name: str
-    server_id: UUID
-    server_name: str
-    original_tool_name: str
-    input_schema: dict[str, Any]
-    description: str | None = None
-    availability_status: str = "AVAILABLE"
+def outcome(kind: ExecutionOutcomeKind, ref: str, **kwargs: Any) -> ExecutionOutcome:
+    return ExecutionOutcome(kind=kind, tool_reference=ref, executed_at=datetime.now(UTC), execution_id=uuid4(), **kwargs)
+
+
+class StubExecutor:
+    def __init__(self, outcomes: dict[str, ExecutionOutcome | Exception]) -> None:
+        self.outcomes = outcomes
+        self.calls: list[tuple[str, dict[str, Any], str | None]] = []
+
+    async def execute(self, tool_reference: str, arguments: dict[str, Any], session_id: str | None = None, timeout: float | None = None):
+        self.calls.append((tool_reference, arguments, session_id))
+        result = self.outcomes[tool_reference]
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+
+async def run(executor: StubExecutor, *slugs: str, session_id: str | None = None) -> list[dict[str, Any]]:
+    payload = {"executions": [{"tool_slug": s, "arguments": {"x": 1}} for s in slugs]}
+    res = await handle_multi_execute_tools(arguments=payload, executor=executor, session_id=session_id)
+    return res["results"]
 
 
 def test_multi_execute_tool_definition_and_schema():
@@ -45,303 +56,92 @@ def test_multi_execute_tool_definition_and_schema():
     assert items_schema["properties"]["tool_slug"]["minLength"] == 1
     assert items_schema["properties"]["arguments"]["default"] == {}
     assert "### Agent Execution Guidelines:" in tool.description
-    # Ensure description is cleanly dedented via inspect.cleandoc
     assert not any(line.startswith("            ") for line in tool.description.splitlines())
 
 
-@pytest.mark.asyncio
-async def test_handle_multi_execute_tools_success():
-    srv_id = uuid4()
-    mock_router = AsyncMock()
-    mock_registry = AsyncMock()
-
-    mock_server = ServerEntity(
-        id=srv_id,
-        name="math",
-        transport=TransportType.STDIO,
-        enabled=True,
+async def test_succeeded_single_json_text_block_is_parsed():
+    executor = StubExecutor(
+        {"m__a": outcome(ExecutionOutcomeKind.SUCCEEDED, "m__a", content=[{"type": "text", "text": '{"sum": 3}'}])},
     )
-    mock_registry.get_server_entity.return_value = mock_server
+    [item] = await run(executor, "m__a", session_id="sess-1")
 
-    mock_router.execute_mcp_tool.side_effect = [
-        CallToolResult(
-            content=[TextContent(type="text", text="42")],
-            is_error=False,
-        ),
-        CallToolResult(
-            content=[TextContent(type="text", text='{"status": "ok", "value": 100}')],
-            is_error=False,
-        ),
-    ]
+    assert item == {"tool_slug": "m__a", "status": "success", "data": {"sum": 3}, "error": None}
+    assert executor.calls == [("m__a", {"x": 1}, "sess-1")]
 
-    tool_map = {
-        "math__calc": MockMapping(
-            hub_tool_name="math__calc",
-            server_id=srv_id,
-            server_name="math",
-            original_tool_name="calc",
-            input_schema={"type": "object"},
-            description="Calculate",
-        ),
-        "math__eval": MockMapping(
-            hub_tool_name="math__eval",
-            server_id=srv_id,
-            server_name="math",
-            original_tool_name="eval",
-            input_schema={"type": "object"},
-            description="Evaluate",
-        ),
-    }
 
-    result = await handle_multi_execute_tools(
-        arguments={
-            "executions": [
-                {"tool_slug": "math__calc", "arguments": {"expr": "6*7"}},
-                {"tool_slug": "math__eval", "arguments": {"expr": "10*10"}},
-            ]
-        },
-        tool_map=tool_map,
-        tool_router=mock_router,
-        server_registry=mock_registry,
+async def test_succeeded_plain_text_and_multi_block_shapes():
+    executor = StubExecutor(
+        {
+            "m__text": outcome(ExecutionOutcomeKind.SUCCEEDED, "m__text", content=[{"type": "text", "text": "42"}]),
+            "m__multi": outcome(
+                ExecutionOutcomeKind.SUCCEEDED,
+                "m__multi",
+                content=[{"type": "text", "text": "a"}, {"type": "text", "text": "b"}],
+            ),
+            "m__empty": outcome(ExecutionOutcomeKind.SUCCEEDED, "m__empty"),
+        }
     )
+    text, multi, empty = await run(executor, "m__text", "m__multi", "m__empty")
 
-    results = result["results"]
-    assert len(results) == 2
-    assert results[0]["tool_slug"] == "math__calc"
-    assert results[0]["status"] == "success"
-    assert results[0]["data"] == "42"
-    assert results[0]["error"] is None
-
-    assert results[1]["tool_slug"] == "math__eval"
-    assert results[1]["status"] == "success"
-    assert results[1]["data"] == {"status": "ok", "value": 100}
-    assert results[1]["error"] is None
+    assert text["data"] == "42"
+    assert multi["data"] == [{"type": "text", "text": "a"}, {"type": "text", "text": "b"}]
+    assert empty["data"] is None
 
 
-@pytest.mark.asyncio
-async def test_handle_multi_execute_tools_via_tool_catalog():
-    """Verify execution resolved directly from tool_catalog and discovered_tools table."""
-    srv_id = uuid4()
-    mock_router = AsyncMock()
-    mock_registry = AsyncMock()
-    mock_catalog = AsyncMock()
-
-    mock_server = ServerEntity(
-        id=srv_id,
-        name="math",
-        transport=TransportType.STDIO,
-        enabled=True,
+async def test_outcomes_map_to_agent_statuses():
+    executor = StubExecutor(
+        {
+            "m__bad_args": outcome(
+                ExecutionOutcomeKind.REJECTED,
+                "m__bad_args",
+                rejection_reason=RejectionReason.INVALID_ARGUMENTS,
+                error_message="'b' is a required property",
+            ),
+            "m__disabled": outcome(
+                ExecutionOutcomeKind.REJECTED,
+                "m__disabled",
+                rejection_reason=RejectionReason.SERVER_DISABLED,
+                error_message="Server 'm' is disabled",
+            ),
+            "m__tool_error": outcome(ExecutionOutcomeKind.TOOL_ERROR, "m__tool_error", error_message="boom"),
+            "m__failed": outcome(ExecutionOutcomeKind.FAILED, "m__failed", error_message="timed out"),
+        }
     )
-    mock_registry.get_server_entity.return_value = mock_server
+    bad_args, disabled, tool_error, failed = await run(executor, "m__bad_args", "m__disabled", "m__tool_error", "m__failed")
 
-    tool_ent = ToolEntity(
-        id=f"{srv_id}:add",
-        server_id=srv_id,
-        server_name="math",
-        name="add",
-        input_schema={"type": "object"},
-        description="Add numbers",
+    assert bad_args["status"] == "validation_error"
+    assert bad_args["error"] == "Argument validation failed: 'b' is a required property"
+    assert (disabled["status"], disabled["error"]) == ("error", "Server 'm' is disabled")
+    assert (tool_error["status"], tool_error["error"]) == ("error", "boom")
+    assert (failed["status"], failed["error"]) == ("error", "timed out")
+    assert all(r["data"] is None for r in (bad_args, disabled, tool_error, failed))
+
+
+async def test_infrastructure_fault_in_one_item_is_isolated():
+    executor = StubExecutor(
+        {
+            "m__ok": outcome(ExecutionOutcomeKind.SUCCEEDED, "m__ok", content=[{"type": "text", "text": "fine"}]),
+            "m__db_down": RuntimeError("database unavailable"),
+        }
     )
-    mock_catalog.get_tool.return_value = tool_ent
+    ok, broken = await run(executor, "m__ok", "m__db_down")
 
-    mock_router.execute_mcp_tool.return_value = CallToolResult(
-        content=[TextContent(type="text", text="10")],
-        is_error=False,
-    )
-
-    result = await handle_multi_execute_tools(
-        arguments={
-            "executions": [
-                {"tool_slug": f"{srv_id}:add", "arguments": {"a": 4, "b": 6}},
-            ]
-        },
-        tool_router=mock_router,
-        server_registry=mock_registry,
-        tool_catalog=mock_catalog,
-    )
-
-    results = result["results"]
-    assert len(results) == 1
-    assert results[0]["status"] == "success"
-    assert results[0]["data"] == "10"
-    mock_router.execute_mcp_tool.assert_called_once_with(
-        server_id=srv_id,
-        tool_name="add",
-        arguments={"a": 4, "b": 6},
-    )
+    assert ok["status"] == "success"
+    assert broken["status"] == "error"
+    assert "database unavailable" in broken["error"]
 
 
-@pytest.mark.asyncio
-async def test_handle_multi_execute_tools_failure_isolation():
-    srv1_id = uuid4()
-    srv2_id = uuid4()
-    mock_router = AsyncMock()
-    mock_registry = AsyncMock()
+async def test_meta_tools_cannot_be_executed_recursively():
+    executor = StubExecutor({})
+    results = await run(executor, SEARCH_TOOLS_NAME, MULTI_EXECUTE_TOOLS_NAME, "Search")
 
-    server1 = ServerEntity(id=srv1_id, name="math", transport=TransportType.STDIO, enabled=True)
-    server2_disabled = ServerEntity(id=srv2_id, name="disabled_srv", transport=TransportType.STDIO, enabled=False)
-
-    def get_server_mock(sid):
-        if sid == srv1_id:
-            return server1
-        return server2_disabled
-
-    mock_registry.get_server_entity.side_effect = get_server_mock
-
-    # Router handles call for tool1 (success), tool2 (validation error), tool3 (downstream error)
-    async def execute_mcp_mock(server_id, tool_name, arguments):
-        if tool_name == "calc":
-            return CallToolResult(content=[TextContent(type="text", text="42")], is_error=False)
-        if tool_name == "bad_args":
-            raise ValidationError("Missing property 'x'")
-        if tool_name == "crash":
-            return CallToolResult(
-                content=[TextContent(type="text", text="Internal computation failure")],
-                is_error=True,
-            )
-        raise RuntimeError("Unexpected tool")
-
-    mock_router.execute_mcp_tool.side_effect = execute_mcp_mock
-
-    tool_map = {
-        "math__calc": MockMapping(
-            hub_tool_name="math__calc",
-            server_id=srv1_id,
-            server_name="math",
-            original_tool_name="calc",
-            input_schema={},
-        ),
-        "math__bad_args": MockMapping(
-            hub_tool_name="math__bad_args",
-            server_id=srv1_id,
-            server_name="math",
-            original_tool_name="bad_args",
-            input_schema={},
-        ),
-        "math__crash": MockMapping(
-            hub_tool_name="math__crash",
-            server_id=srv1_id,
-            server_name="math",
-            original_tool_name="crash",
-            input_schema={},
-        ),
-        "disabled__tool": MockMapping(
-            hub_tool_name="disabled__tool",
-            server_id=srv2_id,
-            server_name="disabled_srv",
-            original_tool_name="tool",
-            input_schema={},
-        ),
-    }
-
-    executions = [
-        {"tool_slug": "math__calc", "arguments": {}},
-        {"tool_slug": "non_existent_tool", "arguments": {}},
-        {"tool_slug": "math__bad_args", "arguments": {}},
-        {"tool_slug": "disabled__tool", "arguments": {}},
-        {"tool_slug": "math__crash", "arguments": {}},
-        {"tool_slug": SEARCH_TOOLS_NAME, "arguments": {"queries": ["test"]}},
-    ]
-
-    result = await handle_multi_execute_tools(
-        arguments={"executions": executions},
-        tool_map=tool_map,
-        tool_router=mock_router,
-        server_registry=mock_registry,
-    )
-
-    results = result["results"]
-    assert len(results) == 6
-
-    # 1. Success
-    assert results[0]["tool_slug"] == "math__calc"
-    assert results[0]["status"] == "success"
-    assert results[0]["data"] == "42"
-
-    # 2. Non-existent tool -> error
-    assert results[1]["tool_slug"] == "non_existent_tool"
-    assert results[1]["status"] == "error"
-    assert "Unknown or unavailable" in results[1]["error"]
-
-    # 3. Validation error -> validation_error
-    assert results[2]["tool_slug"] == "math__bad_args"
-    assert results[2]["status"] == "validation_error"
-    assert "Missing property 'x'" in results[2]["error"]
-
-    # 4. Disabled server -> error
-    assert results[3]["tool_slug"] == "disabled__tool"
-    assert results[3]["status"] == "error"
-    assert "disabled" in results[3]["error"]
-
-    # 5. Tool returned error result -> error
-    assert results[4]["tool_slug"] == "math__crash"
-    assert results[4]["status"] == "error"
-    assert "Internal computation failure" in results[4]["error"]
-
-    # 6. Recursive meta-tool call -> error
-    assert results[5]["tool_slug"] == SEARCH_TOOLS_NAME
-    assert results[5]["status"] == "error"
-    assert "not permitted" in results[5]["error"]
+    assert [r["status"] for r in results] == ["error", "error", "error"]
+    assert all("not permitted" in r["error"] for r in results)
+    assert executor.calls == []
 
 
-@pytest.mark.asyncio
-async def test_handle_multi_execute_tools_payload_validation():
-    mock_router = AsyncMock()
-    mock_registry = AsyncMock()
-
-    # Empty executions
-    with pytest.raises(ValidationError):
-        await handle_multi_execute_tools(
-            arguments={"executions": []},
-            tool_map={},
-            tool_router=mock_router,
-            server_registry=mock_registry,
-        )
-
-    # Missing executions
-    with pytest.raises(ValidationError):
-        await handle_multi_execute_tools(
-            arguments={},
-            tool_map={},
-            tool_router=mock_router,
-            server_registry=mock_registry,
-        )
-
-    # Extra root argument (extra="forbid")
-    with pytest.raises(ValidationError):
-        await handle_multi_execute_tools(
-            arguments={
-                "executions": [{"tool_slug": "calc", "arguments": {}}],
-                "extra_key": True,
-            },
-            tool_map={},
-            tool_router=mock_router,
-            server_registry=mock_registry,
-        )
-
-    # Extra item argument (extra="forbid")
-    with pytest.raises(ValidationError):
-        await handle_multi_execute_tools(
-            arguments={"executions": [{"tool_slug": "calc", "arguments": {}, "extra_item_key": 123}]},
-            tool_map={},
-            tool_router=mock_router,
-            server_registry=mock_registry,
-        )
-
-    # Empty tool_slug (min_length=1)
-    with pytest.raises(ValidationError):
-        await handle_multi_execute_tools(
-            arguments={"executions": [{"tool_slug": "", "arguments": {}}]},
-            tool_map={},
-            tool_router=mock_router,
-            server_registry=mock_registry,
-        )
-
-    # Whitespace-only tool_slug (stripped to empty)
-    with pytest.raises(ValidationError):
-        await handle_multi_execute_tools(
-            arguments={"executions": [{"tool_slug": "   ", "arguments": {}}]},
-            tool_map={},
-            tool_router=mock_router,
-            server_registry=mock_registry,
-        )
+async def test_payload_validation():
+    executor = StubExecutor({})
+    for bad in ({"executions": []}, {}, {"executions": [{"tool_slug": "calc", "arguments": {}}], "extra_key": True}):
+        with pytest.raises(ValidationError):
+            await handle_multi_execute_tools(arguments=bad, executor=executor)

@@ -21,7 +21,7 @@ from app.services.connection_manager import ConnectionManager
 from app.services.server_registry import ServerRegistryService
 from app.services.session_explorer import SessionExplorerService
 from app.services.tool_catalog import ToolCatalogService
-from app.services.tool_router import ToolRouterService
+from app.services.tool_executor import ToolExecutor
 
 # Singleton instances for PostgreSQL repositories and managers
 _server_repo: ServerRepositoryAbstract = PostgresServerRepository()
@@ -68,9 +68,9 @@ def get_server_registry_service() -> ServerRegistryService:
     return ServerRegistryService(repository=get_server_repository())
 
 
-def get_tool_router_service() -> ToolRouterService:
-    """Return tool router service."""
-    return ToolRouterService(
+def get_tool_executor() -> ToolExecutor:
+    """Return the Execution module."""
+    return ToolExecutor(
         server_registry=get_server_registry_service(),
         connection_manager=get_connection_manager(),
         tool_catalog=get_tool_catalog(),
@@ -95,7 +95,7 @@ def get_mcp_server() -> MCPServer:
             server_registry=get_server_registry_service(),
             tool_catalog=get_tool_catalog(),
             connection_manager=get_connection_manager(),
-            tool_router=get_tool_router_service(),
+            tool_executor=get_tool_executor(),
             session_repository=get_session_repository(),
         )
     return _mcp_server

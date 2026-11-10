@@ -44,7 +44,7 @@ from app.mcp.search_tools import (
 from app.services.connection_manager import ConnectionManager
 from app.services.server_registry import ServerRegistryService
 from app.services.tool_catalog import ToolCatalogService
-from app.services.tool_router import ToolRouterService
+from app.services.tool_executor import ToolExecutor
 
 
 class MCPServer:
@@ -55,13 +55,13 @@ class MCPServer:
         server_registry: ServerRegistryService,
         tool_catalog: ToolCatalogService,
         connection_manager: ConnectionManager,
-        tool_router: ToolRouterService,
+        tool_executor: ToolExecutor,
         session_repository: SessionRepositoryAbstract | None = None,
     ) -> None:
         self.server_registry = server_registry
         self.tool_catalog = tool_catalog
         self.connection_manager = connection_manager
-        self.tool_router = tool_router
+        self.tool_executor = tool_executor
         self.session_repo = session_repository
 
         self._active_sessions: set[ServerSession] = set()
@@ -261,9 +261,7 @@ class MCPServer:
         try:
             result_dict = await handle_multi_execute_tools(
                 arguments=arguments or {},
-                tool_router=self.tool_router,
-                server_registry=self.server_registry,
-                tool_catalog=self.tool_catalog,
+                executor=self.tool_executor,
                 session_id=session_id,
             )
             return CallToolResult(

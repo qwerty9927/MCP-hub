@@ -17,3 +17,4 @@ class ToolCallStatus(StrEnum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+    REJECTED = "rejected"
