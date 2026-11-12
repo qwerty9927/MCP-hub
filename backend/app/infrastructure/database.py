@@ -10,11 +10,13 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.core.config import get_settings
+from app.models.api_key_model import ApiKeyModel  # noqa: F401 - metadata discovery
 from app.models.base_model import Base
 from app.models.execution_model import ExecutionModel  # noqa: F401 - metadata discovery
 from app.models.server_model import ServerModel  # noqa: F401 - metadata discovery
 from app.models.session_model import SessionModel  # noqa: F401 - metadata discovery
 from app.models.tool_model import ToolModel  # noqa: F401 - metadata discovery
+from app.models.user_model import UserModel  # noqa: F401 - metadata discovery
 
 _settings = get_settings()
 

@@ -24,10 +24,12 @@ from app.api.dependencies import (  # noqa: E402
 )
 from app.core.config import get_settings  # noqa: E402
 from app.main import app  # noqa: E402
+from app.models.api_key_model import ApiKeyModel  # noqa: E402
 from app.models.execution_model import ExecutionModel  # noqa: E402
 from app.models.server_model import ServerModel  # noqa: E402
 from app.models.session_model import SessionModel  # noqa: E402
 from app.models.tool_model import ToolModel  # noqa: E402
+from app.models.user_model import UserModel  # noqa: E402
 
 # Configure test engine with NullPool to prevent event loop cross-task issues in pytest-asyncio.
 # Allows overriding DATABASE_URL with TEST_DATABASE_URL to protect local development data.
@@ -60,6 +62,8 @@ async def cleanup_dependencies():
         await session.execute(delete(ExecutionModel))
         await session.execute(delete(SessionModel))
         await session.execute(delete(ServerModel))
+        await session.execute(delete(ApiKeyModel))
+        await session.execute(delete(UserModel))
         await session.commit()
 
     _tool_catalog._tools.clear()

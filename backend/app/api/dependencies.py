@@ -1,5 +1,13 @@
 """Dependency injection providers for FastAPI routes."""
 
+from typing import Annotated
+
+from fastapi import Depends
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
+from app.core.exceptions import UnauthorizedError
+from app.domain.principal_entity import Principal
+from app.infrastructure.repositories.api_key_repository import ApiKeyRepositoryAbstract, PostgresApiKeyRepository
 from app.infrastructure.repositories.execution_repository import (
     ExecutionRepositoryAbstract,
     PostgresExecutionRepository,
@@ -16,7 +24,9 @@ from app.infrastructure.repositories.tool_repository import (
     PostgresToolRepository,
     ToolRepositoryAbstract,
 )
+from app.infrastructure.repositories.user_repository import PostgresUserRepository, UserRepositoryAbstract
 from app.mcp.mcp_server import MCPServer
+from app.services.auth_service import AuthService
 from app.services.connection_manager import ConnectionManager
 from app.services.server_registry import ServerRegistryService
 from app.services.session_explorer import SessionExplorerService
@@ -28,6 +38,8 @@ _server_repo: ServerRepositoryAbstract = PostgresServerRepository()
 _tool_repo: ToolRepositoryAbstract = PostgresToolRepository()
 _execution_repo: ExecutionRepositoryAbstract = PostgresExecutionRepository()
 _session_repo: SessionRepositoryAbstract = PostgresSessionRepository()
+_user_repo: UserRepositoryAbstract = PostgresUserRepository()
+_api_key_repo: ApiKeyRepositoryAbstract = PostgresApiKeyRepository()
 _connection_manager = ConnectionManager()
 _tool_catalog = ToolCatalogService(repository=_tool_repo)
 _mcp_server: MCPServer | None = None
@@ -51,6 +63,27 @@ def get_execution_repository() -> ExecutionRepositoryAbstract:
 def get_session_repository() -> SessionRepositoryAbstract:
     """Return session repository instance."""
     return _session_repo
+
+
+def get_auth_service() -> AuthService:
+    """Return the account and API key service."""
+    return AuthService(user_repository=_user_repo, api_key_repository=_api_key_repo)
+
+
+_bearer_scheme = HTTPBearer(auto_error=False, description="Console login token from POST /auth/login")
+
+
+async def get_current_principal(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer_scheme)],
+    auth: Annotated[AuthService, Depends(get_auth_service)],
+) -> Principal:
+    """Resolve the console login token on a REST request to its account, or raise 401."""
+    if credentials is None:
+        raise UnauthorizedError("Authentication required")
+    principal = await auth.authenticate_console(credentials.credentials)
+    if principal is None:
+        raise UnauthorizedError("Invalid or expired token")
+    return principal
 
 
 def get_connection_manager() -> ConnectionManager:
