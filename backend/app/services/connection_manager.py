@@ -25,6 +25,9 @@ from app.domain.server_entity import ServerEntity
 from app.helpers.errors import format_mcp_error
 from app.helpers.security import sanitize_environment, validate_http_url, validate_stdio_command
 
+# A session verified (connected or pinged) this recently is reused without another ping.
+SESSION_PING_INTERVAL_SECONDS = 10.0
+
 
 class SessionWorker:
     """Manages an MCP client session inside a dedicated asyncio task.
@@ -49,6 +52,7 @@ class SessionWorker:
         self.task: asyncio.Task | None = None
         self.connected_at: datetime | None = None
         self.is_alive: bool = False
+        self.last_verified_at: float = 0.0  # time.monotonic() of the last successful connect or ping
 
     async def _run(self, timeout: float) -> None:
         """Run the MCP client lifecycle within a persistent task."""
@@ -164,8 +168,12 @@ class ConnectionManager:
 
     def __init__(self) -> None:
         self._workers: dict[UUID, SessionWorker] = {}
-        self._lock = asyncio.Lock()
+        # One lock per Server, so a slow connect to one Server never blocks the others.
+        self._locks: dict[UUID, asyncio.Lock] = {}
         self.settings = get_settings()
+
+    def _lock_for(self, server_id: UUID) -> asyncio.Lock:
+        return self._locks.setdefault(server_id, asyncio.Lock())
 
     async def get_or_create_session(
         self,
@@ -179,27 +187,32 @@ class ConnectionManager:
                 details={"server_id": str(server.id)},
             )
 
-        async with self._lock:
+        async with self._lock_for(server.id):
             existing = self._workers.get(server.id)
             if existing and existing.is_alive and existing.session:
+                if time.monotonic() - existing.last_verified_at < SESSION_PING_INTERVAL_SECONDS:
+                    return existing.session
                 try:
                     await asyncio.wait_for(existing.session.send_ping(), timeout=2.0)
+                    existing.last_verified_at = time.monotonic()
                     return existing.session
                 except Exception as exc:
                     logger.warning(f"Existing session for server '{server.name}' unhealthy: {exc}. Reconnecting...")
-                    await existing.stop()
-                    self._workers.pop(server.id, None)
+            if existing:
+                await existing.stop()
+                self._workers.pop(server.id, None)
 
             # Create new worker
             semaphore = asyncio.Semaphore(self.settings.MAX_CONCURRENT_EXECUTIONS_PER_SERVER)
             worker = SessionWorker(server=server, settings=self.settings, semaphore=semaphore)
             session = await worker.start(timeout=timeout)
+            worker.last_verified_at = time.monotonic()
             self._workers[server.id] = worker
             return session
 
     async def disconnect(self, server_id: UUID) -> None:
         """Gracefully disconnect an active server session."""
-        async with self._lock:
+        async with self._lock_for(server_id):
             worker = self._workers.pop(server_id, None)
             if worker:
                 await worker.stop()
@@ -312,8 +325,8 @@ class ConnectionManager:
     async def shutdown(self) -> None:
         """Shutdown all active sessions and clean up resources."""
         logger.info(f"Shutting down ConnectionManager ({len(self._workers)} active sessions)...")
-        async with self._lock:
-            for worker in list(self._workers.values()):
-                await worker.stop()
-            self._workers.clear()
+        workers = list(self._workers.values())
+        self._workers.clear()
+        self._locks.clear()
+        await asyncio.gather(*(worker.stop() for worker in workers), return_exceptions=True)
         logger.info("ConnectionManager shutdown complete.")
