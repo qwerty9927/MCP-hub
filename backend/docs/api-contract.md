@@ -19,8 +19,9 @@ This document forms the binding interface contract between the MCP Hub Backend a
 | `201 Created` | Created | Successfully registered a new MCP server. |
 | `204 No Content` | No Content | Successful deletion of an entity. |
 | `400 Bad Request` | Client Error | Attempting operations on disabled servers or invalid states. |
-| `403 Forbidden` | Security Violation | Disallowed executable, command injection, or SSRF attempt. |
-| `404 Not Found` | Not Found | Target server, tool, or execution record not found. |
+| `401 Unauthorized` | Unauthenticated | Missing, invalid or expired token. Response carries `WWW-Authenticate: Bearer`. |
+| `403 Forbidden` | Security Violation | Disallowed executable, command injection, SSRF attempt, or sign-up disabled. |
+| `404 Not Found` | Not Found | Target server, tool, execution or session not found, **or owned by another account**. |
 | `409 Conflict` | Conflict | Server with duplicate name already registered. |
 | `422 Unprocessable`| Validation Error | Payload structure or JSON schema validation failure. |
 | `502 Bad Gateway` | Upstream Failure | MCP Server process failure or upstream connectivity breakdown. |
@@ -55,6 +56,28 @@ All listing endpoints return records wrapped in this envelope:
   "total_pages": 3
 }
 ```
+
+### 1.5 Authentication & Ownership
+
+- Every endpoint under `/api/v1` except `POST /auth/register` and `POST /auth/login` requires `Authorization: Bearer <console token>`. API keys are not accepted here.
+- `/health` and `/ready` (and their `/api/v1/system/...` aliases) are open; `/metrics` requires a token.
+- Servers, tools, executions and sessions belong to the account that created them. Another account's resource answers `404`, as if it did not exist, and is absent from lists.
+- Server names are unique per account, not globally.
+
+### 1.6 Account & API Key Endpoints
+
+| Method | Path | Auth | Body | Response |
+| :--- | :--- | :--- | :--- | :--- |
+| `POST` | `/auth/register` | none | `{"email", "password"}` (8-128 chars) | `201` `{"id", "email", "created_at"}`; `409` email taken; `403` sign-up disabled |
+| `POST` | `/auth/login` | none | `{"email", "password"}` | `200` `{"access_token", "token_type": "bearer", "expires_in"}`; `401` bad credentials |
+| `GET` | `/auth/me` | token | | `200` the account |
+| `GET` | `/auth/api-keys` | token | | `200` list of `{"id", "name", "key_prefix", "created_at", "last_used_at", "revoked_at"}` |
+| `POST` | `/auth/api-keys` | token | `{"name"}` | `201` same fields plus `"key"`, the full key, **returned only here** |
+| `DELETE` | `/auth/api-keys/{id}` | token | | `204`; `404` unknown or already revoked |
+
+The console token is a JWT that expires after `ACCESS_TOKEN_EXPIRE_MINUTES`. API keys start with `mhk_` and do not expire until revoked.
+
+The first account ever registered takes ownership of servers and sessions that existed before accounts did.
 
 ---
 
@@ -475,7 +498,10 @@ Any MCP-compliant client (Claude Desktop, IDE extensions, autonomous agents, Pyt
   - `GET /mcp`: Server-Sent Events (SSE) stream for real-time notifications
   - `DELETE /mcp`: Graceful session termination
 - **Headers:**
-  - `mcp-session-id`: Automatically managed session identifier assigned during `initialize`
+  - `Authorization: Bearer <api key or console token>`: **required**. Without a valid one the endpoint answers `401` with `WWW-Authenticate`.
+  - `mcp-session-id`: Automatically managed session identifier assigned during `initialize` (handshake-era protocol versions only)
+- **Protocol versions:** handshake-era versions (`2024-11-05` … `2025-11-25`) and the sessionless `2026-07-28`. For sessionless clients the hub derives a session from account + API key + client name/version (ADR-0003); `tools/list_changed` reaches them through `subscriptions/listen`.
+- **Scope:** `SEARCH_TOOLS` and `MULTI_EXECUTE_TOOLS` see only the calling account's servers.
 
 ### 6.2 Tool Namespacing & Identity Mapping
 
@@ -577,14 +603,16 @@ To support LLM agents orchestrating tools across many servers without exhausting
 ```python
 import asyncio
 from mcp.client.session import ClientSession
-from mcp.client.streamable_http import streamable_http_client
+from mcp.client.streamable_http import create_mcp_http_client, streamable_http_client
 
 
 async def main():
     hub_mcp_url = "http://localhost:8000/mcp"
+    api_key = "mhk_..."  # Settings > API Keys in the console
 
     async with (
-        streamable_http_client(hub_mcp_url) as (read_stream, write_stream),
+        create_mcp_http_client(headers={"Authorization": f"Bearer {api_key}"}) as http_client,
+        streamable_http_client(hub_mcp_url, http_client=http_client) as (read_stream, write_stream),
         ClientSession(read_stream, write_stream) as session,
     ):
         # 1. Initialize MCP Session

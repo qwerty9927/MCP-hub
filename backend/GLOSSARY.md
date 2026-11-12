@@ -29,9 +29,19 @@ A discrete, audited attempt to invoke a resolved Tool on a registered Server, re
 ### Tool Reference
 What a caller uses to name the Tool it wants to execute: either a Tool Slug (upstream agents) or a Qualified Tool ID (REST). Resolving a Tool Reference yields exactly one Tool or none.
 
+### Account
+A person signed up to the hub. Every Server, Tool, Execution and Session belongs to exactly one Account, and an Account can see and act on only its own.
+
+### API Key
+A revocable credential an upstream MCP client uses to call `/mcp` on behalf of an Account. Shown once when generated; the hub stores only its hash. API keys open `/mcp` only, never the REST API.
+
+### Principal
+The authenticated caller of a request: an Account, plus the API Key it presented (none for a console login token).
+
 ### Session
-A tracked client connection established by an upstream agent (e.g., Claude, Cursor, or MCP SDK client) interacting with the hub.
-- Tracks active duration, total tool calls, and execution metrics.
+A run of requests from one upstream agent (e.g., Claude, Cursor, or an MCP SDK client), as tracked by the hub. It belongs to one Account and tracks activity, tool calls and their outcomes. It comes from one of two sources (ADR-0003):
+- **Transport Session**: the Streamable HTTP session a handshake-era client opens with `initialize` (`Mcp-Session-Id`).
+- **Derived Session**: for sessionless (2026-07-28) clients, requests with the same Account, API Key, client name and version, until 30 idle minutes pass.
 
 ### MCP Gateway (Hub Server)
 The hub acting as an upstream MCP Server exposing the aggregated tool catalog over Streamable HTTP at `POST /mcp`.

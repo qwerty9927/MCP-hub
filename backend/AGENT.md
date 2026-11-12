@@ -131,7 +131,9 @@ backend/
 │   │   └── services/                    # Business logic & orchestrators
 │   │       ├── connection_manager.py    # Downstream MCP client session lifecycle (SessionWorker)
 │   │       ├── server_registry.py       # Server CRUD, uniqueness validation, status management
+│   │       ├── auth_service.py          # Accounts, console JWT login, API keys, bearer token -> Principal
 │   │       ├── session_explorer.py      # Session discovery and execution history
+│   │       ├── session_tracker.py       # Maps each /mcp request to a hub Session, incl. derived sessions (ADR-0003)
 │   │       ├── tool_catalog.py          # Unified tool aggregation cache & collision handler
 │   │       └── tool_executor.py         # Execution module: resolve Tool Reference, check, validate, call, audit (ADR-0002)
 ├── demo_server/                         # Standalone downstream demo MCP servers for E2E tests
@@ -167,6 +169,17 @@ Strict unidirectional dependency flow:
 
 ### Streamable HTTP Header Forwarding
 - When connecting to remote `streamable-http` servers with authentication headers (e.g. GitHub Copilot, OAuth), pass an `http_client` created via `create_mcp_http_client(headers=server.http_config.headers)` into `streamable_http_client(url, http_client=http_client)`.
+
+### Accounts, Authentication & Ownership
+- **Every router depends on the caller**: each endpoint in `app/api/v1/` (except `/auth/register`, `/auth/login`, `/health`, `/ready`) takes `principal: Annotated[Principal, Depends(get_current_principal)]` and passes `owner_id=principal.user_id` down. Service methods that read or change owned data take a keyword-only `owner_id` with no default, so a forgotten owner is a TypeError, not a data leak.
+- Another account's resource is a `NotFoundError` (404), never 403, so its existence is not revealed.
+- REST accepts only console JWTs (`AuthService.authenticate_console`). `/mcp` accepts API keys or console JWTs (`AuthService.authenticate`), checked in `MCPProxyASGI`, which also sets the SDK's `scope["user"]` so transport sessions are bound to the credential that opened them.
+- `discovered_tools.owner_id` is a copy of the server's owner so catalog lookups (including the in-memory cache) can be scoped without a join.
+- Settings: `JWT_SECRET` (32+ chars), `ACCESS_TOKEN_EXPIRE_MINUTES`, `ALLOW_SELF_SIGNUP`. Keep `ALLOW_SELF_SIGNUP=false` on any network-exposed deployment: a registered user can add stdio servers.
+
+### Sessions for sessionless MCP clients (ADR-0003)
+- Protocol 2026-07-28 has no `initialize` and no `Mcp-Session-Id`. `SessionTracker` derives a Session from account + API key + client name/version, rotating after `SESSION_IDLE_SECONDS` idle.
+- Only handshake-era `ServerSession`s go into `MCPServer._active_sessions`; per-request ones can never be notified. Sessionless clients get `tools/list_changed` via `subscriptions/listen` (`InMemorySubscriptionBus`).
 
 ### Configuration Policy (Strict .env Compliance)
 - **Invariant**: Do NOT add hardcoded fallback default values for application configuration in `app/core/config.py`. All settings in `Settings` must be explicitly declared and loaded from `.env` or environment variables.
@@ -241,9 +254,10 @@ Strict unidirectional dependency flow:
 - **Test Isolation**: Every test automatically runs the `cleanup_dependencies` fixture in `tests/conftest.py`, which:
   1. Initializes the database schema (`init_db()`).
   2. Shuts down active connections in `_connection_manager`.
+   The suite deletes every row in the database it targets: always export `TEST_DATABASE_URL` (conftest no longer falls back to `DATABASE_URL`).
   3. Purges all rows from `discovered_tools`, `tool_executions`, and `mcp_servers`.
   4. Clears in-memory caches and MCP gateway mappings.
-- **Test Client**: Use the `async_client` fixture (`httpx.AsyncClient` with `ASGITransport(app=app)`) for API testing.
+- **Test Client**: `async_client` is signed in as a default account (`owner_id` fixture gives its ID); `other_user_client` is a second account; `anon_client` has no credentials.
 - **Test Categories**:
   - `tests/unit/`: Test individual services, repositories (`test_repository.py`), and helpers.
   - `tests/integration/`: Test multi-server orchestration, gateway lifecycle, and real database persistence.
