@@ -1,8 +1,10 @@
 """Security validation and sanitization helpers."""
 
+import asyncio
 import ipaddress
 import os
 import re
+import socket
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -92,6 +94,13 @@ def sanitize_environment(custom_env: dict[str, str] | None, inherit_base: bool =
     return sanitized
 
 
+def _is_forbidden_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    """Whether an address is off-limits when private network access is disallowed."""
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
+        ip = ip.ipv4_mapped
+    return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified
+
+
 def validate_http_url(url: str, allow_private: bool | None = None) -> str:
     """Validate remote URL for SSRF vulnerabilities."""
     if allow_private is None:
@@ -124,7 +133,7 @@ def validate_http_url(url: str, allow_private: bool | None = None) -> str:
         # Check for IP address private ranges & cloud metadata
         try:
             ip = ipaddress.ip_address(hostname)
-            if ip.is_private or ip.is_loopback or ip.is_link_local:
+            if _is_forbidden_ip(ip):
                 raise ForbiddenError(
                     f"Access to private/local IP range {ip} is prohibited",
                     details={"url": url, "ip": str(ip)},
@@ -143,6 +152,45 @@ def validate_http_url(url: str, allow_private: bool | None = None) -> str:
                 ) from None
 
     return url.strip()
+
+
+async def validate_http_url_resolved(url: str, allow_private: bool | None = None) -> str:
+    """Validate a remote URL, then check the addresses its hostname resolves to.
+
+    `validate_http_url` only inspects the URL text, so a public name pointing at a private address
+    passes it. This resolves the name and rejects the URL if any resolved address is forbidden.
+
+    Limitation: the HTTP client resolves the name again when it connects, so a DNS answer that changes
+    between this check and the connection (rebinding) is not caught.
+    """
+    cleaned = validate_http_url(url, allow_private)
+    if allow_private is None:
+        allow_private = get_settings().ALLOW_PRIVATE_NETWORK_HTTP
+    if allow_private:
+        return cleaned
+
+    parsed = urlparse(cleaned)
+    hostname = parsed.hostname or ""
+    try:
+        ipaddress.ip_address(hostname)
+        return cleaned  # a literal IP was already checked by validate_http_url
+    except ValueError:
+        pass
+
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    try:
+        resolved = await asyncio.get_running_loop().getaddrinfo(hostname, port, type=socket.SOCK_STREAM)
+    except OSError:
+        return cleaned  # unresolvable is not a policy violation; the connection itself will fail
+
+    for *_, sockaddr in resolved:
+        ip = ipaddress.ip_address(str(sockaddr[0]).split("%", 1)[0])
+        if _is_forbidden_ip(ip):
+            raise ForbiddenError(
+                f"Host '{hostname}' resolves to private/local address {ip}, which is prohibited",
+                details={"url": url, "ip": str(ip)},
+            )
+    return cleaned
 
 
 def mask_sensitive_headers(headers: dict[str, str] | None) -> dict[str, str]:

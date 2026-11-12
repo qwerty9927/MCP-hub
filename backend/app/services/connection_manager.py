@@ -23,7 +23,7 @@ from app.core.exceptions import (
 from app.core.logging import logger
 from app.domain.server_entity import ServerEntity
 from app.helpers.errors import format_mcp_error
-from app.helpers.security import sanitize_environment, validate_http_url, validate_stdio_command
+from app.helpers.security import sanitize_environment, validate_http_url_resolved, validate_stdio_command
 
 # A session verified (connected or pinged) this recently is reused without another ping.
 SESSION_PING_INTERVAL_SECONDS = 10.0
@@ -80,7 +80,7 @@ class SessionWorker:
                     if not self.server.http_config:
                         raise ValueError("Missing http configuration")
 
-                    validate_http_url(self.server.http_config.url)
+                    await validate_http_url_resolved(self.server.http_config.url)
                     logger.info(f"Connecting streamable-http client for '{self.server.name}' at {self.server.http_config.url}")
                     http_client = None
                     if self.server.http_config.headers:
