@@ -128,6 +128,7 @@ class SessionExplorerService:
             total_tool_calls=detail.total_tool_calls,
             successful_tool_calls=detail.successful_tool_calls,
             failed_tool_calls=detail.failed_tool_calls,
+            rejected_tool_calls=detail.rejected_tool_calls,
         )
 
     async def list_session_tool_calls(

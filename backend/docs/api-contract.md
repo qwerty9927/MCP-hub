@@ -373,6 +373,7 @@ Invokes an MCP tool on the server with argument validation and audit logging.
 - `server_id` *(UUID, optional)*
 - `tool_name` *(string, optional)*
 - `is_error` *(bool, optional)*
+- `status` *(string, optional)*: `running`, `completed`, `failed`, `rejected`. A `rejected` execution also has `is_error: true`.
 
 #### Response (`200 OK`):
 ```json
@@ -387,6 +388,7 @@ Invokes an MCP tool on the server with argument validation and audit logging.
         "expression": "12 + 4 * 2"
       },
       "is_error": false,
+      "status": "completed",
       "error_message": null,
       "duration_ms": 14.52,
       "executed_at": "2026-10-24T15:05:00Z",
@@ -664,8 +666,9 @@ Retrieve a specific session by ID including aggregated tool execution metrics an
   "created_at": "2026-11-08T10:15:30.000Z",
   "last_activity_at": "2026-11-08T10:20:00.000Z",
   "total_tool_calls": 12,
-  "successful_tool_calls": 10,
-  "failed_tool_calls": 2
+  "successful_tool_calls": 9,
+  "failed_tool_calls": 2,
+  "rejected_tool_calls": 1
 }
 ```
 
@@ -679,7 +682,7 @@ Retrieve the chronological tool call execution history for a session.
 - `page_size` (integer, default: 20): Items per page (1 to 100).
 - `sort_by` (string, default: `created_at`): Sort field (`created_at`, `started_at`, `completed_at`, `duration_ms`, `server_name`, `tool_name`, `status`).
 - `order` (string, default: `asc`): Sort direction (`asc`, `desc`).
-- `status` (string, optional): Filter by status (`running`, `completed`, `failed`).
+- `status` (string, optional): Filter by status (`running`, `completed`, `failed`, `rejected`).
 - `server_name` (string, optional): Filter by server name (case-insensitive substring).
 - `tool_name` (string, optional): Filter by tool name (case-insensitive substring).
 

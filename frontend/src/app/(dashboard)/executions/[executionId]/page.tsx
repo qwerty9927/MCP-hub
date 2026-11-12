@@ -2,9 +2,8 @@
 
 import React, { use, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Clock, Server, Wrench, Play, CheckCircle2, XCircle, Copy, Check, FileCode2, Terminal } from "lucide-react";
+import { ArrowLeft, Clock, Server, Wrench, Play, XCircle, Copy, Check, FileCode2, Terminal } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -12,7 +11,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { CardGridSkeleton } from "@/components/common/CardGridSkeleton";
 import { ErrorAlert } from "@/components/common/ErrorAlert";
 import { useExecution } from "@/features/executions/hooks/use-executions";
-import { formatDate, formatDuration } from "@/lib/utils";
+import { ToolCallStatusBadge } from "@/components/common/ToolCallStatusBadge";
+import { executionStatus, formatDate, formatDuration } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface ExecutionDetailPageProps {
@@ -126,17 +126,7 @@ export default function ExecutionDetailPage({ params }: ExecutionDetailPageProps
                 <Card className="p-4">
                     <span className="text-xs text-muted-foreground font-medium">Status</span>
                     <div className="mt-2">
-                        {execution.is_error ? (
-                            <Badge variant="destructive" className="gap-1.5">
-                                <XCircle className="h-3.5 w-3.5" />
-                                Failed
-                            </Badge>
-                        ) : (
-                            <Badge variant="success" className="gap-1.5">
-                                <CheckCircle2 className="h-3.5 w-3.5" />
-                                Success
-                            </Badge>
-                        )}
+                        <ToolCallStatusBadge status={executionStatus(execution)} className="gap-1.5" />
                     </div>
                 </Card>
 

@@ -2,16 +2,16 @@
 
 import React from "react";
 import Link from "next/link";
-import { Server, Wrench, Activity, History, CheckCircle2, XCircle, Clock, Radio, ExternalLink, Plus, Play } from "lucide-react";
+import { Server, Wrench, Activity, History, Clock, Radio, ExternalLink, Plus, Play } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { systemApi, serversApi, executionsApi, toolsApi } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { HealthBadge } from "@/components/common/HealthBadge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ListSkeleton } from "@/components/common/ListSkeleton";
-import { formatDate, formatDuration } from "@/lib/utils";
+import { ToolCallStatusBadge } from "@/components/common/ToolCallStatusBadge";
+import { executionStatus, formatDate, formatDuration } from "@/lib/utils";
 
 export function OverviewDashboard() {
     // 1. System Metrics Telemetry
@@ -261,17 +261,7 @@ export function OverviewDashboard() {
                                             <span className="text-xs font-mono text-muted-foreground">
                                                 {formatDuration(exec.duration_ms)}
                                             </span>
-                                            {exec.is_error ? (
-                                                <Badge variant="destructive" className="h-6 px-1.5 text-xs">
-                                                    <XCircle className="h-3 w-3 mr-1" />
-                                                    Failed
-                                                </Badge>
-                                            ) : (
-                                                <Badge variant="success" className="h-6 px-1.5 text-xs">
-                                                    <CheckCircle2 className="h-3 w-3 mr-1" />
-                                                    Success
-                                                </Badge>
-                                            )}
+                                            <ToolCallStatusBadge status={executionStatus(exec)} className="h-6 px-1.5" />
                                         </div>
                                     </div>
                                 ))}

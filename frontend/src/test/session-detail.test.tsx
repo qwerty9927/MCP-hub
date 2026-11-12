@@ -13,9 +13,10 @@ const mockSessionDetail: SessionDetailRead = {
     status: "active",
     created_at: "2026-11-09T10:00:00Z",
     last_activity_at: "2026-11-09T10:45:00Z",
-    total_tool_calls: 3,
+    total_tool_calls: 8,
     successful_tool_calls: 2,
     failed_tool_calls: 1,
+    rejected_tool_calls: 5,
     metadata: {
         client: "claude-desktop",
         env: "staging",
@@ -72,9 +73,11 @@ describe("SessionOverview Component", () => {
         expect(screen.getAllByText("Active").length).toBeGreaterThanOrEqual(1);
 
         // Metric numbers
-        expect(screen.getByText("3")).toBeInTheDocument(); // total calls
+        expect(screen.getByText("8")).toBeInTheDocument(); // total calls
         expect(screen.getByText("2")).toBeInTheDocument(); // successful
         expect(screen.getByText("1")).toBeInTheDocument(); // failed
+        expect(screen.getByText("Rejected")).toBeInTheDocument();
+        expect(screen.getByText("5")).toBeInTheDocument(); // rejected, its own bucket
 
         // Metadata badges
         expect(screen.getByText(/client:\s*claude-desktop/i)).toBeInTheDocument();

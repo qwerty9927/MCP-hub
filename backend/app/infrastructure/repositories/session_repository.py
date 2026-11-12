@@ -154,6 +154,7 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
                             else_=None,
                         )
                     ).label("failed_tool_calls"),
+                    func.count(case((ExecutionModel.status == "rejected", 1), else_=None)).label("rejected_tool_calls"),
                 )
                 .outerjoin(ExecutionModel, ExecutionModel.session_id == SessionModel.id)
                 .where(SessionModel.id == session_id)
@@ -164,7 +165,7 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
             if not row:
                 return None
 
-            model, total, successful, failed = row
+            model, total, successful, failed, rejected = row
             status_val = SessionStatus(model.status) if model.status in SessionStatus._value2member_map_ else SessionStatus.ACTIVE
             return SessionDetailEntity(
                 id=model.id,
@@ -176,6 +177,7 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
                 total_tool_calls=total,
                 successful_tool_calls=successful,
                 failed_tool_calls=failed,
+                rejected_tool_calls=rejected,
             )
 
     async def list(

@@ -47,6 +47,7 @@ class SessionDetailResponse(BaseModel):
     total_tool_calls: int = Field(default=0, description="Total count of tool calls in session")
     successful_tool_calls: int = Field(default=0, description="Total number of successfully executed tool calls")
     failed_tool_calls: int = Field(default=0, description="Total number of failed tool calls")
+    rejected_tool_calls: int = Field(default=0, description="Total number of tool calls the hub rejected before reaching the server")
 
 
 class ToolCallResponse(BaseModel):
@@ -56,7 +57,7 @@ class ToolCallResponse(BaseModel):
     session_id: str | None = Field(default=None, description="Parent session ID")
     server_name: str = Field(..., description="Name of the MCP server")
     tool_name: str = Field(..., description="Name of the executed tool")
-    status: str = Field(..., description="Execution status (running, completed, failed)")
+    status: str = Field(..., description="Execution status (running, completed, failed, rejected)")
     started_at: datetime = Field(..., description="Timestamp when tool execution started")
     completed_at: datetime | None = Field(default=None, description="Timestamp when tool execution finished")
     duration_ms: float | None = Field(default=None, description="Execution duration in milliseconds")

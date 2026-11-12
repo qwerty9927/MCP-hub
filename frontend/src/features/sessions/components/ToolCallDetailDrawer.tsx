@@ -10,7 +10,7 @@ import { ToolCallRead } from "@/types";
 import { formatDate, formatDuration } from "@/lib/utils";
 import { Wrench, Server, Clock, Copy, Check, FileCode2, Terminal, AlertTriangle, Ban } from "lucide-react";
 import { toast } from "sonner";
-import { ToolCallStatusBadge } from "./ToolCallStatusBadge";
+import { ToolCallStatusBadge } from "@/components/common/ToolCallStatusBadge";
 
 interface ToolCallDetailDrawerProps {
     toolCall: ToolCallRead | null;

@@ -72,7 +72,7 @@ export default function ExecutionsPage() {
                     icon={History}
                     title="No execution records found"
                     description={
-                        filters.tool_name || filters.server_id || filters.is_error !== undefined
+                        filters.tool_name || filters.server_id || filters.status
                             ? "No execution entries match your filter criteria."
                             : "No tools have been executed yet. Run a tool in the Playground to see results logged here."
                     }

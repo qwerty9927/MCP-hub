@@ -5,7 +5,7 @@ import { Wrench, Server, Clock, ChevronRight } from "lucide-react";
 import { ToolCallRead } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { cn, formatDate, formatDuration } from "@/lib/utils";
-import { ToolCallStatusBadge } from "./ToolCallStatusBadge";
+import { ToolCallStatusBadge } from "@/components/common/ToolCallStatusBadge";
 
 interface ToolCallItemProps {
     call: ToolCallRead;

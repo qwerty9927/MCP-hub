@@ -75,6 +75,11 @@ async def test_invalid_arguments_is_422_and_recorded_as_rejected(async_client, s
     assert total == 1
     assert items[0].status == ToolCallStatus.REJECTED
 
+    listed = await async_client.get("/api/v1/executions", params={"status": "rejected"})
+    assert [item["status"] for item in listed.json()["items"]] == ["rejected"]
+    not_listed = await async_client.get("/api/v1/executions", params={"status": "completed"})
+    assert not_listed.json()["total"] == 0
+
 
 async def test_unknown_tool_is_404_without_record(async_client, server):
     res = await execute(async_client, server.id, "nope", {})

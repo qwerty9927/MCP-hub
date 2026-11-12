@@ -138,6 +138,8 @@ export interface ExecutionRecord {
     tool_name: string;
     arguments: Record<string, any>;
     is_error: boolean;
+    /** Recorded status; `rejected` = refused by the hub before reaching the downstream Server (ADR-0002). */
+    status?: ToolCallStatus | string;
     error_message?: string | null;
     duration_ms: number;
     executed_at: string;
@@ -150,6 +152,7 @@ export interface ExecutionFilterParams {
     server_id?: string;
     tool_name?: string;
     is_error?: boolean;
+    status?: string;
 }
 
 export interface HealthResponse {
@@ -204,6 +207,7 @@ export interface SessionDetailRead {
     total_tool_calls: number;
     successful_tool_calls: number;
     failed_tool_calls: number;
+    rejected_tool_calls: number;
 }
 
 export interface ToolCallRead {

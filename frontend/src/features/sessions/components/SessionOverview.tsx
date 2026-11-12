@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Clock, Copy, Check, CheckCircle2, XCircle, Activity, Bot, Calendar, Layers } from "lucide-react";
+import { ArrowLeft, Ban, Clock, Copy, Check, CheckCircle2, XCircle, Activity, Bot, Calendar, Layers } from "lucide-react";
 import { SessionDetailRead } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -96,7 +96,7 @@ export function SessionOverview({ session, onRefresh, isRefreshing }: SessionOve
             />
 
             {/* Overview Metrics Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
                 <Card className="p-4">
                     <span className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
                         <Activity className="h-3.5 w-3.5 text-primary" />
@@ -121,6 +121,16 @@ export function SessionOverview({ session, onRefresh, isRefreshing }: SessionOve
                         Failed
                     </span>
                     <p className="mt-2 text-2xl font-bold font-mono text-destructive">{session.failed_tool_calls}</p>
+                </Card>
+
+                <Card className="p-4">
+                    <span className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
+                        <Ban className="h-3.5 w-3.5 text-orange-500" />
+                        Rejected
+                    </span>
+                    <p className="mt-2 text-2xl font-bold font-mono text-orange-600 dark:text-orange-400">
+                        {session.rejected_tool_calls ?? 0}
+                    </p>
                 </Card>
 
                 <Card className="p-4">

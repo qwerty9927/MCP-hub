@@ -81,7 +81,7 @@ async def list_session_tool_calls(
         description="Sort field (created_at, started_at, completed_at, duration_ms, server_name, tool_name, status)",
     ),
     order: str = Query(default="asc", pattern="^(asc|desc)$", description="Sort order (asc, desc)"),
-    status: str | None = Query(default=None, description="Filter by tool call status (running, completed, failed)"),
+    status: str | None = Query(default=None, description="Filter by tool call status (running, completed, failed, rejected)"),
     server_name: str | None = Query(default=None, description="Filter by server name"),
     tool_name: str | None = Query(default=None, description="Filter by tool name"),
 ) -> PaginatedResponse[ToolCallResponse]:

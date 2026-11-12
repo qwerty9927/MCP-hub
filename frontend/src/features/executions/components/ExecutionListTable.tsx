@@ -3,11 +3,11 @@
 import React from "react";
 import Link from "next/link";
 import { ExecutionRecord } from "@/types";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { CheckCircle2, XCircle, Clock, ExternalLink } from "lucide-react";
-import { formatDate, formatDuration } from "@/lib/utils";
+import { Clock, ExternalLink } from "lucide-react";
+import { ToolCallStatusBadge } from "@/components/common/ToolCallStatusBadge";
+import { executionStatus, formatDate, formatDuration } from "@/lib/utils";
 
 interface ExecutionListTableProps {
     executions: ExecutionRecord[];
@@ -35,17 +35,7 @@ export function ExecutionListTable({ executions }: ExecutionListTableProps) {
                         return (
                             <TableRow key={exec.id} className="group">
                                 <TableCell>
-                                    {exec.is_error ? (
-                                        <Badge variant="destructive" className="gap-1 font-medium text-xs">
-                                            <XCircle className="h-3 w-3" />
-                                            Failed
-                                        </Badge>
-                                    ) : (
-                                        <Badge variant="success" className="gap-1 font-medium text-xs">
-                                            <CheckCircle2 className="h-3 w-3" />
-                                            Success
-                                        </Badge>
-                                    )}
+                                    <ToolCallStatusBadge status={executionStatus(exec)} className="font-medium" />
                                 </TableCell>
 
                                 <TableCell className="font-mono font-semibold">

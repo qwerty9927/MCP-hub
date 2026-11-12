@@ -16,6 +16,7 @@ class ExecutionResponse(BaseModel):
     tool_name: str
     arguments: dict[str, Any] = Field(default_factory=dict)
     is_error: bool
+    status: str = Field(default="completed", description="Recorded status (running, completed, failed, rejected)")
     error_message: str | None = None
     duration_ms: float
     executed_at: datetime

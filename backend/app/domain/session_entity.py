@@ -34,6 +34,7 @@ class SessionDetailEntity:
     total_tool_calls: int
     successful_tool_calls: int
     failed_tool_calls: int
+    rejected_tool_calls: int = 0
 
 
 @dataclass

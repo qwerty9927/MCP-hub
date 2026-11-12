@@ -127,20 +127,37 @@ async def test_session_repository_crud_and_metrics():
         )
     )
 
-    # 4. Get by ID and verify aggregated metrics
+    await exec_repo.create(
+        ExecutionEntity(
+            id=uuid4(),
+            server_id=server_id,
+            server_name="demo-math",
+            tool_name="add",
+            arguments={"a": "not-a-number"},
+            is_error=True,
+            duration_ms=0.0,
+            executed_at=now,
+            error_message="Invalid arguments",
+            session_id=session_id,
+            status="rejected",
+        )
+    )
+
+    # 4. Get by ID and verify aggregated metrics (rejected is its own bucket, ADR-0002)
     detail = await session_repo.get_by_id(session_id)
     assert detail is not None
     assert detail.id == session_id
-    assert detail.total_tool_calls == 3
+    assert detail.total_tool_calls == 4
     assert detail.successful_tool_calls == 2
     assert detail.failed_tool_calls == 1
+    assert detail.rejected_tool_calls == 1
 
     # 5. List sessions
     items, total = await session_repo.list(search="Interactive", status="active")
     assert total >= 1
     matched = [s for s in items if s.id == session_id]
     assert len(matched) == 1
-    assert matched[0].total_tool_calls == 3
+    assert matched[0].total_tool_calls == 4
 
     # 6. Update status
     updated = await session_repo.update_status(session_id, "completed")

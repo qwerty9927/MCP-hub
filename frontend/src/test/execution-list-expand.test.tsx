@@ -44,6 +44,19 @@ const mockExecutions: ExecutionRecord[] = [
         executed_at: "2026-11-07T09:05:00Z",
         response: null,
     },
+    {
+        id: "exec-003",
+        server_id: "srv-3",
+        server_name: "Server Three",
+        tool_name: "add",
+        arguments: { a: "x" },
+        is_error: true,
+        status: "rejected",
+        error_message: "Invalid arguments for tool 'add'",
+        duration_ms: 0,
+        executed_at: "2026-11-07T09:06:00Z",
+        response: null,
+    },
 ];
 
 function renderWithClient(ui: React.ReactElement) {
@@ -66,12 +79,14 @@ describe("ExecutionListTable Component", () => {
         expect(screen.getByText("fetch_url")).toBeInTheDocument();
         expect(screen.getByText("Server One")).toBeInTheDocument();
         expect(screen.getByText("Server Two")).toBeInTheDocument();
-        expect(screen.getByText("Success")).toBeInTheDocument();
+        // Status comes from `status`, falling back to `is_error` for records without one
+        expect(screen.getByText("Completed")).toBeInTheDocument();
         expect(screen.getByText("Failed")).toBeInTheDocument();
+        expect(screen.getByText("Rejected")).toBeInTheDocument();
 
         // Details links
         const detailsLinks = screen.getAllByRole("link", { name: "Details" });
-        expect(detailsLinks.length).toBe(2);
+        expect(detailsLinks.length).toBe(3);
         expect(detailsLinks[0]).toHaveAttribute("href", "/executions/exec-001");
         expect(detailsLinks[1]).toHaveAttribute("href", "/executions/exec-002");
     });

@@ -169,6 +169,27 @@ async def test_execution_repository_crud():
     assert total == 1
     assert items[0].id == exec_id
 
+    # Filter by recorded status
+    await exec_repo.create(
+        ExecutionEntity(
+            id=uuid4(),
+            server_id=server_id,
+            server_name="test-server",
+            tool_name="add",
+            arguments={"a": "x"},
+            is_error=True,
+            duration_ms=0.0,
+            executed_at=datetime.now(UTC),
+            error_message="Invalid arguments",
+            status="rejected",
+        )
+    )
+    rejected, rejected_total = await exec_repo.list(status="rejected")
+    assert rejected_total == 1
+    assert rejected[0].status == "rejected"
+    _, completed_total = await exec_repo.list(status="completed")
+    assert completed_total == 1
+
     # Filter non-matching
     items_none, total_none = await exec_repo.list(tool_name="nonexistent")
     assert total_none == 0

@@ -79,7 +79,7 @@ describe("ExecutionDetailPage Component with Response Payload", () => {
         await waitFor(() => {
             // Header and metrics
             expect(screen.getByText("Execution: calculate_expression")).toBeInTheDocument();
-            expect(screen.getByText("Success")).toBeInTheDocument();
+            expect(screen.getByText("Completed")).toBeInTheDocument();
             expect(screen.getByText("18.5ms")).toBeInTheDocument();
             expect(screen.getByText("math-server")).toBeInTheDocument();
 

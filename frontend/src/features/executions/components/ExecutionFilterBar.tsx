@@ -30,7 +30,7 @@ export function ExecutionFilterBar({
     const { data: serversData } = useServers({ page: 1, page_size: 100 });
     const servers = serversData?.items || [];
 
-    const hasActiveFilters = Boolean(filters.tool_name || filters.server_id || filters.is_error !== undefined);
+    const hasActiveFilters = Boolean(filters.tool_name || filters.server_id || filters.status);
 
     const handleClear = () => {
         onChange({
@@ -38,7 +38,7 @@ export function ExecutionFilterBar({
             page_size: filters.page_size,
             tool_name: undefined,
             server_id: undefined,
-            is_error: undefined,
+            status: undefined,
         });
     };
 
@@ -88,11 +88,11 @@ export function ExecutionFilterBar({
 
                 {/* Status Filter */}
                 <Select
-                    value={filters.is_error === undefined ? "all" : filters.is_error ? "error" : "success"}
+                    value={filters.status || "all"}
                     onValueChange={(val) =>
                         onChange({
                             ...filters,
-                            is_error: val === "all" ? undefined : val === "error" ? true : false,
+                            status: val === "all" ? undefined : val,
                             page: 1,
                         })
                     }
@@ -102,8 +102,9 @@ export function ExecutionFilterBar({
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="all">All Status</SelectItem>
-                        <SelectItem value="success">Success</SelectItem>
-                        <SelectItem value="error">Failed</SelectItem>
+                        <SelectItem value="completed">Completed</SelectItem>
+                        <SelectItem value="failed">Failed</SelectItem>
+                        <SelectItem value="rejected">Rejected</SelectItem>
                     </SelectContent>
                 </Select>
 
