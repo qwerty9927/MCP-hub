@@ -240,3 +240,41 @@ export interface SessionToolCallFilterParams {
     server_name?: string;
     tool_name?: string;
 }
+
+// --- Accounts & API keys ---
+
+export interface RegisterRequest {
+    email: string;
+    password: string;
+}
+
+export interface LoginRequest {
+    email: string;
+    password: string;
+}
+
+export interface TokenResponse {
+    access_token: string;
+    token_type: string;
+    expires_in: number;
+}
+
+export interface UserRead {
+    id: string;
+    email: string;
+    created_at: string;
+}
+
+export interface ApiKeyRead {
+    id: string;
+    name: string;
+    key_prefix: string;
+    created_at: string;
+    last_used_at?: string | null;
+    revoked_at?: string | null;
+}
+
+/** Returned once, on creation: the only time the full key is available. */
+export interface ApiKeyCreated extends ApiKeyRead {
+    key: string;
+}

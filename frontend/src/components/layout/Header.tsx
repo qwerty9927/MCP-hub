@@ -1,7 +1,9 @@
 "use client";
 
 import React from "react";
-import { Menu, ExternalLink, ShieldCheck, User } from "lucide-react";
+import { Menu, ExternalLink, LogOut, User } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useLogout, useMe } from "@/features/auth/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
 import {
@@ -20,6 +22,14 @@ interface HeaderProps {
 export function Header({ onMenuToggle }: HeaderProps) {
     const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
     const docsUrl = apiBaseUrl.replace(/\/api\/v1\/?$/, "/docs");
+    const { data: me } = useMe();
+    const logout = useLogout();
+    const router = useRouter();
+
+    const handleSignOut = () => {
+        logout();
+        router.replace("/login");
+    };
 
     return (
         <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-background/95 backdrop-blur px-4 sm:px-6">
@@ -49,17 +59,16 @@ export function Header({ onMenuToggle }: HeaderProps) {
                             <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary">
                                 <User className="h-4 w-4" />
                             </div>
-                            <span className="hidden sm:inline-block text-xs font-medium text-foreground">Admin</span>
+                            <span className="hidden sm:inline-block max-w-[180px] truncate text-xs font-medium text-foreground">
+                                {me?.email ?? "Account"}
+                            </span>
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-56">
                         <DropdownMenuLabel className="font-normal">
                             <div className="flex flex-col space-y-1">
-                                <p className="text-sm font-medium leading-none">Administrator</p>
-                                <p className="text-xs leading-none text-muted-foreground flex items-center gap-1 mt-1">
-                                    <ShieldCheck className="h-3 w-3 text-emerald-500" />
-                                    Full System Access
-                                </p>
+                                <p className="text-xs leading-none text-muted-foreground">Signed in as</p>
+                                <p className="text-sm font-medium leading-none truncate">{me?.email ?? "—"}</p>
                             </div>
                         </DropdownMenuLabel>
                         <DropdownMenuSeparator />
@@ -77,6 +86,11 @@ export function Header({ onMenuToggle }: HeaderProps) {
                         <DropdownMenuSeparator />
                         <DropdownMenuItem disabled className="text-xs text-muted-foreground">
                             Backend: {apiBaseUrl}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onSelect={handleSignOut} className="cursor-pointer gap-2">
+                            <LogOut className="h-3.5 w-3.5" />
+                            Sign out
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
