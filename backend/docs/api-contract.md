@@ -347,6 +347,19 @@ Invokes an MCP tool on the server with argument validation and audit logging.
 }
 ```
 
+`duration_ms` is the downstream call time and equals the value recorded on the Execution. A tool that reports an error still returns `200` with `"is_error": true`.
+
+#### Error Responses (by Execution Outcome, see ADR-0002):
+| Status | Outcome | Execution recorded? |
+| --- | --- | --- |
+| `404` | Rejected: unknown tool or server | No |
+| `400` | Rejected: server disabled | Yes (`rejected`) |
+| `409` | Rejected: tool unavailable | Yes (`rejected`) |
+| `422` | Rejected: invalid arguments | Yes (`rejected`) |
+| `502` | Failed: transport fault or timeout talking to the downstream server | Yes (`failed`) |
+
+`error.details.reason` carries the rejection reason (`unknown_tool`, `server_disabled`, `tool_unavailable`, `invalid_arguments`).
+
 ---
 
 ## 4. Execution History Endpoints
@@ -360,6 +373,7 @@ Invokes an MCP tool on the server with argument validation and audit logging.
 - `server_id` *(UUID, optional)*
 - `tool_name` *(string, optional)*
 - `is_error` *(bool, optional)*
+- `status` *(string, optional)*: `running`, `completed`, `failed`, `rejected`. A `rejected` execution also has `is_error: true`.
 
 #### Response (`200 OK`):
 ```json
@@ -374,6 +388,7 @@ Invokes an MCP tool on the server with argument validation and audit logging.
         "expression": "12 + 4 * 2"
       },
       "is_error": false,
+      "status": "completed",
       "error_message": null,
       "duration_ms": 14.52,
       "executed_at": "2026-10-24T15:05:00Z",
@@ -536,7 +551,7 @@ To support LLM agents orchestrating tools across many servers without exhausting
   1. **Strict Schema Compliance:** Provide exact namespaced `tool_slug` and arguments conforming to target tool schema.
   2. **Parallel vs. Sequential Chaining:** Group independent calls concurrently; if Tool B depends on Tool A's output, execute Tool A first, inspect output, then call Tool B in the next turn.
   3. **Partial Failure Isolation:** Inspect each item's `status` (`"success" | "validation_error" | "error"`). Retry only items returning `"validation_error"`.
-- **Behavior:** Concurrent execution via `asyncio.gather` through `ToolRouterService`. Fully isolates errors per tool call (partial failures do not abort sibling calls). Guarantees audit logging and blocks recursive meta-tool calls.
+- **Behavior:** Concurrent execution via `asyncio.gather` through `ToolExecutor` (the Execution module). Fully isolates errors per tool call (partial failures do not abort sibling calls). Guarantees audit logging and blocks recursive meta-tool calls.
 - **Response Format (`CallToolResult` text content):**
   ```json
   {
@@ -574,9 +589,7 @@ async def main():
     ):
         # 1. Initialize MCP Session
         init_result = await session.initialize()
-        print(
-            f"Connected to Gateway: {init_result.server_info.name} v{init_result.server_info.version}"
-        )
+        print(f"Connected to Gateway: {init_result.server_info.name} v{init_result.server_info.version}")
 
         # 2. Discover Aggregated Tools
         tools_result = await session.list_tools()
@@ -584,15 +597,11 @@ async def main():
             print(f"- {tool.name}: {tool.description}")
 
         # 3. Call Tool on Downstream Server A
-        math_result = await session.call_tool(
-            "math_server__calculate", arguments={"expression": "10 * 5 + 2"}
-        )
+        math_result = await session.call_tool("math_server__calculate", arguments={"expression": "10 * 5 + 2"})
         print("Math Result:", math_result.content[0].text)
 
         # 4. Call Duplicate Tool on Downstream Server B
-        text_result = await session.call_tool(
-            "text_server__calculate", arguments={"expression": "10 * 5 + 2"}
-        )
+        text_result = await session.call_tool("text_server__calculate", arguments={"expression": "10 * 5 + 2"})
         print("Server B Result:", text_result.content[0].text)
 
 
@@ -657,8 +666,9 @@ Retrieve a specific session by ID including aggregated tool execution metrics an
   "created_at": "2026-11-08T10:15:30.000Z",
   "last_activity_at": "2026-11-08T10:20:00.000Z",
   "total_tool_calls": 12,
-  "successful_tool_calls": 10,
-  "failed_tool_calls": 2
+  "successful_tool_calls": 9,
+  "failed_tool_calls": 2,
+  "rejected_tool_calls": 1
 }
 ```
 
@@ -672,7 +682,7 @@ Retrieve the chronological tool call execution history for a session.
 - `page_size` (integer, default: 20): Items per page (1 to 100).
 - `sort_by` (string, default: `created_at`): Sort field (`created_at`, `started_at`, `completed_at`, `duration_ms`, `server_name`, `tool_name`, `status`).
 - `order` (string, default: `asc`): Sort direction (`asc`, `desc`).
-- `status` (string, optional): Filter by status (`running`, `completed`, `failed`).
+- `status` (string, optional): Filter by status (`running`, `completed`, `failed`, `rejected`).
 - `server_name` (string, optional): Filter by server name (case-insensitive substring).
 - `tool_name` (string, optional): Filter by tool name (case-insensitive substring).
 

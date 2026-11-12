@@ -11,10 +11,7 @@ import {
 } from "@/types";
 
 export const serversApi = {
-    list: async (
-        params?: ServerFilterParams,
-        signal?: AbortSignal
-    ): Promise<PaginatedResponse<ServerRead>> => {
+    list: async (params?: ServerFilterParams, signal?: AbortSignal): Promise<PaginatedResponse<ServerRead>> => {
         return apiClient<PaginatedResponse<ServerRead>>({
             url: "/servers",
             method: "GET",
@@ -82,11 +79,7 @@ export const serversApi = {
         });
     },
 
-    getTools: async (
-        serverId: string,
-        params?: ToolFilterParams,
-        signal?: AbortSignal
-    ): Promise<PaginatedResponse<ToolRead>> => {
+    getTools: async (serverId: string, params?: ToolFilterParams, signal?: AbortSignal): Promise<PaginatedResponse<ToolRead>> => {
         return apiClient<PaginatedResponse<ToolRead>>({
             url: `/servers/${serverId}/tools`,
             method: "GET",

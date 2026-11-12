@@ -14,16 +14,18 @@ class StdioConfig(BaseModel):
 class HttpConfig(BaseModel):
     """Configuration for remote Streamable HTTP transport."""
 
-    url: str = Field(
-        ..., description="Full Streamable HTTP endpoint URL (e.g. 'http://localhost:8000/mcp')"
-    )
+    url: str = Field(..., description="Full Streamable HTTP endpoint URL (e.g. 'http://localhost:8000/mcp')")
     headers: dict[str, str] = Field(default_factory=dict, description="Custom HTTP headers")
 
 
-class ConnectionConfigRead(BaseModel):
+class ConnectionConfigResponse(BaseModel):
     """Sanitized transport configuration for API responses (no secrets)."""
 
     command: str | None = None
     args: list[str] | None = None
     url: str | None = None
     headers: dict[str, str] | None = None
+
+
+# Backward-compatible alias
+ConnectionConfigRead = ConnectionConfigResponse

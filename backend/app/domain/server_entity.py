@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from app.core.enums.server_enum import ServerHealthStatus, TransportType
-from app.schemas.connection import HttpConfig, StdioConfig
+from app.schemas.connection_schema import HttpConfig, StdioConfig
 
 
 @dataclass

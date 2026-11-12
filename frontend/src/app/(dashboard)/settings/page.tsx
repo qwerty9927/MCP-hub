@@ -2,16 +2,7 @@
 
 import React, { useState } from "react";
 import { useTheme } from "next-themes";
-import {
-    Settings as SettingsIcon,
-    Server,
-    Shield,
-    Palette,
-    CheckCircle2,
-    XCircle,
-    RefreshCw,
-    Info,
-} from "lucide-react";
+import { Settings as SettingsIcon, Server, Shield, Palette, CheckCircle2, XCircle, RefreshCw, Info } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -86,31 +77,20 @@ export default function SettingsPage() {
                         <Server className="h-4 w-4 text-primary" />
                         Backend Connection
                     </CardTitle>
-                    <CardDescription>
-                        The REST API endpoint configured for all MCP hub management queries.
-                    </CardDescription>
+                    <CardDescription>The REST API endpoint configured for all MCP hub management queries.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
                         <Label htmlFor="api_url">API Base URL</Label>
-                        <Input
-                            id="api_url"
-                            value={apiBaseUrl}
-                            readOnly
-                            className="font-mono text-sm bg-muted/40"
-                        />
+                        <Input id="api_url" value={apiBaseUrl} readOnly className="font-mono text-sm bg-muted/40" />
                         <p className="text-xs text-muted-foreground">
-                            Configured via{" "}
-                            <code className="font-mono text-xs">NEXT_PUBLIC_API_BASE_URL</code> in
-                            environment variables.
+                            Configured via <code className="font-mono text-xs">NEXT_PUBLIC_API_BASE_URL</code> in environment variables.
                         </p>
                     </div>
 
                     <div className="rounded-lg border border-border p-4 bg-muted/20 space-y-3">
                         <div className="flex items-center justify-between">
-                            <span className="text-sm font-semibold text-foreground">
-                                Live System Diagnostics
-                            </span>
+                            <span className="text-sm font-semibold text-foreground">Live System Diagnostics</span>
                             <Button
                                 variant="outline"
                                 size="sm"
@@ -169,9 +149,7 @@ export default function SettingsPage() {
                         <Shield className="h-4 w-4 text-emerald-500" />
                         Authentication Integration
                     </CardTitle>
-                    <CardDescription>
-                        Optional session token attached as a Bearer token in request headers.
-                    </CardDescription>
+                    <CardDescription>Optional session token attached as a Bearer token in request headers.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
@@ -185,8 +163,7 @@ export default function SettingsPage() {
                             className="font-mono text-xs"
                         />
                         <p className="text-xs text-muted-foreground">
-                            Stored only in volatile session storage for the current browser session.
-                            Never written to disk or logs.
+                            Stored only in volatile session storage for the current browser session. Never written to disk or logs.
                         </p>
                     </div>
 
@@ -205,9 +182,7 @@ export default function SettingsPage() {
                         <Palette className="h-4 w-4 text-primary" />
                         Appearance
                     </CardTitle>
-                    <CardDescription>
-                        Customize the dashboard color theme for your display preferences.
-                    </CardDescription>
+                    <CardDescription>Customize the dashboard color theme for your display preferences.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="flex items-center gap-3">

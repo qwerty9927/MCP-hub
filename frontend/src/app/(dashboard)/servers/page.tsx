@@ -48,10 +48,7 @@ export default function ServersPage() {
             {isError && (
                 <ErrorAlert
                     title="Failed to fetch MCP servers"
-                    message={
-                        (error as any)?.message ||
-                        "An error occurred while loading server registrations"
-                    }
+                    message={(error as any)?.message || "An error occurred while loading server registrations"}
                     correlationId={(error as any)?.correlationId}
                     onRetry={() => refetch()}
                 />
@@ -59,14 +56,7 @@ export default function ServersPage() {
 
             {isLoading ? (
                 <TableSkeleton
-                    columns={[
-                        "Server Name",
-                        "Transport",
-                        "Health Status",
-                        "Discovered Tools",
-                        "Last Connected",
-                        "Actions",
-                    ]}
+                    columns={["Server Name", "Transport", "Health Status", "Discovered Tools", "Last Connected", "Actions"]}
                     rowCount={(filters.page_size ?? 0 > 5) ? 5 : filters.page_size}
                 />
             ) : servers.length === 0 ? (
@@ -96,9 +86,7 @@ export default function ServersPage() {
                         total={total}
                         totalPages={totalPages}
                         onPageChange={(page) => setFilters((prev) => ({ ...prev, page }))}
-                        onPageSizeChange={(page_size) =>
-                            setFilters((prev) => ({ ...prev, page_size, page: 1 }))
-                        }
+                        onPageSizeChange={(page_size) => setFilters((prev) => ({ ...prev, page_size, page: 1 }))}
                     />
                 </>
             )}

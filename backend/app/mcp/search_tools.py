@@ -4,12 +4,13 @@ import inspect
 import re
 from typing import Annotated, Any
 
-import mcp.types as types
+from mcp.types import Tool
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from pydantic import ValidationError as PydanticValidationError
 
 from app.core.constants.meta_tools import META_TOOL_NAMES, SEARCH_TOOLS_NAME
 from app.core.exceptions import ValidationError
+from app.helpers.text import slugify
 
 SEARCH_TOOLS_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -47,9 +48,9 @@ SEARCH_TOOLS_SCHEMA: dict[str, Any] = {
 }
 
 
-def get_search_tool_definition() -> types.Tool:
+def get_search_tool_definition() -> Tool:
     """Return MCP Tool definition for SEARCH_TOOLS."""
-    return types.Tool(
+    return Tool(
         name=SEARCH_TOOLS_NAME,
         description=inspect.cleandoc(
             """Discover available downstream tools across all connected MCP servers by action, keyword, or domain.
@@ -69,7 +70,7 @@ def get_search_tool_definition() -> types.Tool:
 
             ### How to Handle the Response:
             - Review the returned `tools` list, paying close attention to each tool's `tool_slug` and
-              `input_schema` (especially `required` fields and parameter descriptions).
+               `input_schema` (especially `required` fields and parameter descriptions).
             - You are responsible for deciding which discovered tools to call and in what order.
             - Pass the selected `tool_slug` and schema-compliant `arguments` to `MULTI_EXECUTE_TOOLS`."""
         ),
@@ -82,9 +83,7 @@ class SearchToolsInput(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    queries: list[
-        Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=256)]
-    ] = Field(..., min_length=1)
+    queries: list[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=256)]] = Field(..., min_length=1)
     top_k: int = Field(default=5, ge=1, le=20)
 
 
@@ -215,10 +214,10 @@ def handle_search_tools(
             if name in META_TOOL_NAMES:
                 continue
             srv_name = getattr(t, "server_name", "")
-            slug = getattr(t, "id", None) or f"{srv_name}__{name}" if srv_name else name
+            slug = getattr(t, "hub_tool_name", None) or (f"{slugify(srv_name)}__{name}" if srv_name else name)
             candidates.append(
                 {
-                    "tool_slug": getattr(t, "hub_tool_name", slug),
+                    "tool_slug": slug,
                     "server_id": str(getattr(t, "server_id", "")),
                     "server_name": srv_name,
                     "original_name": name,

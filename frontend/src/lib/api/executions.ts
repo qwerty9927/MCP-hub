@@ -2,10 +2,7 @@ import { apiClient } from "../api-client";
 import { ExecutionFilterParams, ExecutionRecord, PaginatedResponse } from "@/types";
 
 export const executionsApi = {
-    list: async (
-        params?: ExecutionFilterParams,
-        signal?: AbortSignal
-    ): Promise<PaginatedResponse<ExecutionRecord>> => {
+    list: async (params?: ExecutionFilterParams, signal?: AbortSignal): Promise<PaginatedResponse<ExecutionRecord>> => {
         return apiClient<PaginatedResponse<ExecutionRecord>>({
             url: "/executions",
             method: "GET",

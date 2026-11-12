@@ -13,10 +13,7 @@ export function ListSkeleton({ count = 4 }: ListSkeletonProps) {
     return (
         <div className="space-y-3">
             {items.map((idx) => (
-                <div
-                    key={idx}
-                    className="flex items-center justify-between rounded-lg border border-border p-3"
-                >
+                <div key={idx} className="flex items-center justify-between rounded-lg border border-border p-3">
                     <div className="space-y-2 flex-1 pr-3">
                         <Skeleton className="h-4 w-36" />
                         <Skeleton className="h-3 w-48" />

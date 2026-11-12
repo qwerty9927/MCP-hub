@@ -46,10 +46,7 @@ export default function ToolsCatalogPage() {
             {isError && (
                 <ErrorAlert
                     title="Failed to fetch tool catalog"
-                    message={
-                        (error as any)?.message ||
-                        "Could not retrieve discovered tools from backend"
-                    }
+                    message={(error as any)?.message || "Could not retrieve discovered tools from backend"}
                     correlationId={(error as any)?.correlationId}
                     onRetry={() => refetch()}
                 />
@@ -57,15 +54,7 @@ export default function ToolsCatalogPage() {
 
             {isLoading ? (
                 <TableSkeleton
-                    columns={[
-                        "Tool Name",
-                        "Server",
-                        "Description",
-                        "Status",
-                        "Parameters",
-                        "Last Discovered",
-                        "Actions",
-                    ]}
+                    columns={["Tool Name", "Server", "Description", "Status", "Parameters", "Last Discovered", "Actions"]}
                     rowCount={(filters.page_size ?? 0 > 5) ? 5 : filters.page_size}
                 />
             ) : tools.length === 0 ? (
@@ -92,9 +81,7 @@ export default function ToolsCatalogPage() {
                         total={total}
                         totalPages={totalPages}
                         onPageChange={(page) => setFilters((prev) => ({ ...prev, page }))}
-                        onPageSizeChange={(page_size) =>
-                            setFilters((prev) => ({ ...prev, page_size, page: 1 }))
-                        }
+                        onPageSizeChange={(page_size) => setFilters((prev) => ({ ...prev, page_size, page: 1 }))}
                     />
                 </>
             )}

@@ -8,12 +8,12 @@ from app.core.enums.server_enum import ServerHealthStatus, TransportType
 from app.core.exceptions import ConflictError, NotFoundError
 from app.core.logging import logger
 from app.domain.server_entity import ServerEntity
-from app.infrastructure.repositories.server_repo import ServerRepositoryAbstract
-from app.schemas.common import PaginatedResponse
-from app.schemas.server import (
-    ServerCreate,
+from app.infrastructure.repositories.server_repository import ServerRepositoryAbstract
+from app.schemas.common_schema import PaginatedResponse
+from app.schemas.server_schema import (
+    ServerCreateRequest,
     ServerResponse,
-    ServerUpdate,
+    ServerUpdateRequest,
 )
 
 
@@ -23,7 +23,7 @@ class ServerRegistryService:
     def __init__(self, repository: ServerRepositoryAbstract) -> None:
         self.repository = repository
 
-    async def create_server(self, data: ServerCreate) -> ServerResponse:
+    async def create_server(self, data: ServerCreateRequest) -> ServerResponse:
         """Register a new MCP server configuration."""
         existing = await self.repository.get_by_name(data.name)
         if existing:
@@ -43,9 +43,7 @@ class ServerRegistryService:
         )
 
         saved = await self.repository.create(server)
-        logger.info(
-            f"Registered MCP server '{saved.name}' (id: {saved.id}, transport: {saved.transport})"
-        )
+        logger.info(f"Registered MCP server '{saved.name}' (id: {saved.id}, transport: {saved.transport})")
         return ServerResponse.from_domain(saved)
 
     async def get_server(self, server_id: UUID) -> ServerResponse:
@@ -97,7 +95,7 @@ class ServerRegistryService:
             total_pages=total_pages,
         )
 
-    async def update_server(self, server_id: UUID, data: ServerUpdate) -> ServerResponse:
+    async def update_server(self, server_id: UUID, data: ServerUpdateRequest) -> ServerResponse:
         """Update an existing server's configuration."""
         server = await self.get_server_entity(server_id)
 

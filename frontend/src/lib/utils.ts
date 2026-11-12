@@ -5,6 +5,11 @@ export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
 }
 
+/** Recorded status of an execution, falling back to `is_error` for records without one. */
+export function executionStatus(execution: { status?: string | null; is_error: boolean }): string {
+    return execution.status || (execution.is_error ? "failed" : "completed");
+}
+
 export function formatDate(dateStr: string | null | undefined): string {
     if (!dateStr) return "Never";
     try {

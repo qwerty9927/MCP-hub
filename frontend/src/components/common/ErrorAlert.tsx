@@ -11,30 +11,15 @@ interface ErrorAlertProps {
     className?: string;
 }
 
-export function ErrorAlert({
-    title = "Failed to load data",
-    message,
-    correlationId,
-    onRetry,
-    className,
-}: ErrorAlertProps) {
+export function ErrorAlert({ title = "Failed to load data", message, correlationId, onRetry, className }: ErrorAlertProps) {
     return (
-        <div
-            className={cn(
-                "rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-destructive dark:text-red-400",
-                className
-            )}
-        >
+        <div className={cn("rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-destructive dark:text-red-400", className)}>
             <div className="flex items-start gap-3">
                 <AlertCircle className="h-5 w-5 mt-0.5 shrink-0" />
                 <div className="flex-1 space-y-1">
                     <h4 className="font-semibold text-sm leading-none">{title}</h4>
                     <p className="text-sm opacity-90">{message}</p>
-                    {correlationId && (
-                        <p className="text-xs font-mono opacity-70">
-                            Correlation ID: {correlationId}
-                        </p>
-                    )}
+                    {correlationId && <p className="text-xs font-mono opacity-70">Correlation ID: {correlationId}</p>}
                 </div>
                 {onRetry && (
                     <Button

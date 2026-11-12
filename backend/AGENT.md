@@ -74,22 +74,26 @@ backend/
 │   │   ├── main.py                      # FastAPI factory, ASGI middlewares, lifespan hooks
 │   │   ├── api/
 │   │   │   ├── dependencies.py          # Centralized dependency injection providers
-│   │   │   └── v1/                      # API Routers (/servers, /tools, /executions, /system)
-│   │   │       ├── executions_route.py  # Execution audit log endpoints
-│   │   │       ├── servers_route.py     # MCP Server registration & lifecycle
-│   │   │       ├── system_route.py      # Liveness, readiness, and telemetry
-│   │   │       └── tools_route.py       # Tool discovery & execution router
+│   │   │   └── v1/                      # API Routers (/servers, /tools, /executions, /system, /sessions)
+│   │   │       ├── executions_router.py # Execution audit log endpoints
+│   │   │       ├── servers_router.py    # MCP Server registration & lifecycle
+│   │   │       ├── sessions_router.py   # MCP Client session management endpoints
+│   │   │       ├── system_router.py     # Liveness, readiness, and telemetry
+│   │   │       └── tools_router.py      # Tool discovery & execution router
 │   │   ├── core/
 │   │   │   ├── config.py                # Settings loaded strictly from .env (no in-code defaults)
 │   │   │   ├── constants/               # Application constants partitioned by domain
 │   │   │   │   └── meta_tools.py        # Meta-tool identifiers (SEARCH_TOOLS, MULTI_EXECUTE_TOOLS)
 │   │   │   ├── enums/                   # Core enumerations partitioned by domain (no __init__.py)
-│   │   │   │   └── server_enum.py       # TransportType, ServerHealthStatus
+│   │   │   │   ├── execution_enum.py    # ExecutionOutcomeKind, RejectionReason
+│   │   │   │   ├── server_enum.py       # TransportType, ServerHealthStatus
+│   │   │   │   └── session_enum.py      # SessionStatus, ToolCallStatus (incl. `rejected`)
 │   │   │   ├── exceptions.py            # Domain exception hierarchy (derived from AppError)
 │   │   │   └── logging.py               # Structured correlation-ID logging & contextvars
 │   │   ├── domain/                      # Domain entities partitioned by entity responsibility
 │   │   │   ├── execution_entity.py      # ExecutionEntity dataclass
 │   │   │   ├── server_entity.py         # ServerEntity dataclass
+│   │   │   ├── session_entity.py        # SessionEntity dataclass
 │   │   │   └── tool_entity.py           # ToolEntity dataclass
 │   │   ├── helpers/                     # Reusable utilities partitioned by responsibility
 │   │   │   ├── errors.py                # MCP error & ExceptionGroup unwrapping (format_mcp_error)
@@ -99,32 +103,37 @@ backend/
 │   │   ├── infrastructure/
 │   │   │   ├── database.py              # Async SQLAlchemy engine, session maker, connection pooling
 │   │   │   └── repositories/            # Domain repository modules (interfaces, Postgres implementations)
-│   │   │       ├── server_repo.py       # ServerRepositoryAbstract, PostgresServerRepository
-│   │   │       ├── tool_repo.py         # ToolRepositoryAbstract, PostgresToolRepository
-│   │   │       └── execution_repo.py    # ExecutionRepositoryAbstract, PostgresExecutionRepository
+│   │   │       ├── execution_repository.py # ExecutionRepositoryAbstract, PostgresExecutionRepository
+│   │   │       ├── server_repository.py    # ServerRepositoryAbstract, PostgresServerRepository
+│   │   │       ├── session_repository.py   # SessionRepositoryAbstract, PostgresSessionRepository
+│   │   │       └── tool_repository.py      # ToolRepositoryAbstract, PostgresToolRepository
 │   │   ├── mcp/                         # Upstream MCP protocol extensions & meta-tools
-│   │   │   ├── search_tools.py          # SEARCH_TOOLS discovery handler & relevance scoring
-│   │   │   └── multi_execute_tools.py   # MULTI_EXECUTE_TOOLS parallel dispatcher & failure isolator
+│   │   │   ├── mcp_proxy_asgi.py        # Streamable HTTP ASGI proxy application
+│   │   │   ├── mcp_server.py            # MCPServer exposing the hub over Streamable HTTP (/mcp)
+│   │   │   ├── multi_execute_tools.py   # MULTI_EXECUTE_TOOLS parallel dispatcher & failure isolator
+│   │   │   └── search_tools.py          # SEARCH_TOOLS discovery handler & relevance scoring
 │   │   ├── middlewares/                 # ASGI middleware components
 │   │   │   └── correlation.py           # CorrelationAndLoggingMiddleware (request tracing)
 │   │   ├── models/                      # SQLAlchemy 2.0 ORM models
 │   │   │   ├── base_model.py            # Base declarative class
 │   │   │   ├── execution_model.py       # ExecutionModel ORM mapping
 │   │   │   ├── server_model.py          # ServerModel ORM mapping
+│   │   │   ├── session_model.py         # SessionModel ORM mapping
 │   │   │   └── tool_model.py            # ToolModel ORM mapping
 │   │   ├── schemas/                     # Pydantic v2 request/response schemas
-│   │   │   ├── common.py                # Paginated envelopes & Error responses
-│   │   │   ├── connection.py            # Stdio & HTTP transport connection schemas
-│   │   │   ├── execution.py             # Execution audit models
-│   │   │   ├── server.py                # Server models & validation
-│   │   │   ├── system.py                # Health & metrics models
-│   │   │   └── tool.py                  # Tool discovery & execution schemas
+│   │   │   ├── common_schema.py         # Paginated envelopes & Error responses
+│   │   │   ├── connection_schema.py     # Stdio & HTTP transport connection schemas
+│   │   │   ├── execution_schema.py      # Execution audit models
+│   │   │   ├── server_schema.py         # Server models & validation
+│   │   │   ├── session_schema.py        # Session explorer models
+│   │   │   ├── system_schema.py         # Health & metrics models
+│   │   │   └── tool_schema.py           # Tool discovery & execution schemas
 │   │   └── services/                    # Business logic & orchestrators
 │   │       ├── connection_manager.py    # Downstream MCP client session lifecycle (SessionWorker)
-│   │       ├── mcp_gateway.py           # Hub as upstream MCP Server (/mcp Streamable HTTP)
 │   │       ├── server_registry.py       # Server CRUD, uniqueness validation, status management
+│   │       ├── session_explorer.py      # Session discovery and execution history
 │   │       ├── tool_catalog.py          # Unified tool aggregation cache & collision handler
-│   │       └── tool_router.py           # Tool argument validator, execution dispatcher, audit logger
+│   │       └── tool_executor.py         # Execution module: resolve Tool Reference, check, validate, call, audit (ADR-0002)
 ├── demo_server/                         # Standalone downstream demo MCP servers for E2E tests
 ├── migrations/                          # Alembic schema revision scripts
 └── tests/
@@ -146,10 +155,10 @@ Strict unidirectional dependency flow:
 `API Routers (app/api/v1/)` $\rightarrow$ `Services (app/services/)` $\rightarrow$ `Repositories (app/infrastructure/repositories/)` $\rightarrow$ `Database Models (app/models/)`.
 - **Routers**: Handle HTTP parameter parsing, status codes, and call services. No business logic in routers.
 - **Services**: Contain domain workflows, coordination, validations, and downstream interactions.
-- **Repositories**: Abstract all SQL/persistence operations behind `ServerRepositoryAbstract`, `ToolRepositoryAbstract`, and `ExecutionRepositoryAbstract`.
+- **Repositories**: Abstract all SQL/persistence operations behind `ServerRepositoryAbstract`, `ToolRepositoryAbstract`, `ExecutionRepositoryAbstract`, and `SessionRepositoryAbstract`.
 - **Domain Entities**: Transfer state between services and repositories without leaking SQLAlchemy models into external layers.
-- **Core Primitives & Enums**: Enums (`app/core/enums/server_enum.py`) and constants (`app/core/constants/meta_tools.py`) reside in `app/core/` to prevent inverted dependencies from domain/model layers into API schemas.
-- **Connection Schemas**: Transport configurations (`StdioConfig`, `HttpConfig`, `ConnectionConfigRead`) are isolated in `app/schemas/connection.py`.
+- **Core Primitives & Enums**: Enums (`app/core/enums/server_enum.py`, `app/core/enums/session_enum.py`, `app/core/enums/execution_enum.py`) and constants (`app/core/constants/meta_tools.py`) reside in `app/core/` to prevent inverted dependencies from domain/model layers into API schemas.
+- **Connection Schemas**: Transport configurations (`StdioConfig`, `HttpConfig`, `ConnectionConfigResponse`) are isolated in `app/schemas/connection_schema.py`.
 
 ### AnyIO Cancel Scope Rule & `SessionWorker`
 - The MCP Python SDK uses AnyIO cancel scopes internally.
@@ -188,7 +197,7 @@ Strict unidirectional dependency flow:
     1. Strictly conform `arguments` to the target tool's `input_schema` discovered via `SEARCH_TOOLS`.
     2. Batch independent calls together; do NOT batch data-dependent calls (execute Tool A, inspect its response, then call Tool B in the next turn).
     3. Isolate partial failures and retry only items returning `"validation_error"`.
-  - Dispatches calls concurrently via `asyncio.gather(*tasks)` routing through `ToolRouterService.execute_mcp_tool`.
+  - Dispatches calls concurrently via `asyncio.gather(*tasks)` routing each item through `ToolExecutor.execute` (the Execution module), then mapping its Outcome to the item `status`.
   - Complies strictly with the AnyIO Cancel Scope Rule (routes through `ConnectionManager` `SessionWorker`).
   - Preserves argument validation and `ExecutionRepositoryAbstract` audit logging.
   - Strictly isolates failures per execution item (`"status": "success" | "validation_error" | "error"`).
@@ -220,7 +229,7 @@ Strict unidirectional dependency flow:
   - All `__init__.py` files across `app/` are pure package markers (empty, containing 0 re-exports or logic).
   - Internal imports must be explicit and direct to the defining submodule (e.g. `from app.domain.server_entity import ServerEntity`, `from app.infrastructure.repositories.server_repo import ServerRepositoryAbstract`).
 - **Ruff Configuration**:
-  - Max line length: `100`.
+  - Max line length: `140`.
   - Selected linters: `E` (Pycodestyle errors), `F` (Pyflakes), `I` (isort imports), `UP` (pyupgrade), `B` (flake8-bugbear), `SIM` (flake8-simplify).
   - Ignored: `E501` (line length enforced by formatter), `B008` (function calls in FastAPI argument defaults).
 

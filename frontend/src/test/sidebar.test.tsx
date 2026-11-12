@@ -26,6 +26,7 @@ describe("Sidebar Navigation Component", () => {
         expect(screen.getByText("MCP Servers")).toBeInTheDocument();
         expect(screen.getByText("Tool Catalog")).toBeInTheDocument();
         expect(screen.getByText("Tool Playground")).toBeInTheDocument();
+        expect(screen.getByText("Sessions")).toBeInTheDocument();
         expect(screen.getByText("Execution History")).toBeInTheDocument();
         expect(screen.getByText("Settings")).toBeInTheDocument();
     });

@@ -2,14 +2,7 @@
 
 import React from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface TableSkeletonProps {
     columns?: string[] | number;
@@ -17,14 +10,8 @@ interface TableSkeletonProps {
     showPagination?: boolean;
 }
 
-export function TableSkeleton({
-    columns = 5,
-    rowCount = 5,
-    showPagination = true,
-}: TableSkeletonProps) {
-    const columnHeaders = Array.isArray(columns)
-        ? columns
-        : Array.from({ length: columns }, (_, i) => `Column ${i + 1}`);
+export function TableSkeleton({ columns = 5, rowCount = 5, showPagination = true }: TableSkeletonProps) {
+    const columnHeaders = Array.isArray(columns) ? columns : Array.from({ length: columns }, (_, i) => `Column ${i + 1}`);
 
     const rows = Array.from({ length: rowCount }, (_, i) => i);
 
@@ -35,10 +22,7 @@ export function TableSkeleton({
                     <TableHeader>
                         <TableRow>
                             {columnHeaders.map((col, idx) => (
-                                <TableHead
-                                    key={idx}
-                                    className={idx === columnHeaders.length - 1 ? "text-right" : ""}
-                                >
+                                <TableHead key={idx} className={idx === columnHeaders.length - 1 ? "text-right" : ""}>
                                     <Skeleton className="h-4 w-20" />
                                 </TableHead>
                             ))}
@@ -48,12 +32,7 @@ export function TableSkeleton({
                         {rows.map((rowIdx) => (
                             <TableRow key={rowIdx}>
                                 {columnHeaders.map((_, colIdx) => (
-                                    <TableCell
-                                        key={colIdx}
-                                        className={
-                                            colIdx === columnHeaders.length - 1 ? "text-right" : ""
-                                        }
-                                    >
+                                    <TableCell key={colIdx} className={colIdx === columnHeaders.length - 1 ? "text-right" : ""}>
                                         {colIdx === 0 ? (
                                             <div className="space-y-1.5">
                                                 <Skeleton className="h-4 w-32" />

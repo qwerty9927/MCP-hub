@@ -10,7 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.enums.server_enum import ServerHealthStatus, TransportType
 from app.domain.server_entity import ServerEntity
 from app.models.base_model import Base
-from app.schemas.connection import HttpConfig, StdioConfig
+from app.schemas.connection_schema import HttpConfig, StdioConfig
 
 
 class ServerModel(Base):
@@ -26,12 +26,8 @@ class ServerModel(Base):
     http_config: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     health_status: Mapped[str] = mapped_column(String(20), default="UNKNOWN", nullable=False)
-    last_connected_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    last_health_check_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    last_connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_health_check_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     discovered_tool_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -47,9 +43,7 @@ class ServerModel(Base):
 
     # Relationships to tools and executions
     tools = relationship("ToolModel", back_populates="server", cascade="all, delete-orphan")
-    executions = relationship(
-        "ExecutionModel", back_populates="server", cascade="all, delete-orphan"
-    )
+    executions = relationship("ExecutionModel", back_populates="server", cascade="all, delete-orphan")
 
     def to_domain(self) -> ServerEntity:
         """Convert database model to domain entity."""
@@ -76,15 +70,11 @@ class ServerModel(Base):
             id=str(entity.id),
             name=entity.name,
             description=entity.description,
-            transport=entity.transport.value
-            if hasattr(entity.transport, "value")
-            else str(entity.transport),
+            transport=entity.transport.value if hasattr(entity.transport, "value") else str(entity.transport),
             stdio_config=entity.stdio_config.model_dump() if entity.stdio_config else None,
             http_config=entity.http_config.model_dump() if entity.http_config else None,
             enabled=entity.enabled,
-            health_status=entity.health_status.value
-            if hasattr(entity.health_status, "value")
-            else str(entity.health_status),
+            health_status=entity.health_status.value if hasattr(entity.health_status, "value") else str(entity.health_status),
             last_connected_at=entity.last_connected_at,
             last_health_check_at=entity.last_health_check_at,
             discovered_tool_count=entity.discovered_tool_count,

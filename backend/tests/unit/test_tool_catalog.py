@@ -15,9 +15,7 @@ from app.services.tool_catalog import ToolCatalogService
 class MockConnectionManager(ConnectionManager):
     """Mock ConnectionManager returning fixed tools."""
 
-    async def list_tools(
-        self, server: ServerEntity, timeout: float | None = None
-    ) -> list[mcp_types.Tool]:
+    async def list_tools(self, server: ServerEntity, timeout: float | None = None) -> list[mcp_types.Tool]:
         return [
             mcp_types.Tool(
                 name="tool_a",

@@ -1,17 +1,8 @@
 import { apiClient } from "../api-client";
-import {
-    PaginatedResponse,
-    ToolExecuteRequest,
-    ToolExecuteResponse,
-    ToolFilterParams,
-    ToolRead,
-} from "@/types";
+import { PaginatedResponse, ToolExecuteRequest, ToolExecuteResponse, ToolFilterParams, ToolRead } from "@/types";
 
 export const toolsApi = {
-    list: async (
-        params?: ToolFilterParams,
-        signal?: AbortSignal
-    ): Promise<PaginatedResponse<ToolRead>> => {
+    list: async (params?: ToolFilterParams, signal?: AbortSignal): Promise<PaginatedResponse<ToolRead>> => {
         return apiClient<PaginatedResponse<ToolRead>>({
             url: "/tools",
             method: "GET",
@@ -28,11 +19,7 @@ export const toolsApi = {
         });
     },
 
-    execute: async (
-        serverId: string,
-        toolName: string,
-        payload: ToolExecuteRequest
-    ): Promise<ToolExecuteResponse> => {
+    execute: async (serverId: string, toolName: string, payload: ToolExecuteRequest): Promise<ToolExecuteResponse> => {
         return apiClient<ToolExecuteResponse>({
             url: `/servers/${serverId}/tools/${encodeURIComponent(toolName)}/execute`,
             method: "POST",

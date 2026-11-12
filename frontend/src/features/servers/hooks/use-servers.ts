@@ -48,8 +48,7 @@ export function useUpdateServer() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: ({ id, payload }: { id: string; payload: ServerUpdate }) =>
-            serversApi.update(id, payload),
+        mutationFn: ({ id, payload }: { id: string; payload: ServerUpdate }) => serversApi.update(id, payload),
         onSuccess: (server) => {
             queryClient.invalidateQueries({ queryKey: SERVERS_QUERY_KEY });
             queryClient.setQueryData([...SERVERS_QUERY_KEY, server.id], server);
@@ -87,9 +86,7 @@ export function useConnectServer() {
             queryClient.invalidateQueries({ queryKey: SERVERS_QUERY_KEY });
             queryClient.invalidateQueries({ queryKey: ["tools"] });
             queryClient.invalidateQueries({ queryKey: ["system-health"] });
-            toast.success(
-                `Connected to "${server.name}". ${server.discovered_tool_count} tools discovered.`
-            );
+            toast.success(`Connected to "${server.name}". ${server.discovered_tool_count} tools discovered.`);
         },
         onError: (err: AppApiError) => {
             toast.error(err.message || "Connection failed");
@@ -121,9 +118,7 @@ export function useTestServerConnection() {
         onSuccess: (res) => {
             queryClient.invalidateQueries({ queryKey: SERVERS_QUERY_KEY });
             if (res.success) {
-                toast.success(
-                    `Connection verified! Latency: ${res.latency_ms.toFixed(1)}ms, Tools: ${res.tools_count}`
-                );
+                toast.success(`Connection verified! Latency: ${res.latency_ms.toFixed(1)}ms, Tools: ${res.tools_count}`);
             } else {
                 toast.error(`Connection test failed: ${res.message}`);
             }

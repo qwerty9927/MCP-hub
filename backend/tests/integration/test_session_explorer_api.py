@@ -9,7 +9,7 @@ import pytest
 from httpx import AsyncClient
 
 from app.domain.execution_entity import ExecutionEntity
-from app.infrastructure.repositories.execution_repo import PostgresExecutionRepository
+from app.infrastructure.repositories.execution_repository import PostgresExecutionRepository
 
 DEMO_SERVER = str(Path(__file__).resolve().parent.parent.parent / "demo_server" / "server.py")
 
@@ -117,9 +117,7 @@ async def test_session_explorer_api_lifecycle(async_client: AsyncClient):
     missing_session_resp = await async_client.get(f"/api/v1/sessions/{fake_session}")
     assert missing_session_resp.status_code == 404
 
-    missing_call_resp = await async_client.get(
-        f"/api/v1/sessions/{session_id}/tool-calls/{uuid4()}"
-    )
+    missing_call_resp = await async_client.get(f"/api/v1/sessions/{session_id}/tool-calls/{uuid4()}")
     assert missing_call_resp.status_code == 404
 
 

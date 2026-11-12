@@ -79,7 +79,7 @@ describe("ExecutionDetailPage Component with Response Payload", () => {
         await waitFor(() => {
             // Header and metrics
             expect(screen.getByText("Execution: calculate_expression")).toBeInTheDocument();
-            expect(screen.getByText("Success")).toBeInTheDocument();
+            expect(screen.getByText("Completed")).toBeInTheDocument();
             expect(screen.getByText("18.5ms")).toBeInTheDocument();
             expect(screen.getByText("math-server")).toBeInTheDocument();
 
@@ -143,9 +143,7 @@ describe("ExecutionDetailPage Component with Response Payload", () => {
         await waitFor(() => {
             expect(screen.getByText("Failed")).toBeInTheDocument();
             expect(screen.getByText("Error Details")).toBeInTheDocument();
-            expect(
-                screen.getAllByText("ZeroDivisionError: division by zero").length
-            ).toBeGreaterThanOrEqual(1);
+            expect(screen.getAllByText("ZeroDivisionError: division by zero").length).toBeGreaterThanOrEqual(1);
         });
     });
 
@@ -173,16 +171,12 @@ describe("ExecutionDetailPage Component with Response Payload", () => {
         // Copy JSON
         const copyJsonBtn = screen.getByRole("button", { name: /Copy JSON/i });
         fireEvent.click(copyJsonBtn);
-        expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-            expect.stringContaining('"id": "exec-104"')
-        );
+        expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining('"id": "exec-104"'));
 
         // Copy Arguments
         const copyArgsBtn = screen.getAllByRole("button", { name: "Copy" })[0];
         fireEvent.click(copyArgsBtn);
-        expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-            expect.stringContaining('"items"')
-        );
+        expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining('"items"'));
     });
 
     it("renders empty state when execution response is null", async () => {

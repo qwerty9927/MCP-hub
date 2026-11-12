@@ -64,15 +64,7 @@ export default function ExecutionsPage() {
 
             {isLoading ? (
                 <TableSkeleton
-                    columns={[
-                        "Status",
-                        "Tool Name",
-                        "Server",
-                        "Arguments",
-                        "Duration",
-                        "Executed At",
-                        "Actions",
-                    ]}
+                    columns={["Status", "Tool Name", "Server", "Arguments", "Duration", "Executed At", "Actions"]}
                     rowCount={(filters.page_size ?? 0 > 5) ? 5 : filters.page_size}
                 />
             ) : executions.length === 0 ? (
@@ -80,7 +72,7 @@ export default function ExecutionsPage() {
                     icon={History}
                     title="No execution records found"
                     description={
-                        filters.tool_name || filters.server_id || filters.is_error !== undefined
+                        filters.tool_name || filters.server_id || filters.status
                             ? "No execution entries match your filter criteria."
                             : "No tools have been executed yet. Run a tool in the Playground to see results logged here."
                     }
@@ -99,9 +91,7 @@ export default function ExecutionsPage() {
                         total={total}
                         totalPages={totalPages}
                         onPageChange={(page) => setFilters((prev) => ({ ...prev, page }))}
-                        onPageSizeChange={(page_size) =>
-                            setFilters((prev) => ({ ...prev, page_size, page: 1 }))
-                        }
+                        onPageSizeChange={(page_size) => setFilters((prev) => ({ ...prev, page_size, page: 1 }))}
                     />
                 </>
             )}

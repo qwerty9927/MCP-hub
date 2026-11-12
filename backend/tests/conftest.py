@@ -20,7 +20,7 @@ import app.infrastructure.database as db_module  # noqa: E402
 from app.api.dependencies import (  # noqa: E402
     _connection_manager,
     _tool_catalog,
-    get_mcp_gateway,
+    get_mcp_server,
 )
 from app.core.config import get_settings  # noqa: E402
 from app.main import app  # noqa: E402
@@ -64,9 +64,8 @@ async def cleanup_dependencies():
 
     _tool_catalog._tools.clear()
 
-    gateway = get_mcp_gateway()
-    gateway._tool_map.clear()
-    gateway._active_sessions.clear()
+    mcp_server = get_mcp_server()
+    mcp_server._active_sessions.clear()
 
     await db_module.engine.dispose()
 

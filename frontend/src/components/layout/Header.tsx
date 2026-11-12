@@ -32,12 +32,7 @@ export function Header({ onMenuToggle }: HeaderProps) {
 
             <div className="flex items-center gap-3">
                 {/* API Docs Link */}
-                <Button
-                    asChild
-                    variant="outline"
-                    size="sm"
-                    className="hidden sm:inline-flex gap-1.5 h-8 text-xs font-medium"
-                >
+                <Button asChild variant="outline" size="sm" className="hidden sm:inline-flex gap-1.5 h-8 text-xs font-medium">
                     <a href={docsUrl} target="_blank" rel="noopener noreferrer">
                         <ExternalLink className="h-3.5 w-3.5" />
                         Swagger Docs
@@ -50,17 +45,11 @@ export function Header({ onMenuToggle }: HeaderProps) {
                 {/* Account Menu */}
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="flex items-center gap-2 h-9 px-2"
-                        >
+                        <Button variant="ghost" size="sm" className="flex items-center gap-2 h-9 px-2">
                             <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary">
                                 <User className="h-4 w-4" />
                             </div>
-                            <span className="hidden sm:inline-block text-xs font-medium text-foreground">
-                                Admin
-                            </span>
+                            <span className="hidden sm:inline-block text-xs font-medium text-foreground">Admin</span>
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-56">

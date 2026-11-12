@@ -33,6 +33,7 @@ class ExecutionRepositoryAbstract(ABC):
         server_id: UUID | None = None,
         tool_name: str | None = None,
         is_error: bool | None = None,
+        status: str | None = None,
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[ExecutionEntity], int]:
@@ -94,6 +95,7 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
         server_id: UUID | None = None,
         tool_name: str | None = None,
         is_error: bool | None = None,
+        status: str | None = None,
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[ExecutionEntity], int]:
@@ -106,6 +108,8 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
                 stmt = stmt.where(ExecutionModel.tool_name.ilike(f"%{tool_name}%"))
             if is_error is not None:
                 stmt = stmt.where(ExecutionModel.is_error == is_error)
+            if status:
+                stmt = stmt.where(func.lower(ExecutionModel.status) == status.strip().lower())
 
             # Count total
             count_stmt = select(func.count()).select_from(stmt.subquery())
@@ -195,13 +199,7 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
             order_clean = order.strip().lower() if order else "asc"
             order_clause = desc(col) if order_clean == "desc" else asc(col)
 
-            stmt = (
-                select(ExecutionModel)
-                .where(where_clause)
-                .order_by(order_clause)
-                .offset((page - 1) * page_size)
-                .limit(page_size)
-            )
+            stmt = select(ExecutionModel).where(where_clause).order_by(order_clause).offset((page - 1) * page_size).limit(page_size)
 
             result = await session.execute(stmt)
             models = result.scalars().all()

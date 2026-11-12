@@ -10,13 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Terminal, Globe, AlertCircle, Loader2 } from "lucide-react";
 
@@ -32,9 +26,7 @@ export function ServerForm({ initialData, onSubmit, isLoading, onCancel }: Serve
 
     // Parse initial env & headers if available
     const initialArgs = initialData?.connection_config.args?.join(" ") || "";
-    const initialHeaders = initialData?.connection_config.headers
-        ? JSON.stringify(initialData.connection_config.headers, null, 2)
-        : "";
+    const initialHeaders = initialData?.connection_config.headers ? JSON.stringify(initialData.connection_config.headers, null, 2) : "";
 
     const {
         register,
@@ -75,9 +67,7 @@ export function ServerForm({ initialData, onSubmit, isLoading, onCancel }: Serve
 
             if (data.transport === "stdio") {
                 // Parse args into array
-                const argsArray = data.stdio_args
-                    ? data.stdio_args.trim().split(/\s+/).filter(Boolean)
-                    : [];
+                const argsArray = data.stdio_args ? data.stdio_args.trim().split(/\s+/).filter(Boolean) : [];
 
                 // Parse env if provided
                 let envObj: Record<string, string> = {};
@@ -156,25 +146,14 @@ export function ServerForm({ initialData, onSubmit, isLoading, onCancel }: Serve
             <Card>
                 <CardHeader>
                     <CardTitle className="text-lg">Server Information</CardTitle>
-                    <CardDescription>
-                        Basic metadata and communication configuration for this MCP server.
-                    </CardDescription>
+                    <CardDescription>Basic metadata and communication configuration for this MCP server.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
                         <Label htmlFor="name">Server Name *</Label>
-                        <Input
-                            id="name"
-                            placeholder="e.g. math-tools-service"
-                            disabled={isLoading || isEdit}
-                            {...register("name")}
-                        />
-                        {errors.name && (
-                            <p className="text-xs text-destructive">{errors.name.message}</p>
-                        )}
-                        <p className="text-xs text-muted-foreground">
-                            Unique identifier for this server instance.
-                        </p>
+                        <Input id="name" placeholder="e.g. math-tools-service" disabled={isLoading || isEdit} {...register("name")} />
+                        {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
+                        <p className="text-xs text-muted-foreground">Unique identifier for this server instance.</p>
                     </div>
 
                     <div className="space-y-2">
@@ -186,9 +165,7 @@ export function ServerForm({ initialData, onSubmit, isLoading, onCancel }: Serve
                             disabled={isLoading}
                             {...register("description")}
                         />
-                        {errors.description && (
-                            <p className="text-xs text-destructive">{errors.description.message}</p>
-                        )}
+                        {errors.description && <p className="text-xs text-destructive">{errors.description.message}</p>}
                     </div>
 
                     <div className="flex items-center justify-between rounded-lg border border-border p-3 shadow-sm">
@@ -212,9 +189,7 @@ export function ServerForm({ initialData, onSubmit, isLoading, onCancel }: Serve
             <Card>
                 <CardHeader>
                     <CardTitle className="text-lg">Transport Protocol</CardTitle>
-                    <CardDescription>
-                        Choose between local subprocess (stdio) or remote streamable HTTP server.
-                    </CardDescription>
+                    <CardDescription>Choose between local subprocess (stdio) or remote streamable HTTP server.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
@@ -260,14 +235,9 @@ export function ServerForm({ initialData, onSubmit, isLoading, onCancel }: Serve
                                     disabled={isLoading}
                                     {...register("stdio_command")}
                                 />
-                                {errors.stdio_command && (
-                                    <p className="text-xs text-destructive">
-                                        {errors.stdio_command.message}
-                                    </p>
-                                )}
+                                {errors.stdio_command && <p className="text-xs text-destructive">{errors.stdio_command.message}</p>}
                                 <p className="text-xs text-muted-foreground">
-                                    The executable name or binary path allowed by backend security
-                                    policies.
+                                    The executable name or binary path allowed by backend security policies.
                                 </p>
                             </div>
 
@@ -279,20 +249,12 @@ export function ServerForm({ initialData, onSubmit, isLoading, onCancel }: Serve
                                     disabled={isLoading}
                                     {...register("stdio_args")}
                                 />
-                                {errors.stdio_args && (
-                                    <p className="text-xs text-destructive">
-                                        {errors.stdio_args.message}
-                                    </p>
-                                )}
-                                <p className="text-xs text-muted-foreground">
-                                    Space-delimited command arguments.
-                                </p>
+                                {errors.stdio_args && <p className="text-xs text-destructive">{errors.stdio_args.message}</p>}
+                                <p className="text-xs text-muted-foreground">Space-delimited command arguments.</p>
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="stdio_env">
-                                    Environment Variables (JSON or KEY=VAL)
-                                </Label>
+                                <Label htmlFor="stdio_env">Environment Variables (JSON or KEY=VAL)</Label>
                                 <Textarea
                                     id="stdio_env"
                                     placeholder={`{"CALC_PRECISION": "4"}`}
@@ -301,11 +263,7 @@ export function ServerForm({ initialData, onSubmit, isLoading, onCancel }: Serve
                                     disabled={isLoading}
                                     {...register("stdio_env")}
                                 />
-                                {errors.stdio_env && (
-                                    <p className="text-xs text-destructive">
-                                        {errors.stdio_env.message}
-                                    </p>
-                                )}
+                                {errors.stdio_env && <p className="text-xs text-destructive">{errors.stdio_env.message}</p>}
                             </div>
                         </div>
                     )}
@@ -327,20 +285,14 @@ export function ServerForm({ initialData, onSubmit, isLoading, onCancel }: Serve
                                     disabled={isLoading}
                                     {...register("http_url")}
                                 />
-                                {errors.http_url && (
-                                    <p className="text-xs text-destructive">
-                                        {errors.http_url.message}
-                                    </p>
-                                )}
+                                {errors.http_url && <p className="text-xs text-destructive">{errors.http_url.message}</p>}
                                 <p className="text-xs text-muted-foreground">
                                     Target MCP streamable HTTP URL. Must be http:// or https://.
                                 </p>
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="http_headers">
-                                    Request Headers (JSON or Header: Value)
-                                </Label>
+                                <Label htmlFor="http_headers">Request Headers (JSON or Header: Value)</Label>
                                 <Textarea
                                     id="http_headers"
                                     placeholder={`{\n  "Authorization": "Bearer secret-token"\n}`}
@@ -349,14 +301,9 @@ export function ServerForm({ initialData, onSubmit, isLoading, onCancel }: Serve
                                     disabled={isLoading}
                                     {...register("http_headers")}
                                 />
-                                {errors.http_headers && (
-                                    <p className="text-xs text-destructive">
-                                        {errors.http_headers.message}
-                                    </p>
-                                )}
+                                {errors.http_headers && <p className="text-xs text-destructive">{errors.http_headers.message}</p>}
                                 <p className="text-xs text-muted-foreground">
-                                    Sensitive authorization headers are safely masked by the
-                                    backend.
+                                    Sensitive authorization headers are safely masked by the backend.
                                 </p>
                             </div>
                         </div>

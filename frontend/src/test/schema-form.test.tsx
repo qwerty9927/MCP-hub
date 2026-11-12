@@ -41,13 +41,7 @@ describe("SchemaForm Component", () => {
 
     it("renders input fields according to schema properties", () => {
         const onChange = vi.fn();
-        render(
-            <SchemaForm
-                schema={schema}
-                values={{ expression: "1 + 1", precision: 2, verbose: true }}
-                onChange={onChange}
-            />
-        );
+        render(<SchemaForm schema={schema} values={{ expression: "1 + 1", precision: 2, verbose: true }} onChange={onChange} />);
 
         expect(screen.getByText("expression")).toBeInTheDocument();
         expect(screen.getByText("precision")).toBeInTheDocument();
@@ -64,9 +58,7 @@ describe("SchemaForm Component", () => {
 
     it("renders fallback message when schema has no properties", () => {
         render(<SchemaForm schema={{ type: "object" }} values={{}} onChange={vi.fn()} />);
-        expect(
-            screen.getByText(/This tool does not define any input parameters/i)
-        ).toBeInTheDocument();
+        expect(screen.getByText(/This tool does not define any input parameters/i)).toBeInTheDocument();
     });
 
     it("handles number/integer inputs with conversion and clearing", () => {
@@ -105,33 +97,18 @@ describe("SchemaForm Component", () => {
 
         const objectInput = screen.getByPlaceholderText(/\{\s*"key": "value"\s*\}/);
         fireEvent.change(objectInput, { target: { value: '{"author": "alice"}' } });
-        expect(onChange).toHaveBeenCalledWith(
-            expect.objectContaining({ metadata: { author: "alice" } })
-        );
+        expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ metadata: { author: "alice" } }));
     });
 
     it("displays validation error message when field has error", () => {
-        render(
-            <SchemaForm
-                schema={schema}
-                values={{}}
-                onChange={vi.fn()}
-                errors={{ expression: "This parameter is required" }}
-            />
-        );
+        render(<SchemaForm schema={schema} values={{}} onChange={vi.fn()} errors={{ expression: "This parameter is required" }} />);
 
         expect(screen.getByText("This parameter is required")).toBeInTheDocument();
     });
 
     it("resets form values to schema defaults when reset button is clicked", () => {
         const onChange = vi.fn();
-        render(
-            <SchemaForm
-                schema={schema}
-                values={{ expression: "3 + 3", precision: 8 }}
-                onChange={onChange}
-            />
-        );
+        render(<SchemaForm schema={schema} values={{ expression: "3 + 3", precision: 8 }} onChange={onChange} />);
 
         const resetBtn = screen.getByRole("button", { name: /Reset to Defaults/i });
         expect(resetBtn).toBeInTheDocument();

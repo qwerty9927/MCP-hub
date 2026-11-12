@@ -34,7 +34,7 @@ flowchart TD
         subgraph Services Layer
             ServerRegistry["Server Registry Service"]
             ToolCatalog["Unified Tool Catalog (Cache & Qualified IDs)"]
-            ToolRouter["Tool Execution Router (Validation & Auditing)"]
+            ToolExecutor["Execution Module (Resolve, Validate, Call & Audit)"]
             ConnManager["Connection Manager (SessionWorker per server)"]
             MCPGateway
         end
@@ -48,14 +48,14 @@ flowchart TD
     
     R_Servers --> ServerRegistry
     R_Tools --> ToolCatalog
-    R_Tools --> ToolRouter
+    R_Tools --> ToolExecutor
     
     MCPGateway --> ServerRegistry
     MCPGateway --> ToolCatalog
-    MCPGateway --> ToolRouter
+    MCPGateway --> ToolExecutor
     
-    ToolRouter --> ConnManager
-    ToolRouter --> ExecRepo
+    ToolExecutor --> ConnManager
+    ToolExecutor --> ExecRepo
     ServerRegistry --> ServerRepo
     ServerRegistry --> ConnManager
     ToolCatalog --> ToolRepo
@@ -82,7 +82,7 @@ flowchart TD
 6. **Agent-Driven Meta-Tool Architecture**:
    Exposes two native meta-tools on `/mcp` designed for autonomous upstream agents:
    - `SEARCH_TOOLS`: Pure keyword discovery with case-insensitive tokenization and substring boosting across names, descriptions, and input schema properties. Excludes meta-tools to prevent recursion and returns deduplicated candidate tools ranked by relevance.
-   - `MULTI_EXECUTE_TOOLS`: Parallel dispatcher executing multiple tool calls concurrently via `asyncio.gather` through `ToolRouterService`. Provides per-tool failure isolation (a failed downstream call does not fail sibling executions) while strictly preserving AnyIO cancel scopes, JSON schema validation, and database audit logging.
+   - `MULTI_EXECUTE_TOOLS`: Parallel dispatcher executing multiple tool calls concurrently via `asyncio.gather` through `ToolExecutor` (the Execution module). Provides per-tool failure isolation (a failed downstream call does not fail sibling executions) while strictly preserving AnyIO cancel scopes, JSON schema validation, and database audit logging.
 
 ---
 
@@ -95,16 +95,18 @@ backend/
 │   ├── api/
 │   │   ├── dependencies.py              # Dependency injection providers
 │   │   └── v1/
-│   │       ├── executions_route.py      # Execution audit log endpoints
-│   │       ├── servers_route.py         # MCP Server registration & lifecycle
-│   │       ├── system_route.py          # Liveness, readiness, and telemetry
-│   │       └── tools_route.py           # Tool discovery & execution router
+│   │       ├── executions_router.py     # Execution audit log endpoints
+│   │       ├── servers_router.py        # MCP Server registration & lifecycle
+│   │       ├── sessions_router.py       # MCP Client session management endpoints
+│   │       ├── system_router.py         # Liveness, readiness, and telemetry
+│   │       └── tools_router.py          # Tool discovery & execution router
 │   ├── core/
 │   │   ├── config.py                    # Pydantic v2 application settings
 │   │   ├── constants/
 │   │   │   └── meta_tools.py            # Meta-tool names & sets (SEARCH_TOOLS, MULTI_EXECUTE_TOOLS)
 │   │   ├── enums/
-│   │   │   └── server_enum.py           # ServerHealthStatus, TransportType
+│   │   │   ├── server_enum.py           # ServerHealthStatus, TransportType
+│   │   │   └── session_enum.py          # SessionStatus, ToolCallStatus
 │   │   ├── logging.py                   # Structured correlation-ID logging
 │   │   └── exceptions.py                # Domain exception hierarchy
 │   ├── helpers/
@@ -113,38 +115,44 @@ backend/
 │   │   ├── text.py                      # String & slugification utilities
 │   │   └── validation.py                # JSON schema & tool argument validation
 │   ├── domain/
+│   │   ├── execution_entity.py          # ExecutionEntity dataclass
 │   │   ├── server_entity.py             # ServerEntity dataclass
-│   │   ├── tool_entity.py               # ToolEntity dataclass
-│   │   └── execution_entity.py          # ExecutionEntity dataclass
+│   │   ├── session_entity.py            # SessionEntity dataclass
+│   │   └── tool_entity.py               # ToolEntity dataclass
 │   ├── middlewares/
 │   │   └── correlation.py               # Pure ASGI correlation ID & request logger
 │   ├── models/
 │   │   ├── base_model.py                # Base declarative model class
+│   │   ├── execution_model.py           # ExecutionModel ORM mapping
 │   │   ├── server_model.py              # ServerModel ORM mapping
-│   │   ├── tool_model.py                # ToolModel ORM mapping
-│   │   └── execution_model.py           # ExecutionModel ORM mapping
+│   │   ├── session_model.py             # SessionModel ORM mapping
+│   │   └── tool_model.py                # ToolModel ORM mapping
 │   ├── schemas/
-│   │   ├── common.py                    # Paginated envelopes & Error responses
-│   │   ├── connection.py                # Stdio & HTTP transport connection schemas
-│   │   ├── server.py                    # Server models & validation
-│   │   ├── tool.py                      # Tool discovery & execution schemas
-│   │   ├── execution.py                 # Execution audit models
-│   │   └── system.py                    # Health & metrics models
+│   │   ├── common_schema.py             # Paginated envelopes & Error responses
+│   │   ├── connection_schema.py         # Stdio & HTTP transport connection schemas
+│   │   ├── execution_schema.py          # Execution audit models
+│   │   ├── server_schema.py             # Server models & validation
+│   │   ├── session_schema.py            # Session explorer models
+│   │   ├── system_schema.py             # Health & metrics models
+│   │   └── tool_schema.py               # Tool discovery & execution schemas
 │   ├── services/
-│   │   ├── server_registry.py           # Server CRUD business logic
 │   │   ├── connection_manager.py        # Process & stream session orchestration
+│   │   ├── server_registry.py           # Server CRUD business logic
+│   │   ├── session_explorer.py          # Session discovery & execution history
 │   │   ├── tool_catalog.py              # Cross-server tool aggregation cache
-│   │   ├── tool_router.py               # Input validation & execution router
-│   │   └── mcp_gateway.py               # MCP Gateway server & Streamable HTTP transport
+│   │   └── tool_executor.py             # Execution module: resolve, validate, call, audit
 │   ├── mcp/
-│   │   ├── search_tools.py              # Pure discovery SEARCH_TOOLS handler & scoring
-│   │   └── multi_execute_tools.py       # Parallel MULTI_EXECUTE_TOOLS dispatcher
+│   │   ├── mcp_proxy_asgi.py            # Streamable HTTP ASGI proxy application
+│   │   ├── mcp_server.py                # MCPServer exposing the hub over Streamable HTTP (/mcp)
+│   │   ├── multi_execute_tools.py       # Parallel MULTI_EXECUTE_TOOLS dispatcher
+│   │   └── search_tools.py              # Pure discovery SEARCH_TOOLS handler & scoring
 │   └── infrastructure/
 │       ├── database.py                  # Database connection & session setup
 │       └── repositories/
-│           ├── server_repo.py           # ServerRepositoryAbstract, PostgresServerRepository
-│           ├── tool_repo.py             # ToolRepositoryAbstract, PostgresToolRepository
-│           └── execution_repo.py        # ExecutionRepositoryAbstract, PostgresExecutionRepository
+│           ├── execution_repository.py  # ExecutionRepositoryAbstract, PostgresExecutionRepository
+│           ├── server_repository.py     # ServerRepositoryAbstract, PostgresServerRepository
+│           ├── session_repository.py    # SessionRepositoryAbstract, PostgresSessionRepository
+│           └── tool_repository.py       # ToolRepositoryAbstract, PostgresToolRepository
 ├── demo_server/
 │   └── server.py                        # Built-in demo MCP server (3 tools)
 ├── docs/

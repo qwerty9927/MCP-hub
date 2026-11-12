@@ -10,17 +10,17 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.routing import Route
 
-from app.api.dependencies import get_connection_manager, get_mcp_gateway, get_tool_catalog
-from app.api.v1.executions_route import router as executions_router
-from app.api.v1.servers_route import router as servers_router
-from app.api.v1.sessions_route import router as sessions_router
-from app.api.v1.system_route import router as system_router
-from app.api.v1.tools_route import router as tools_router
+from app.api.dependencies import get_connection_manager, get_mcp_server, get_tool_catalog
+from app.api.v1.executions_router import router as executions_router
+from app.api.v1.servers_router import router as servers_router
+from app.api.v1.sessions_router import router as sessions_router
+from app.api.v1.system_router import router as system_router
+from app.api.v1.tools_router import router as tools_router
 from app.core.config import get_settings
 from app.core.exceptions import AppError
 from app.core.logging import get_correlation_id, logger, setup_logging
 from app.middlewares.correlation import CorrelationAndLoggingMiddleware
-from app.schemas.common import ErrorDetail, ErrorResponse
+from app.schemas.common_schema import ErrorDetail, ErrorResponse
 
 
 @asynccontextmanager
@@ -34,9 +34,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     tool_catalog = get_tool_catalog()
     await tool_catalog.initialize_cache()
 
-    # Start MCP Gateway Streamable HTTP lifecycle
-    mcp_gateway = get_mcp_gateway()
-    async with mcp_gateway.run():
+    # Start MCP Server Streamable HTTP lifecycle
+    mcp_server = get_mcp_server()
+    async with mcp_server.run():
         yield
 
     logger.info("Initiating graceful shutdown...")
@@ -94,9 +94,7 @@ def create_app() -> FastAPI:
         )
 
     @app.exception_handler(RequestValidationError)
-    async def validation_exception_handler(
-        request: Request, exc: RequestValidationError
-    ) -> JSONResponse:
+    async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
         corr_id = get_correlation_id()
         errors = [
             {
@@ -169,13 +167,13 @@ def create_app() -> FastAPI:
 
     app.include_router(v1_router)
 
-    # Mount unified Streamable HTTP MCP Gateway endpoint at /mcp
-    mcp_gateway = get_mcp_gateway()
+    # Mount unified Streamable HTTP MCP Server endpoint at /mcp
+    mcp_server = get_mcp_server()
     app.routes.append(
         Route(
             "/mcp",
-            endpoint=mcp_gateway.get_proxy_asgi_app(),
-            name="mcp_gateway",
+            endpoint=mcp_server.get_proxy_asgi_app(),
+            name="mcp_server",
             include_in_schema=False,
         )
     )

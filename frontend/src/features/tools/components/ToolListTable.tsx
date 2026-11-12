@@ -5,22 +5,8 @@ import Link from "next/link";
 import { ToolRead } from "@/types";
 import { HealthBadge } from "@/components/common/HealthBadge";
 import { Button } from "@/components/ui/button";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Play, ExternalLink, Eye, Copy, Check, Server, FileText } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { toast } from "sonner";
@@ -112,9 +98,7 @@ export function ToolListTable({ tools }: ToolListTableProps) {
                                     </TableCell>
 
                                     <TableCell className="text-xs text-muted-foreground max-w-sm">
-                                        <p className="line-clamp-2">
-                                            {tool.description || "No description"}
-                                        </p>
+                                        <p className="line-clamp-2">{tool.description || "No description"}</p>
                                     </TableCell>
 
                                     <TableCell>
@@ -129,9 +113,7 @@ export function ToolListTable({ tools }: ToolListTableProps) {
                                         </span>
                                     </TableCell>
 
-                                    <TableCell className="text-xs text-muted-foreground">
-                                        {formatDate(tool.last_discovered_at)}
-                                    </TableCell>
+                                    <TableCell className="text-xs text-muted-foreground">{formatDate(tool.last_discovered_at)}</TableCell>
 
                                     <TableCell className="text-right">
                                         <div className="flex items-center justify-end gap-1.5">
@@ -146,17 +128,8 @@ export function ToolListTable({ tools }: ToolListTableProps) {
                                                 <span className="sr-only">Quick View</span>
                                             </Button>
 
-                                            <Button
-                                                asChild
-                                                size="sm"
-                                                variant="outline"
-                                                className="h-8 gap-1.5"
-                                            >
-                                                <Link
-                                                    href={`/playground?server=${tool.server_id}&tool=${encodeURIComponent(
-                                                        tool.name
-                                                    )}`}
-                                                >
+                                            <Button asChild size="sm" variant="outline" className="h-8 gap-1.5">
+                                                <Link href={`/playground?server=${tool.server_id}&tool=${encodeURIComponent(tool.name)}`}>
                                                     <Play className="h-3.5 w-3.5 text-primary" />
                                                     Test
                                                 </Link>
@@ -171,10 +144,7 @@ export function ToolListTable({ tools }: ToolListTableProps) {
             </div>
 
             {/* Quick Schema Preview Dialog */}
-            <Dialog
-                open={Boolean(previewTool)}
-                onOpenChange={(open) => !open && setPreviewTool(null)}
-            >
+            <Dialog open={Boolean(previewTool)} onOpenChange={(open) => !open && setPreviewTool(null)}>
                 <DialogContent className="max-w-xl max-h-[85vh] flex flex-col">
                     <DialogHeader>
                         <div className="flex items-center justify-between pr-4">
@@ -182,19 +152,11 @@ export function ToolListTable({ tools }: ToolListTableProps) {
                                 <FileText className="h-4 w-4 text-primary" />
                                 {previewTool?.name}
                             </DialogTitle>
-                            {previewTool && (
-                                <HealthBadge status={previewTool.availability_status} />
-                            )}
+                            {previewTool && <HealthBadge status={previewTool.availability_status} />}
                         </div>
                         <DialogDescription>
-                            Server:{" "}
-                            <span className="font-semibold text-foreground">
-                                {previewTool?.server_name}
-                            </span>{" "}
-                            | ID:{" "}
-                            <code className="text-xs font-mono bg-muted px-1 py-0.5 rounded">
-                                {previewTool?.id}
-                            </code>
+                            Server: <span className="font-semibold text-foreground">{previewTool?.server_name}</span> | ID:{" "}
+                            <code className="text-xs font-mono bg-muted px-1 py-0.5 rounded">{previewTool?.id}</code>
                         </DialogDescription>
                     </DialogHeader>
 
@@ -209,12 +171,7 @@ export function ToolListTable({ tools }: ToolListTableProps) {
                             <div>
                                 <div className="flex items-center justify-between mb-2">
                                     <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                                        Parameters (
-                                        {
-                                            Object.keys(previewTool.input_schema?.properties || {})
-                                                .length
-                                        }
-                                        )
+                                        Parameters ({Object.keys(previewTool.input_schema?.properties || {}).length})
                                     </h4>
                                     <Button
                                         type="button"
@@ -228,62 +185,43 @@ export function ToolListTable({ tools }: ToolListTableProps) {
                                     </Button>
                                 </div>
 
-                                {Object.keys(previewTool.input_schema?.properties || {}).length ===
-                                0 ? (
-                                    <p className="text-xs text-muted-foreground italic">
-                                        No input parameters required.
-                                    </p>
+                                {Object.keys(previewTool.input_schema?.properties || {}).length === 0 ? (
+                                    <p className="text-xs text-muted-foreground italic">No input parameters required.</p>
                                 ) : (
                                     <div className="rounded-md border border-border overflow-hidden">
                                         <table className="w-full text-xs">
                                             <thead className="bg-muted/50 border-b border-border">
                                                 <tr>
-                                                    <th className="p-2 text-left font-medium">
-                                                        Field
-                                                    </th>
-                                                    <th className="p-2 text-left font-medium">
-                                                        Type
-                                                    </th>
-                                                    <th className="p-2 text-left font-medium">
-                                                        Required
-                                                    </th>
-                                                    <th className="p-2 text-left font-medium">
-                                                        Description
-                                                    </th>
+                                                    <th className="p-2 text-left font-medium">Field</th>
+                                                    <th className="p-2 text-left font-medium">Type</th>
+                                                    <th className="p-2 text-left font-medium">Required</th>
+                                                    <th className="p-2 text-left font-medium">Description</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-border">
-                                                {Object.entries(
-                                                    previewTool.input_schema?.properties || {}
-                                                ).map(([key, prop]: [string, any]) => {
-                                                    const isReq = (
-                                                        previewTool.input_schema?.required || []
-                                                    ).includes(key);
-                                                    return (
-                                                        <tr key={key} className="hover:bg-muted/20">
-                                                            <td className="p-2 font-mono font-semibold">
-                                                                {key}
-                                                            </td>
-                                                            <td className="p-2 font-mono text-muted-foreground">
-                                                                {prop.type || "any"}
-                                                            </td>
-                                                            <td className="p-2">
-                                                                {isReq ? (
-                                                                    <span className="font-semibold text-destructive">
-                                                                        Yes
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="text-muted-foreground">
-                                                                        No
-                                                                    </span>
-                                                                )}
-                                                            </td>
-                                                            <td className="p-2 text-muted-foreground max-w-xs">
-                                                                {prop.description || "-"}
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })}
+                                                {Object.entries(previewTool.input_schema?.properties || {}).map(
+                                                    ([key, prop]: [string, any]) => {
+                                                        const isReq = (previewTool.input_schema?.required || []).includes(key);
+                                                        return (
+                                                            <tr key={key} className="hover:bg-muted/20">
+                                                                <td className="p-2 font-mono font-semibold">{key}</td>
+                                                                <td className="p-2 font-mono text-muted-foreground">
+                                                                    {prop.type || "any"}
+                                                                </td>
+                                                                <td className="p-2">
+                                                                    {isReq ? (
+                                                                        <span className="font-semibold text-destructive">Yes</span>
+                                                                    ) : (
+                                                                        <span className="text-muted-foreground">No</span>
+                                                                    )}
+                                                                </td>
+                                                                <td className="p-2 text-muted-foreground max-w-xs">
+                                                                    {prop.description || "-"}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    }
+                                                )}
                                             </tbody>
                                         </table>
                                     </div>
@@ -302,11 +240,7 @@ export function ToolListTable({ tools }: ToolListTableProps) {
                                     </Link>
                                 </Button>
                                 <Button asChild size="sm">
-                                    <Link
-                                        href={`/playground?server=${previewTool.server_id}&tool=${encodeURIComponent(
-                                            previewTool.name
-                                        )}`}
-                                    >
+                                    <Link href={`/playground?server=${previewTool.server_id}&tool=${encodeURIComponent(previewTool.name)}`}>
                                         <Play className="mr-1.5 h-3.5 w-3.5" />
                                         Test in Playground
                                     </Link>

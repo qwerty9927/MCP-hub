@@ -11,10 +11,10 @@ from app.core.exceptions import NotFoundError
 from app.domain.execution_entity import ExecutionEntity
 from app.domain.server_entity import ServerEntity
 from app.domain.session_entity import SessionEntity
-from app.infrastructure.repositories.execution_repo import PostgresExecutionRepository
-from app.infrastructure.repositories.server_repo import PostgresServerRepository
-from app.infrastructure.repositories.session_repo import PostgresSessionRepository
-from app.schemas.session import SessionCreate
+from app.infrastructure.repositories.execution_repository import PostgresExecutionRepository
+from app.infrastructure.repositories.server_repository import PostgresServerRepository
+from app.infrastructure.repositories.session_repository import PostgresSessionRepository
+from app.schemas.session_schema import SessionCreate
 from app.services.session_explorer import SessionExplorerService, mask_sensitive_data
 
 
@@ -127,20 +127,37 @@ async def test_session_repository_crud_and_metrics():
         )
     )
 
-    # 4. Get by ID and verify aggregated metrics
+    await exec_repo.create(
+        ExecutionEntity(
+            id=uuid4(),
+            server_id=server_id,
+            server_name="demo-math",
+            tool_name="add",
+            arguments={"a": "not-a-number"},
+            is_error=True,
+            duration_ms=0.0,
+            executed_at=now,
+            error_message="Invalid arguments",
+            session_id=session_id,
+            status="rejected",
+        )
+    )
+
+    # 4. Get by ID and verify aggregated metrics (rejected is its own bucket, ADR-0002)
     detail = await session_repo.get_by_id(session_id)
     assert detail is not None
     assert detail.id == session_id
-    assert detail.total_tool_calls == 3
+    assert detail.total_tool_calls == 4
     assert detail.successful_tool_calls == 2
     assert detail.failed_tool_calls == 1
+    assert detail.rejected_tool_calls == 1
 
     # 5. List sessions
     items, total = await session_repo.list(search="Interactive", status="active")
     assert total >= 1
     matched = [s for s in items if s.id == session_id]
     assert len(matched) == 1
-    assert matched[0].total_tool_calls == 3
+    assert matched[0].total_tool_calls == 4
 
     # 6. Update status
     updated = await session_repo.update_status(session_id, "completed")
@@ -239,9 +256,7 @@ async def test_execution_repo_list_by_session_sorting_and_filtering():
     ]
 
     # Filter by status: failed
-    calls_failed, count_failed = await exec_repo.list_by_session(
-        session_id=session_id, status="failed"
-    )
+    calls_failed, count_failed = await exec_repo.list_by_session(session_id=session_id, status="failed")
     assert count_failed == 1
     assert calls_failed[0].tool_name == "second_call"
     assert calls_failed[0].status == ToolCallStatus.FAILED

@@ -3,13 +3,7 @@
 import React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface PaginationControlProps {
     page: number;
@@ -37,20 +31,15 @@ export function PaginationControl({
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-4">
             <div className="text-sm text-muted-foreground">
                 Showing <span className="font-medium text-foreground">{from}</span> to{" "}
-                <span className="font-medium text-foreground">{to}</span> of{" "}
-                <span className="font-medium text-foreground">{total}</span> items
+                <span className="font-medium text-foreground">{to}</span> of <span className="font-medium text-foreground">{total}</span>{" "}
+                items
             </div>
 
             <div className="flex items-center gap-4">
                 {onPageSizeChange && (
                     <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground whitespace-nowrap">
-                            Rows per page
-                        </span>
-                        <Select
-                            value={String(pageSize)}
-                            onValueChange={(val) => onPageSizeChange(Number(val))}
-                        >
+                        <span className="text-sm text-muted-foreground whitespace-nowrap">Rows per page</span>
+                        <Select value={String(pageSize)} onValueChange={(val) => onPageSizeChange(Number(val))}>
                             <SelectTrigger className="h-8 w-18">
                                 <SelectValue placeholder={String(pageSize)} />
                             </SelectTrigger>
@@ -66,13 +55,7 @@ export function PaginationControl({
                 )}
 
                 <div className="flex items-center gap-1.5">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => onPageChange(page - 1)}
-                        disabled={page <= 1}
-                        className="h-8 px-2"
-                    >
+                    <Button variant="outline" size="sm" onClick={() => onPageChange(page - 1)} disabled={page <= 1} className="h-8 px-2">
                         <ChevronLeft className="h-4 w-4" />
                         <span className="sr-only">Previous Page</span>
                     </Button>

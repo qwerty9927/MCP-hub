@@ -10,13 +10,7 @@ interface EmptyStateProps {
     className?: string;
 }
 
-export function EmptyState({
-    icon: Icon = FolderSearch,
-    title,
-    description,
-    action,
-    className,
-}: EmptyStateProps) {
+export function EmptyState({ icon: Icon = FolderSearch, title, description, action, className }: EmptyStateProps) {
     return (
         <div
             className={cn(

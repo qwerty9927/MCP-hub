@@ -59,9 +59,7 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(op.f("ix_discovered_tools_name"), "discovered_tools", ["name"], unique=False)
-    op.create_index(
-        op.f("ix_discovered_tools_server_id"), "discovered_tools", ["server_id"], unique=False
-    )
+    op.create_index(op.f("ix_discovered_tools_server_id"), "discovered_tools", ["server_id"], unique=False)
     op.create_table(
         "tool_executions",
         sa.Column("id", sa.String(length=36), nullable=False),
@@ -76,15 +74,9 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["server_id"], ["mcp_servers.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(
-        op.f("ix_tool_executions_executed_at"), "tool_executions", ["executed_at"], unique=False
-    )
-    op.create_index(
-        op.f("ix_tool_executions_server_id"), "tool_executions", ["server_id"], unique=False
-    )
-    op.create_index(
-        op.f("ix_tool_executions_tool_name"), "tool_executions", ["tool_name"], unique=False
-    )
+    op.create_index(op.f("ix_tool_executions_executed_at"), "tool_executions", ["executed_at"], unique=False)
+    op.create_index(op.f("ix_tool_executions_server_id"), "tool_executions", ["server_id"], unique=False)
+    op.create_index(op.f("ix_tool_executions_tool_name"), "tool_executions", ["tool_name"], unique=False)
     # ### end Alembic commands ###
 
 

@@ -7,8 +7,7 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
     title: "MCP Hub — Multi-Server Management Dashboard",
-    description:
-        "Centralized administration dashboard for Model Context Protocol (MCP) servers and tools",
+    description: "Centralized administration dashboard for Model Context Protocol (MCP) servers and tools",
 };
 
 export default function RootLayout({
