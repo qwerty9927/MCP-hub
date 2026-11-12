@@ -5,12 +5,14 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 
-from app.api.dependencies import get_tool_catalog, get_tool_executor
+from app.api.dependencies import get_current_principal, get_server_registry_service, get_tool_catalog, get_tool_executor
 from app.core.enums.execution_enum import ExecutionOutcomeKind, RejectionReason
 from app.core.exceptions import AppError, BadGatewayError, BadRequestError, ConflictError, NotFoundError, ValidationError
 from app.core.logging import get_correlation_id
+from app.domain.principal_entity import Principal
 from app.schemas.common_schema import PaginatedResponse
 from app.schemas.tool_schema import ToolExecuteRequest, ToolExecuteResponse, ToolResponse
+from app.services.server_registry import ServerRegistryService
 from app.services.tool_catalog import ToolCatalogService, qualified_tool_id
 from app.services.tool_executor import ExecutionOutcome, ToolExecutor
 
@@ -23,6 +25,7 @@ router = APIRouter(tags=["Tools"])
     summary="List all discovered tools across MCP servers",
 )
 async def list_tools(
+    principal: Annotated[Principal, Depends(get_current_principal)],
     tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog)],
     server_id: UUID | None = Query(default=None, description="Filter by server UUID"),
     tool_name: str | None = Query(default=None, description="Filter by tool name"),
@@ -39,6 +42,7 @@ async def list_tools(
         search=search,
         page=page,
         page_size=page_size,
+        owner_id=principal.user_id,
     )
 
 
@@ -49,7 +53,9 @@ async def list_tools(
 )
 async def list_server_tools(
     server_id: UUID,
+    principal: Annotated[Principal, Depends(get_current_principal)],
     tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog)],
+    registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
     tool_name: str | None = Query(default=None, description="Filter by tool name"),
     status: str | None = Query(default=None, description="Filter by availability status"),
     search: str | None = Query(default=None, description="Search query matching name or description"),
@@ -57,6 +63,7 @@ async def list_server_tools(
     page_size: int = Query(default=20, ge=1, le=100, description="Items per page"),
 ) -> PaginatedResponse[ToolResponse]:
     """Retrieve tools discovered for a specific server."""
+    await registry.get_server_entity(server_id, owner_id=principal.user_id)
     return await tool_cat.list_tools(
         server_id=server_id,
         tool_name=tool_name,
@@ -64,6 +71,7 @@ async def list_server_tools(
         search=search,
         page=page,
         page_size=page_size,
+        owner_id=principal.user_id,
     )
 
 
@@ -74,10 +82,11 @@ async def list_server_tools(
 )
 async def get_tool(
     tool_id: str,
+    principal: Annotated[Principal, Depends(get_current_principal)],
     tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog)],
 ) -> ToolResponse:
     """Retrieve details and schema of a specific tool by qualified ID or name."""
-    entity = await tool_cat.get_tool(tool_id)
+    entity = await tool_cat.get_tool(tool_id, owner_id=principal.user_id)
     return ToolResponse(
         id=entity.id,
         name=entity.name,
@@ -99,10 +108,13 @@ async def execute_tool(
     server_id: UUID,
     tool_name: str,
     payload: ToolExecuteRequest,
+    principal: Annotated[Principal, Depends(get_current_principal)],
     executor: Annotated[ToolExecutor, Depends(get_tool_executor)],
 ) -> ToolExecuteResponse:
     """Validate arguments and invoke the specified MCP tool on the target server."""
-    outcome = await executor.execute(qualified_tool_id(server_id, tool_name), payload.arguments, session_id=payload.session_id)
+    outcome = await executor.execute(
+        qualified_tool_id(server_id, tool_name), payload.arguments, owner_id=principal.user_id, session_id=payload.session_id
+    )
     return _execute_response(outcome)
 
 

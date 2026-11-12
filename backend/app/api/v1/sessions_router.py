@@ -5,7 +5,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
 
-from app.api.dependencies import get_session_explorer_service
+from app.api.dependencies import get_current_principal, get_session_explorer_service
+from app.domain.principal_entity import Principal
 from app.schemas.common_schema import PaginatedResponse
 from app.schemas.session_schema import (
     SessionCreateRequest,
@@ -26,10 +27,11 @@ router = APIRouter(prefix="/sessions", tags=["Sessions"])
 )
 async def create_session(
     payload: SessionCreateRequest,
+    principal: Annotated[Principal, Depends(get_current_principal)],
     service: Annotated[SessionExplorerService, Depends(get_session_explorer_service)],
 ) -> SessionResponse:
     """Explicitly create a new session."""
-    return await service.create_session(payload)
+    return await service.create_session(payload, owner_id=principal.user_id)
 
 
 @router.get(
@@ -38,6 +40,7 @@ async def create_session(
     summary="List MCP client sessions",
 )
 async def list_sessions(
+    principal: Annotated[Principal, Depends(get_current_principal)],
     service: Annotated[SessionExplorerService, Depends(get_session_explorer_service)],
     page: int = Query(default=1, ge=1, description="Page number"),
     page_size: int = Query(default=20, ge=1, le=100, description="Items per page"),
@@ -50,6 +53,7 @@ async def list_sessions(
         page_size=page_size,
         search=search,
         status=status,
+        owner_id=principal.user_id,
     )
 
 
@@ -60,10 +64,11 @@ async def list_sessions(
 )
 async def get_session(
     session_id: str,
+    principal: Annotated[Principal, Depends(get_current_principal)],
     service: Annotated[SessionExplorerService, Depends(get_session_explorer_service)],
 ) -> SessionDetailResponse:
     """Retrieve session details with aggregated tool execution counts."""
-    return await service.get_session(session_id)
+    return await service.get_session(session_id, owner_id=principal.user_id)
 
 
 @router.get(
@@ -73,6 +78,7 @@ async def get_session(
 )
 async def list_session_tool_calls(
     session_id: str,
+    principal: Annotated[Principal, Depends(get_current_principal)],
     service: Annotated[SessionExplorerService, Depends(get_session_explorer_service)],
     page: int = Query(default=1, ge=1, description="Page number"),
     page_size: int = Query(default=20, ge=1, le=100, description="Items per page"),
@@ -95,6 +101,7 @@ async def list_session_tool_calls(
         status=status,
         server_name=server_name,
         tool_name=tool_name,
+        owner_id=principal.user_id,
     )
 
 
@@ -106,7 +113,8 @@ async def list_session_tool_calls(
 async def get_session_tool_call(
     session_id: str,
     call_id: UUID,
+    principal: Annotated[Principal, Depends(get_current_principal)],
     service: Annotated[SessionExplorerService, Depends(get_session_explorer_service)],
 ) -> ToolCallResponse:
     """Retrieve an individual tool call by its UUID within a session."""
-    return await service.get_session_tool_call(session_id, call_id)
+    return await service.get_session_tool_call(session_id, call_id, owner_id=principal.user_id)

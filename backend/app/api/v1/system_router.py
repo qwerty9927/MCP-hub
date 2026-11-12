@@ -8,11 +8,13 @@ from fastapi import APIRouter, Depends
 
 from app.api.dependencies import (
     get_connection_manager,
+    get_current_principal,
     get_execution_repository,
     get_server_repository,
 )
 from app.core.config import get_settings
 from app.core.enums.server_enum import ServerHealthStatus
+from app.domain.principal_entity import Principal
 from app.infrastructure.repositories.execution_repository import ExecutionRepositoryAbstract
 from app.infrastructure.repositories.server_repository import ServerRepositoryAbstract
 from app.schemas.system_schema import HealthResponse, MetricsResponse, ReadyResponse
@@ -65,18 +67,19 @@ async def readiness(
     summary="Application metrics",
 )
 async def metrics(
+    principal: Annotated[Principal, Depends(get_current_principal)],
     server_repo: Annotated[ServerRepositoryAbstract, Depends(get_server_repository)],
     exec_repo: Annotated[ExecutionRepositoryAbstract, Depends(get_execution_repository)],
     connection_mgr: Annotated[ConnectionManager, Depends(get_connection_manager)],
 ) -> MetricsResponse:
     """Telemetry metrics including active sessions, server health counts, and execution totals."""
-    servers, total_servers = await server_repo.list(page=1, page_size=1000)
+    servers, total_servers = await server_repo.list(page=1, page_size=1000, owner_id=principal.user_id)
     healthy_servers = sum(1 for s in servers if s.health_status == ServerHealthStatus.HEALTHY)
-    _, total_executions = await exec_repo.list(page=1, page_size=1)
+    _, total_executions = await exec_repo.list(page=1, page_size=1, owner_id=principal.user_id)
     uptime_seconds = round(time.perf_counter() - START_TIME, 2)
 
     return MetricsResponse(
-        active_sessions=connection_mgr.get_active_session_count(),
+        active_sessions=connection_mgr.get_active_session_count(owner_id=principal.user_id),
         total_servers=total_servers,
         healthy_servers=healthy_servers,
         total_executions=total_executions,

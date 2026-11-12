@@ -31,7 +31,9 @@ class StubExecutor:
         self.outcomes = outcomes
         self.calls: list[tuple[str, dict[str, Any], str | None]] = []
 
-    async def execute(self, tool_reference: str, arguments: dict[str, Any], session_id: str | None = None, timeout: float | None = None):
+    async def execute(
+        self, tool_reference: str, arguments: dict[str, Any], *, owner_id=None, session_id: str | None = None, timeout: float | None = None
+    ):
         self.calls.append((tool_reference, arguments, session_id))
         result = self.outcomes[tool_reference]
         if isinstance(result, Exception):
@@ -41,7 +43,7 @@ class StubExecutor:
 
 async def run(executor: StubExecutor, *slugs: str, session_id: str | None = None) -> list[dict[str, Any]]:
     payload = {"executions": [{"tool_slug": s, "arguments": {"x": 1}} for s in slugs]}
-    res = await handle_multi_execute_tools(arguments=payload, executor=executor, session_id=session_id)
+    res = await handle_multi_execute_tools(arguments=payload, executor=executor, owner_id=None, session_id=session_id)
     return res["results"]
 
 
@@ -144,4 +146,4 @@ async def test_payload_validation():
     executor = StubExecutor({})
     for bad in ({"executions": []}, {}, {"executions": [{"tool_slug": "calc", "arguments": {}}], "extra_key": True}):
         with pytest.raises(ValidationError):
-            await handle_multi_execute_tools(arguments=bad, executor=executor)
+            await handle_multi_execute_tools(arguments=bad, executor=executor, owner_id=None)

@@ -21,9 +21,9 @@ from tests.fake_downstream import FakeDownstream
 
 
 @pytest.fixture
-async def server():
+async def server(owner_id):
     return await PostgresServerRepository().create(
-        ServerEntity(name="Math Server", transport=TransportType.STDIO, stdio_config=StdioConfig(command="python3"))
+        ServerEntity(name="Math Server", transport=TransportType.STDIO, stdio_config=StdioConfig(command="python3"), owner_id=owner_id)
     )
 
 

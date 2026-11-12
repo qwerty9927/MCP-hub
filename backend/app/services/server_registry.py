@@ -23,9 +23,9 @@ class ServerRegistryService:
     def __init__(self, repository: ServerRepositoryAbstract) -> None:
         self.repository = repository
 
-    async def create_server(self, data: ServerCreateRequest) -> ServerResponse:
-        """Register a new MCP server configuration."""
-        existing = await self.repository.get_by_name(data.name)
+    async def create_server(self, data: ServerCreateRequest, *, owner_id: UUID | None) -> ServerResponse:
+        """Register a new MCP server configuration owned by `owner_id`."""
+        existing = await self.repository.get_by_name(data.name, owner_id=owner_id)
         if existing:
             raise ConflictError(
                 f"A server with name '{data.name}' already exists",
@@ -39,6 +39,7 @@ class ServerRegistryService:
             stdio_config=data.stdio_config,
             http_config=data.http_config,
             enabled=data.enabled,
+            owner_id=owner_id,
             health_status=ServerHealthStatus.UNKNOWN,
         )
 
@@ -46,14 +47,14 @@ class ServerRegistryService:
         logger.info(f"Registered MCP server '{saved.name}' (id: {saved.id}, transport: {saved.transport})")
         return ServerResponse.from_domain(saved)
 
-    async def get_server(self, server_id: UUID) -> ServerResponse:
-        """Retrieve server by ID or raise NotFoundError."""
-        entity = await self.get_server_entity(server_id)
+    async def get_server(self, server_id: UUID, *, owner_id: UUID | None) -> ServerResponse:
+        """Retrieve the owner's server by ID or raise NotFoundError."""
+        entity = await self.get_server_entity(server_id, owner_id=owner_id)
         return ServerResponse.from_domain(entity)
 
-    async def get_server_entity(self, server_id: UUID) -> ServerEntity:
-        """Internal helper to get raw domain entity."""
-        server = await self.repository.get_by_id(server_id)
+    async def get_server_entity(self, server_id: UUID, owner_id: UUID | None = None) -> ServerEntity:
+        """Get the raw entity; with `owner_id`, a server owned by anyone else is NotFound (no existence leak)."""
+        server = await self.repository.get_by_id(server_id, owner_id=owner_id)
         if not server:
             raise NotFoundError(
                 f"Server with id '{server_id}' not found",
@@ -71,6 +72,8 @@ class ServerRegistryService:
         search: str | None = None,
         sort_by: str = "created_at",
         sort_order: str = "desc",
+        *,
+        owner_id: UUID | None,
     ) -> PaginatedResponse[ServerResponse]:
         """List servers with pagination, filtering, and sorting."""
         items, total = await self.repository.list(
@@ -82,6 +85,7 @@ class ServerRegistryService:
             search=search,
             sort_by=sort_by,
             sort_order=sort_order,
+            owner_id=owner_id,
         )
 
         read_items = [ServerResponse.from_domain(s) for s in items]
@@ -95,13 +99,13 @@ class ServerRegistryService:
             total_pages=total_pages,
         )
 
-    async def update_server(self, server_id: UUID, data: ServerUpdateRequest) -> ServerResponse:
+    async def update_server(self, server_id: UUID, data: ServerUpdateRequest, *, owner_id: UUID | None) -> ServerResponse:
         """Update an existing server's configuration."""
-        server = await self.get_server_entity(server_id)
+        server = await self.get_server_entity(server_id, owner_id=owner_id)
 
         # Check name uniqueness if changed
         if data.name and data.name.lower() != server.name.lower():
-            existing = await self.repository.get_by_name(data.name)
+            existing = await self.repository.get_by_name(data.name, owner_id=server.owner_id)
             if existing and existing.id != server_id:
                 raise ConflictError(
                     f"A server with name '{data.name}' already exists",
@@ -125,9 +129,9 @@ class ServerRegistryService:
         logger.info(f"Updated MCP server '{updated.name}' (id: {updated.id})")
         return ServerResponse.from_domain(updated)
 
-    async def delete_server(self, server_id: UUID) -> bool:
-        """Delete an MCP server from the registry."""
-        server = await self.get_server_entity(server_id)
+    async def delete_server(self, server_id: UUID, *, owner_id: UUID | None) -> bool:
+        """Delete the owner's MCP server from the registry."""
+        server = await self.get_server_entity(server_id, owner_id=owner_id)
         deleted = await self.repository.delete(server_id)
         if deleted:
             logger.info(f"Deleted MCP server '{server.name}' (id: {server_id})")

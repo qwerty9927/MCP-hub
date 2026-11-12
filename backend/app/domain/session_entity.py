@@ -19,6 +19,9 @@ class SessionEntity:
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     last_activity_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     total_tool_calls: int = 0
+    owner_id: UUID | None = None
+    api_key_id: UUID | None = None  # API key the session's requests came with, if any
+    client_fingerprint: str | None = None  # set on sessions the hub derived for sessionless clients
 
 
 @dataclass

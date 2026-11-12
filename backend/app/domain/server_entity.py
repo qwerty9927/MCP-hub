@@ -19,6 +19,7 @@ class ServerEntity:
     stdio_config: StdioConfig | None = None
     http_config: HttpConfig | None = None
     enabled: bool = True
+    owner_id: UUID | None = None
     health_status: ServerHealthStatus = ServerHealthStatus.UNKNOWN
     last_connected_at: datetime | None = None
     last_health_check_at: datetime | None = None

@@ -113,19 +113,25 @@ class ToolExecutor:
         self,
         tool_reference: str,
         arguments: dict[str, Any],
+        *,
+        owner_id: UUID | None,
         session_id: str | None = None,
         timeout: float | None = None,
     ) -> ExecutionOutcome:
-        """Execute the Tool named by `tool_reference` and return its Outcome.
+        """Execute the owner's Tool named by `tool_reference` and return its Outcome.
+
+        A Tool on a Server owned by another account does not resolve, so it is the same Outcome as an unknown Tool.
+        `session_id` must be one of the owner's Sessions; anything else raises NotFoundError before any work.
 
         Expected outcomes (unknown Tool, disabled Server, unavailable Tool, invalid arguments, downstream
         errors and faults) are returned, never raised. Only faults in the hub's own infrastructure raise,
         plus `asyncio.CancelledError`, which is recorded and then re-raised.
         """
         executed_at = datetime.now(UTC)
+        await self._check_session(session_id, owner_id)
 
         try:
-            tool = await self._resolve(tool_reference)
+            tool = await self._resolve(tool_reference, owner_id)
             server = await self._server_for(tool) if tool else None
             if tool is None or server is None:
                 raise _Unresolved(
@@ -175,8 +181,14 @@ class ToolExecutor:
         await self._record(outcome, arguments, session_id, started_at=executed_at)
         return outcome
 
-    async def _resolve(self, tool_reference: str) -> ToolEntity | None:
-        tool = await self._tool_catalog.resolve(tool_reference)
+    async def _check_session(self, session_id: str | None, owner_id: UUID | None) -> None:
+        if not session_id or self._session_repository is None:
+            return
+        if await self._session_repository.get_by_id(session_id, owner_id=owner_id) is None:
+            raise NotFoundError(f"Session with id '{session_id}' not found", details={"session_id": session_id})
+
+    async def _resolve(self, tool_reference: str, owner_id: UUID | None) -> ToolEntity | None:
+        tool = await self._tool_catalog.resolve(tool_reference, owner_id=owner_id)
         if tool is not None:
             return tool
 
@@ -185,7 +197,7 @@ class ToolExecutor:
         if server_id is None:
             return None
         try:
-            server = await self._server_registry.get_server_entity(server_id)
+            server = await self._server_registry.get_server_entity(server_id, owner_id=owner_id)
         except NotFoundError:
             return None
         if not server.enabled:
@@ -197,7 +209,7 @@ class ToolExecutor:
             message = f"Could not refresh tools from server '{server.name}': {format_mcp_error(exc)}"
             raise _Unresolved(ExecutionOutcomeKind.FAILED, message) from exc
         await self._server_registry.update_health(server.id, server.health_status, len(refreshed))
-        return await self._tool_catalog.resolve(tool_reference)
+        return await self._tool_catalog.resolve(tool_reference, owner_id=owner_id)
 
     async def _server_for(self, tool: ToolEntity) -> ServerEntity | None:
         try:

@@ -32,6 +32,7 @@ class ToolRepositoryAbstract(ABC):
         self,
         tool_id_or_name: str,
         server_id: UUID | None = None,
+        owner_id: UUID | None = None,
     ) -> ToolEntity | None:
         """Retrieve a tool by qualified ID or tool name."""
         pass
@@ -45,6 +46,7 @@ class ToolRepositoryAbstract(ABC):
         search: str | None = None,
         page: int = 1,
         page_size: int = 20,
+        owner_id: UUID | None = None,
     ) -> tuple[list[ToolEntity], int]:
         """List and search tools across servers with pagination."""
         pass
@@ -85,6 +87,7 @@ class PostgresToolRepository(ToolRepositoryAbstract):
                     id=tool.id,
                     server_id=str(server_id),
                     server_name=server_name,
+                    owner_id=str(tool.owner_id) if tool.owner_id else None,
                     name=tool.name,
                     description=tool.description,
                     input_schema=tool.input_schema or {},
@@ -106,30 +109,27 @@ class PostgresToolRepository(ToolRepositoryAbstract):
         self,
         tool_id_or_name: str,
         server_id: UUID | None = None,
+        owner_id: UUID | None = None,
     ) -> ToolEntity | None:
         async with self.session_factory() as session:
+            owned = ToolModel.owner_id == str(owner_id) if owner_id is not None else True
+
             # 1. Look up by exact qualified ID
-            stmt = select(ToolModel).where(ToolModel.id == tool_id_or_name)
-            res = await session.execute(stmt)
-            model = res.scalar_one_or_none()
+            stmt = select(ToolModel).where(ToolModel.id == tool_id_or_name, owned)
+            model = (await session.execute(stmt)).scalar_one_or_none()
             if model:
                 return model.to_domain()
 
-            # 2. Look up by name and server_id if given
+            name_match = func.lower(ToolModel.name) == tool_id_or_name.lower()
+            # 2. Look up by name on the given server; a named server never falls through to other servers
             if server_id is not None:
-                stmt = select(ToolModel).where(
-                    ToolModel.server_id == str(server_id),
-                    func.lower(ToolModel.name) == tool_id_or_name.lower(),
-                )
-                res = await session.execute(stmt)
-                model = res.scalar_one_or_none()
-                if model:
-                    return model.to_domain()
+                stmt = select(ToolModel).where(ToolModel.server_id == str(server_id), name_match, owned)
+                model = (await session.execute(stmt)).scalar_one_or_none()
+                return model.to_domain() if model else None
 
-            # 3. Look up by name across all servers
-            stmt = select(ToolModel).where(func.lower(ToolModel.name) == tool_id_or_name.lower())
-            res = await session.execute(stmt)
-            model = res.scalar_one_or_none()
+            # 3. Look up by name across the owner's servers (several servers may share a tool name)
+            stmt = select(ToolModel).where(name_match, owned).order_by(ToolModel.server_name.asc(), ToolModel.id.asc()).limit(1)
+            model = (await session.execute(stmt)).scalars().first()
             return model.to_domain() if model else None
 
     async def list_tools(
@@ -140,10 +140,13 @@ class PostgresToolRepository(ToolRepositoryAbstract):
         search: str | None = None,
         page: int = 1,
         page_size: int = 20,
+        owner_id: UUID | None = None,
     ) -> tuple[list[ToolEntity], int]:
         async with self.session_factory() as session:
             stmt = select(ToolModel)
 
+            if owner_id is not None:
+                stmt = stmt.where(ToolModel.owner_id == str(owner_id))
             if server_id is not None:
                 stmt = stmt.where(ToolModel.server_id == str(server_id))
             if tool_name:

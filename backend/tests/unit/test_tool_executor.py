@@ -103,7 +103,7 @@ async def only_execution(execution_repo, server: ServerEntity) -> ExecutionEntit
 
 
 async def test_tool_slug_succeeds_and_is_recorded_once(executor, execution_repo, connected_server):
-    outcome = await executor.execute("math_server__add", {"a": 2, "b": 3})
+    outcome = await executor.execute("math_server__add", {"a": 2, "b": 3}, owner_id=None)
 
     assert outcome.kind == ExecutionOutcomeKind.SUCCEEDED
     assert outcome.rejection_reason is None
@@ -121,7 +121,7 @@ async def test_tool_slug_succeeds_and_is_recorded_once(executor, execution_repo,
 
 
 async def test_qualified_tool_id_succeeds(executor, connected_server):
-    outcome = await executor.execute(f"{connected_server.id}:add", {"a": 1, "b": 1})
+    outcome = await executor.execute(f"{connected_server.id}:add", {"a": 1, "b": 1}, owner_id=None)
 
     assert outcome.kind == ExecutionOutcomeKind.SUCCEEDED
     assert outcome.structured_content == {"result": 2}
@@ -130,7 +130,7 @@ async def test_qualified_tool_id_succeeds(executor, connected_server):
 async def test_qualified_tool_id_refreshes_catalog_on_miss(executor, server_repo, downstream):
     server = await register_server(server_repo)  # never refreshed: catalog is empty
 
-    outcome = await executor.execute(f"{server.id}:add", {"a": 4, "b": 4})
+    outcome = await executor.execute(f"{server.id}:add", {"a": 4, "b": 4}, owner_id=None)
 
     assert outcome.kind == ExecutionOutcomeKind.SUCCEEDED
     assert outcome.structured_content == {"result": 8}
@@ -140,7 +140,7 @@ async def test_qualified_tool_id_refreshes_catalog_on_miss(executor, server_repo
 
 
 async def test_tool_error_joins_text_blocks_and_records_failed(executor, execution_repo, connected_server):
-    outcome = await executor.execute("math_server__explode", {})
+    outcome = await executor.execute("math_server__explode", {}, owner_id=None)
 
     assert outcome.kind == ExecutionOutcomeKind.TOOL_ERROR
     assert outcome.error_message == "first line\nsecond line"
@@ -151,14 +151,14 @@ async def test_tool_error_joins_text_blocks_and_records_failed(executor, executi
 
 
 async def test_tool_error_without_text_uses_fallback_message(executor, connected_server):
-    outcome = await executor.execute("math_server__silent_error", {})
+    outcome = await executor.execute("math_server__silent_error", {}, owner_id=None)
 
     assert outcome.kind == ExecutionOutcomeKind.TOOL_ERROR
     assert outcome.error_message == "Tool execution reported an error"
 
 
 async def test_downstream_fault_is_failed_and_recorded(executor, execution_repo, connected_server):
-    outcome = await executor.execute("math_server__hang", {})
+    outcome = await executor.execute("math_server__hang", {}, owner_id=None)
 
     assert outcome.kind == ExecutionOutcomeKind.FAILED
     assert "timed out" in (outcome.error_message or "")
@@ -169,7 +169,7 @@ async def test_downstream_fault_is_failed_and_recorded(executor, execution_repo,
 
 async def test_cancellation_is_recorded_then_propagated(executor, execution_repo, connected_server):
     with pytest.raises(asyncio.CancelledError):
-        await executor.execute("math_server__cancel", {})
+        await executor.execute("math_server__cancel", {}, owner_id=None)
 
     record = await only_execution(execution_repo, connected_server)
     assert record.status == ToolCallStatus.FAILED
@@ -180,7 +180,7 @@ async def test_cancellation_is_recorded_then_propagated(executor, execution_repo
 
 
 async def test_invalid_arguments_rejected_and_recorded(executor, execution_repo, downstream, connected_server):
-    outcome = await executor.execute("math_server__add", {"a": 1})
+    outcome = await executor.execute("math_server__add", {"a": 1}, owner_id=None)
 
     assert outcome.kind == ExecutionOutcomeKind.REJECTED
     assert outcome.rejection_reason == RejectionReason.INVALID_ARGUMENTS
@@ -199,7 +199,7 @@ async def test_disabled_server_rejected_and_recorded(executor, server_repo, exec
     connected_server.enabled = False
     await server_repo.update(connected_server)
 
-    outcome = await executor.execute("math_server__add", {"a": 1, "b": 2})
+    outcome = await executor.execute("math_server__add", {"a": 1, "b": 2}, owner_id=None)
 
     assert outcome.kind == ExecutionOutcomeKind.REJECTED
     assert outcome.rejection_reason == RejectionReason.SERVER_DISABLED
@@ -213,7 +213,7 @@ async def test_unavailable_tool_rejected_and_recorded(executor, catalog, executi
     tool = await catalog.get_tool("add", server_id=connected_server.id)
     tool.availability_status = "UNAVAILABLE"
 
-    outcome = await executor.execute("math_server__add", {"a": 1, "b": 2})
+    outcome = await executor.execute("math_server__add", {"a": 1, "b": 2}, owner_id=None)
 
     assert outcome.kind == ExecutionOutcomeKind.REJECTED
     assert outcome.rejection_reason == RejectionReason.TOOL_UNAVAILABLE
@@ -226,10 +226,10 @@ async def test_unavailable_tool_rejected_and_recorded(executor, catalog, executi
 
 
 async def test_unknown_tool_is_rejected_without_execution_record(executor, execution_repo, session_repo, connected_server):
-    session = await session_repo.get_or_create(session_id=f"sess-{uuid4()}")
+    session = await session_repo.get_or_create(session_id=f"sess-{uuid4()}", owner_id=None)
     before = session.last_activity_at
 
-    outcome = await executor.execute("math_server__does_not_exist", {}, session_id=session.id)
+    outcome = await executor.execute("math_server__does_not_exist", {}, owner_id=None, session_id=session.id)
 
     assert outcome.kind == ExecutionOutcomeKind.REJECTED
     assert outcome.rejection_reason == RejectionReason.UNKNOWN_TOOL
@@ -243,7 +243,7 @@ async def test_unknown_tool_is_rejected_without_execution_record(executor, execu
 
 
 async def test_qualified_id_for_unregistered_server_is_unknown_tool(executor):
-    outcome = await executor.execute(f"{uuid4()}:add", {"a": 1, "b": 2})
+    outcome = await executor.execute(f"{uuid4()}:add", {"a": 1, "b": 2}, owner_id=None)
 
     assert outcome.kind == ExecutionOutcomeKind.REJECTED
     assert outcome.rejection_reason == RejectionReason.UNKNOWN_TOOL
@@ -253,9 +253,9 @@ async def test_qualified_id_for_unregistered_server_is_unknown_tool(executor):
 
 
 async def test_execution_is_linked_to_session_and_bumps_activity(executor, execution_repo, session_repo, connected_server):
-    session = await session_repo.get_or_create(session_id=f"sess-{uuid4()}")
+    session = await session_repo.get_or_create(session_id=f"sess-{uuid4()}", owner_id=None)
 
-    outcome = await executor.execute("math_server__add", {"a": 1, "b": 2}, session_id=session.id)
+    outcome = await executor.execute("math_server__add", {"a": 1, "b": 2}, owner_id=None, session_id=session.id)
 
     record = await only_execution(execution_repo, connected_server)
     assert record.session_id == session.id
@@ -269,7 +269,7 @@ async def test_execution_is_linked_to_session_and_bumps_activity(executor, execu
 async def test_audit_failure_still_returns_real_outcome(server_repo, downstream, catalog, session_repo, connected_server):
     executor = build_executor(server_repo, downstream, catalog, FailingExecutionRepository(), session_repo)
 
-    outcome = await executor.execute("math_server__add", {"a": 2, "b": 2})
+    outcome = await executor.execute("math_server__add", {"a": 2, "b": 2}, owner_id=None)
 
     assert outcome.kind == ExecutionOutcomeKind.SUCCEEDED
     assert outcome.structured_content == {"result": 4}
@@ -281,7 +281,7 @@ async def test_qualified_id_on_disabled_uncatalogued_server_is_server_disabled_w
 ):
     server = await register_server(server_repo, enabled=False)  # catalog empty, cannot refresh a disabled Server
 
-    outcome = await executor.execute(f"{server.id}:add", {"a": 1, "b": 2})
+    outcome = await executor.execute(f"{server.id}:add", {"a": 1, "b": 2}, owner_id=None)
 
     assert outcome.kind == ExecutionOutcomeKind.REJECTED
     assert outcome.rejection_reason == RejectionReason.SERVER_DISABLED

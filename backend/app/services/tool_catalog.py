@@ -78,6 +78,7 @@ class ToolCatalogService:
                 id=qualified_id,
                 server_id=server.id,
                 server_name=server.name,
+                owner_id=server.owner_id,
                 name=mcp_tool.name,
                 description=mcp_tool.description,
                 input_schema=schema,
@@ -122,8 +123,9 @@ class ToolCatalogService:
         search: str | None = None,
         page: int = 1,
         page_size: int = 20,
+        owner_id: UUID | None = None,
     ) -> PaginatedResponse[ToolResponse]:
-        """Search and list tools with filtering and pagination across persistent storage."""
+        """Search and list tools with filtering and pagination; `owner_id` limits it to that account's Servers."""
         if self.repository:
             items, total = await self.repository.list_tools(
                 server_id=server_id,
@@ -132,11 +134,14 @@ class ToolCatalogService:
                 search=search,
                 page=page,
                 page_size=page_size,
+                owner_id=owner_id,
             )
         else:
             async with self._lock:
                 raw_items = list(self._tools.values())
 
+            if owner_id is not None:
+                raw_items = [t for t in raw_items if t.owner_id == owner_id]
             if server_id is not None:
                 raw_items = [t for t in raw_items if t.server_id == server_id]
             if tool_name:
@@ -181,51 +186,56 @@ class ToolCatalogService:
             total_pages=total_pages,
         )
 
-    async def resolve(self, tool_reference: str) -> ToolEntity | None:
-        """Resolve a Tool Reference (Qualified Tool ID or Tool Slug) to its Tool, or None when nothing matches."""
+    async def resolve(self, tool_reference: str, *, owner_id: UUID | None) -> ToolEntity | None:
+        """Resolve a Tool Reference (Qualified Tool ID or Tool Slug) to one of the owner's Tools, or None."""
         server_id, tool_name = split_qualified_tool_id(tool_reference)
         if server_id is not None:
             try:
-                return await self.get_tool(tool_name, server_id=server_id)
+                return await self.get_tool(tool_name, server_id=server_id, owner_id=owner_id)
             except NotFoundError:
                 return None
 
         try:
-            return await self.get_tool(tool_reference)
+            return await self.get_tool(tool_reference, owner_id=owner_id)
         except NotFoundError:
             pass
 
-        # Tool Slug: "{server_slug}__{tool_name}"
+        # Tool Slug: "{server_slug}__{tool_name}" (unique per owner, since server names are)
         if "__" not in tool_reference:
             return None
         server_slug, slug_tool_name = tool_reference.split("__", 1)
-        candidates = await self.list_tools(tool_name=slug_tool_name, page=1, page_size=100)
+        candidates = await self.list_tools(tool_name=slug_tool_name, page=1, page_size=100, owner_id=owner_id)
         for candidate in candidates.items:
             if slugify(candidate.server_name) == server_slug:
-                return await self.get_tool(candidate.id)
+                return await self.get_tool(candidate.id, owner_id=owner_id)
         return None
 
-    async def get_tool(self, tool_id_or_name: str, server_id: UUID | None = None) -> ToolEntity:
-        """Find a tool by qualified ID or by name and optional server_id."""
+    async def get_tool(self, tool_id_or_name: str, server_id: UUID | None = None, owner_id: UUID | None = None) -> ToolEntity:
+        """Find a tool by qualified ID, or by name on `server_id` (only that server) or on any of the owner's servers."""
+
+        def visible(tool: ToolEntity) -> bool:
+            return owner_id is None or tool.owner_id == owner_id
+
         async with self._lock:
             # 1. Exact match by qualified ID: "{server_id}:{tool_name}"
-            if tool_id_or_name in self._tools:
-                return self._tools[tool_id_or_name]
+            cached = self._tools.get(tool_id_or_name)
+            if cached and visible(cached):
+                return cached
 
             # 2. Check if server_id provided
             if server_id:
-                qualified = qualified_tool_id(server_id, tool_id_or_name)
-                if qualified in self._tools:
-                    return self._tools[qualified]
+                cached = self._tools.get(qualified_tool_id(server_id, tool_id_or_name))
+                if cached and visible(cached):
+                    return cached
 
             # 3. Match by name
             for tool in self._tools.values():
-                if tool.name.lower() == tool_id_or_name.lower() and (server_id is None or tool.server_id == server_id):
+                if tool.name.lower() == tool_id_or_name.lower() and (server_id is None or tool.server_id == server_id) and visible(tool):
                     return tool
 
         # If not found in cache, fallback to database repository
         if self.repository:
-            db_tool = await self.repository.get_tool(tool_id_or_name, server_id=server_id)
+            db_tool = await self.repository.get_tool(tool_id_or_name, server_id=server_id, owner_id=owner_id)
             if db_tool:
                 async with self._lock:
                     self._tools[db_tool.id] = db_tool

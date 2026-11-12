@@ -13,6 +13,7 @@ from app.core.config import get_settings
 from app.core.enums.execution_enum import ExecutionOutcomeKind
 from app.main import app
 from app.services.tool_executor import ExecutionOutcome
+from tests.conftest import login_headers
 
 
 @pytest.fixture
@@ -20,6 +21,7 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
     """Test client bound to app ASGI transport."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as c:
+        c.headers.update(await login_headers(c, "corr@test.local"))
         yield c
 
 
@@ -153,7 +155,7 @@ async def test_correlation_id_exposed_on_tool_execute_success(client: AsyncClien
 
     stub_executor = MagicMock()
 
-    async def stub_execute(tool_reference, arguments, session_id=None, timeout=None):
+    async def stub_execute(tool_reference, arguments, *, owner_id=None, session_id=None, timeout=None):
         return ExecutionOutcome(
             kind=ExecutionOutcomeKind.SUCCEEDED,
             tool_reference=tool_reference,

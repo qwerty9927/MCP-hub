@@ -38,14 +38,14 @@ async def test_create_server_success(registry_service: ServerRegistryService, mo
         transport=TransportType.STDIO,
         stdio_config=StdioConfig(command="python3", args=["server.py"]),
     )
-    server = await registry_service.create_server(payload)
+    server = await registry_service.create_server(payload, owner_id=None)
 
     assert server.name == "test-server-1"
     assert server.transport == TransportType.STDIO
     assert server.health_status == ServerHealthStatus.UNKNOWN
     assert server.enabled is True
     assert server.connection_config.command == "python3"
-    mock_server_repo.get_by_name.assert_awaited_once_with("test-server-1")
+    mock_server_repo.get_by_name.assert_awaited_once_with("test-server-1", owner_id=None)
     mock_server_repo.create.assert_awaited_once()
 
 
@@ -61,7 +61,7 @@ async def test_create_server_duplicate_name(registry_service: ServerRegistryServ
     )
 
     with pytest.raises(ConflictError):
-        await registry_service.create_server(payload)
+        await registry_service.create_server(payload, owner_id=None)
 
     mock_server_repo.create.assert_not_called()
 
@@ -70,7 +70,7 @@ async def test_get_server_not_found(registry_service: ServerRegistryService, moc
     mock_server_repo.get_by_id.return_value = None
 
     with pytest.raises(NotFoundError):
-        await registry_service.get_server(uuid4())
+        await registry_service.get_server(uuid4(), owner_id=None)
 
 
 async def test_update_server(registry_service: ServerRegistryService, mock_server_repo: AsyncMock):
@@ -89,6 +89,7 @@ async def test_update_server(registry_service: ServerRegistryService, mock_serve
     updated = await registry_service.update_server(
         server_id,
         ServerUpdate(name="updated-name", description="Updated description", enabled=False),
+        owner_id=None,
     )
 
     assert updated.name == "updated-name"
@@ -109,7 +110,7 @@ async def test_list_servers_filtering_and_pagination(registry_service: ServerReg
     ]
     mock_server_repo.list.return_value = (items, 5)
 
-    res = await registry_service.list_servers(page=1, page_size=2, enabled=True)
+    res = await registry_service.list_servers(page=1, page_size=2, enabled=True, owner_id=None)
 
     assert res.total == 5
     assert len(res.items) == 5
@@ -123,6 +124,7 @@ async def test_list_servers_filtering_and_pagination(registry_service: ServerReg
         search=None,
         sort_by="created_at",
         sort_order="desc",
+        owner_id=None,
     )
 
 
@@ -132,10 +134,10 @@ async def test_delete_server(registry_service: ServerRegistryService, mock_serve
     mock_server_repo.get_by_id.return_value = existing
     mock_server_repo.delete.return_value = True
 
-    success = await registry_service.delete_server(server_id)
+    success = await registry_service.delete_server(server_id, owner_id=None)
     assert success is True
     mock_server_repo.delete.assert_awaited_once_with(server_id)
 
     mock_server_repo.get_by_id.return_value = None
     with pytest.raises(NotFoundError):
-        await registry_service.delete_server(server_id)
+        await registry_service.delete_server(server_id, owner_id=None)

@@ -5,13 +5,21 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from uuid import UUID
 
-from sqlalchemy import and_, asc, desc, func, or_, select
+from sqlalchemy import Select, and_, asc, desc, func, or_, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 import app.infrastructure.database as db_module
 from app.domain.execution_entity import ExecutionEntity
 from app.domain.session_entity import ToolCallEntity
 from app.models.execution_model import ExecutionModel
+from app.models.server_model import ServerModel
+
+
+def _owned(stmt: Select, owner_id: UUID | None) -> Select:
+    """Limit an Execution query to Servers owned by `owner_id` (no limit when None)."""
+    if owner_id is None:
+        return stmt
+    return stmt.join(ServerModel, ServerModel.id == ExecutionModel.server_id).where(ServerModel.owner_id == str(owner_id))
 
 
 class ExecutionRepositoryAbstract(ABC):
@@ -23,7 +31,7 @@ class ExecutionRepositoryAbstract(ABC):
         pass
 
     @abstractmethod
-    async def get_by_id(self, execution_id: UUID) -> ExecutionEntity | None:
+    async def get_by_id(self, execution_id: UUID, owner_id: UUID | None = None) -> ExecutionEntity | None:
         """Retrieve an execution record by ID."""
         pass
 
@@ -36,6 +44,7 @@ class ExecutionRepositoryAbstract(ABC):
         status: str | None = None,
         page: int = 1,
         page_size: int = 20,
+        owner_id: UUID | None = None,
     ) -> tuple[list[ExecutionEntity], int]:
         """List executions with pagination and filtering."""
         pass
@@ -83,9 +92,9 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
             await session.refresh(model)
             return model.to_domain()
 
-    async def get_by_id(self, execution_id: UUID) -> ExecutionEntity | None:
+    async def get_by_id(self, execution_id: UUID, owner_id: UUID | None = None) -> ExecutionEntity | None:
         async with self.session_factory() as session:
-            stmt = select(ExecutionModel).where(ExecutionModel.id == str(execution_id))
+            stmt = _owned(select(ExecutionModel).where(ExecutionModel.id == str(execution_id)), owner_id)
             result = await session.execute(stmt)
             model = result.scalar_one_or_none()
             return model.to_domain() if model else None
@@ -98,9 +107,10 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
         status: str | None = None,
         page: int = 1,
         page_size: int = 20,
+        owner_id: UUID | None = None,
     ) -> tuple[list[ExecutionEntity], int]:
         async with self.session_factory() as session:
-            stmt = select(ExecutionModel)
+            stmt = _owned(select(ExecutionModel), owner_id)
 
             if server_id is not None:
                 stmt = stmt.where(ExecutionModel.server_id == str(server_id))

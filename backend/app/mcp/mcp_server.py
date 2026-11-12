@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
+from mcp.server.auth.middleware.bearer_auth import AuthenticatedUser
 from mcp.server.context import ServerRequestContext
 from mcp.server.lowlevel import NotificationOptions, Server
 from mcp.server.models import InitializationOptions
@@ -13,6 +14,7 @@ from mcp.server.streamable_http_manager import (
     StreamableHTTPSessionManager,
     TransportSecuritySettings,
 )
+from mcp.server.subscriptions import InMemorySubscriptionBus, ListenHandler, ToolsListChanged
 from mcp.types import (
     CallToolRequestParams,
     CallToolResult,
@@ -29,6 +31,7 @@ from app.core.constants.meta_tools import (
 )
 from app.core.exceptions import ValidationError
 from app.core.logging import logger
+from app.domain.principal_entity import Principal
 from app.infrastructure.repositories.session_repository import SessionRepositoryAbstract
 from app.mcp.mcp_proxy_asgi import MCPProxyASGI
 from app.mcp.multi_execute_tools import (
@@ -41,8 +44,10 @@ from app.mcp.search_tools import (
     get_search_tool_definition,
     handle_search_tools,
 )
+from app.services.auth_service import AuthService
 from app.services.connection_manager import ConnectionManager
 from app.services.server_registry import ServerRegistryService
+from app.services.session_tracker import ClientIdentity, SessionTracker
 from app.services.tool_catalog import ToolCatalogService
 from app.services.tool_executor import ToolExecutor
 
@@ -57,14 +62,20 @@ class MCPServer:
         connection_manager: ConnectionManager,
         tool_executor: ToolExecutor,
         session_repository: SessionRepositoryAbstract | None = None,
+        auth_service: AuthService | None = None,
     ) -> None:
         self.server_registry = server_registry
         self.tool_catalog = tool_catalog
         self.connection_manager = connection_manager
         self.tool_executor = tool_executor
         self.session_repo = session_repository
+        self.auth_service = auth_service
+        self.session_tracker = SessionTracker(session_repository) if session_repository else None
 
+        # Handshake-era clients only: they hold a standing stream that notifications can reach.
         self._active_sessions: set[ServerSession] = set()
+        # Sessionless (2026-07-28) clients receive notifications through `subscriptions/listen` streams fed from here.
+        self._subscription_bus = InMemorySubscriptionBus()
         self._server: _HubServer | None = None
         self._proxy_asgi = MCPProxyASGI(self)
 
@@ -90,6 +101,7 @@ class MCPServer:
             on_list_tools=self.handle_list_tools,
             on_call_tool=self.handle_call_tool,
             get_tool_input_schema=self.get_tool_input_schema,
+            on_subscriptions_listen=ListenHandler(self._subscription_bus),
         )
 
         # Initialize streamable HTTP app and session manager on the server
@@ -140,16 +152,44 @@ class MCPServer:
             return conn.session_id
         return None
 
+    @staticmethod
+    def _principal(ctx: ServerRequestContext) -> Principal | None:
+        """The caller MCPProxyASGI authenticated for this request (None if the request did not come through it)."""
+        request = ctx.request
+        user = request.scope.get("user") if request is not None and hasattr(request, "scope") else None
+        if not isinstance(user, AuthenticatedUser):
+            return None
+        return (user.access_token.claims or {}).get("principal")
+
+    @staticmethod
+    def _client_identity(ctx: ServerRequestContext) -> ClientIdentity:
+        """Client name/version from the initialize handshake, or from a sessionless request's `_meta`."""
+        name = version = None
+        try:
+            client_params = ctx.session.client_params
+            if client_params and client_params.client_info:
+                name = client_params.client_info.name
+                version = client_params.client_info.version
+        except Exception:
+            pass
+        return ClientIdentity(name=name, version=version, protocol_version=ctx.protocol_version)
+
+    async def _track_session(self, ctx: ServerRequestContext, principal: Principal | None) -> str | None:
+        """Attribute the request to a hub Session, keeping the handshake session for notifications."""
+        transport_session_id = self._discover_session_id(ctx)
+        if transport_session_id:
+            self._active_sessions.add(ctx.session)
+        if principal is None or self.session_tracker is None:
+            return None
+        return await self.session_tracker.resolve(principal, transport_session_id, self._client_identity(ctx))
+
     async def handle_list_tools(
         self,
         ctx: ServerRequestContext,
         params: PaginatedRequestParams | None = None,
     ) -> ListToolsResult:
         """Handle incoming tools/list request from an upstream MCP client."""
-        self._active_sessions.add(ctx.session)
-        session_id = self._discover_session_id(ctx)
-        if session_id:
-            await self._ensure_session_registered(ctx, session_id)
+        await self._track_session(ctx, self._principal(ctx))
 
         # Strictly two tools are supported
         mcp_tools: list[Tool] = [
@@ -177,12 +217,13 @@ class MCPServer:
         params: CallToolRequestParams,
     ) -> CallToolResult:
         """Handle incoming tools/call request by routing to Search or Multi-Execute."""
-        session_id = self._discover_session_id(ctx)
-        if session_id:
-            await self._ensure_session_registered(ctx, session_id)
+        principal = self._principal(ctx)
+        if principal is None:
+            return CallToolResult(is_error=True, content=[TextContent(type="text", text="Authentication required")])
+        session_id = await self._track_session(ctx, principal)
 
         if params.name in (SEARCH_TOOLS_NAME, "Search", "search"):
-            return await self._handle_search_tools_call(params.arguments)
+            return await self._handle_search_tools_call(params.arguments, principal)
 
         if params.name in (
             MULTI_EXECUTE_TOOLS_NAME,
@@ -190,7 +231,7 @@ class MCPServer:
             "multi_execute",
             "multi-execute",
         ):
-            return await self._handle_multi_execute_tools_call(params.arguments, session_id=session_id)
+            return await self._handle_multi_execute_tools_call(params.arguments, principal, session_id=session_id)
 
         return CallToolResult(
             is_error=True,
@@ -205,15 +246,16 @@ class MCPServer:
     async def _handle_search_tools_call(
         self,
         arguments: dict[str, Any] | None,
+        principal: Principal,
     ) -> CallToolResult:
         """Handle execution of Search based on mcp_servers and discovered_tools."""
         try:
             # Fetch enabled servers from mcp_servers table
-            servers_res = await self.server_registry.list_servers(page=1, page_size=1000, enabled=True)
+            servers_res = await self.server_registry.list_servers(page=1, page_size=1000, enabled=True, owner_id=principal.user_id)
             enabled_server_ids = {s.id for s in servers_res.items}
 
             # Fetch discovered tools from discovered_tools table
-            all_tools_res = await self.tool_catalog.list_tools(page=1, page_size=1000)
+            all_tools_res = await self.tool_catalog.list_tools(page=1, page_size=1000, owner_id=principal.user_id)
             candidate_tools = [t for t in all_tools_res.items if t.server_id in enabled_server_ids and t.availability_status == "AVAILABLE"]
 
             result_dict = handle_search_tools(
@@ -255,6 +297,7 @@ class MCPServer:
     async def _handle_multi_execute_tools_call(
         self,
         arguments: dict[str, Any] | None,
+        principal: Principal,
         session_id: str | None = None,
     ) -> CallToolResult:
         """Handle execution of Multi-Execute based on mcp_servers and discovered_tools."""
@@ -262,6 +305,7 @@ class MCPServer:
             result_dict = await handle_multi_execute_tools(
                 arguments=arguments or {},
                 executor=self.tool_executor,
+                owner_id=principal.user_id,
                 session_id=session_id,
             )
             return CallToolResult(
@@ -296,36 +340,12 @@ class MCPServer:
                 ],
             )
 
-    async def _ensure_session_registered(self, ctx: ServerRequestContext, session_id: str) -> None:
-        """Register or update an active session discovered from ServerRequestContext."""
-        if not self.session_repo:
-            return
-        title = None
-        metadata = None
-        try:
-            client_params = ctx.session.client_params
-            if client_params and client_params.client_info:
-                info = client_params.client_info
-                title = f"{info.name} ({session_id[:8]})"
-                metadata = {
-                    "client_name": info.name,
-                    "client_version": info.version,
-                    "protocol_version": ctx.protocol_version or getattr(ctx.session, "protocol_version", None),
-                }
-        except Exception:
-            pass
-
-        try:
-            await self.session_repo.get_or_create(
-                session_id=session_id,
-                title=title,
-                metadata=metadata,
-            )
-        except Exception as exc:
-            logger.warning(f"Could not register session '{session_id}': {exc}")
-
     async def notify_tools_changed(self) -> None:
-        """Broadcast tools/list_changed notification to all currently connected upstream MCP client sessions."""
+        """Broadcast tools/list_changed to handshake-era sessions and to sessionless clients' listen streams."""
+        try:
+            await self._subscription_bus.publish(ToolsListChanged())
+        except Exception as exc:
+            logger.debug(f"Failed to publish tools/list_changed to listen streams: {exc}")
         dead_sessions: list[ServerSession] = []
         for session in list(self._active_sessions):
             try:

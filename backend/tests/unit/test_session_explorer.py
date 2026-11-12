@@ -184,7 +184,7 @@ async def test_execution_repo_list_by_session_sorting_and_filtering():
     )
 
     session_id = uuid4().hex
-    await session_repo.get_or_create(session_id, title="Sorting Test")
+    await session_repo.get_or_create(session_id, owner_id=None, title="Sorting Test")
 
     # Add 3 tool calls at sequential timestamps
     t1 = datetime(2026, 11, 8, 10, 0, 0, tzinfo=UTC)
@@ -277,13 +277,13 @@ async def test_session_explorer_service_errors():
     # Missing session
     fake_session_id = uuid4().hex
     with pytest.raises(NotFoundError):
-        await service.get_session(fake_session_id)
+        await service.get_session(fake_session_id, owner_id=None)
 
     with pytest.raises(NotFoundError):
-        await service.list_session_tool_calls(fake_session_id)
+        await service.list_session_tool_calls(fake_session_id, owner_id=None)
 
     # Create session, but query missing tool call
-    session_resp = await service.create_session(SessionCreate(title="Empty Session"))
+    session_resp = await service.create_session(SessionCreate(title="Empty Session"), owner_id=None)
     fake_call_id = uuid4()
     with pytest.raises(NotFoundError):
-        await service.get_session_tool_call(session_resp.id, fake_call_id)
+        await service.get_session_tool_call(session_resp.id, fake_call_id, owner_id=None)

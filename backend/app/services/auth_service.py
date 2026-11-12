@@ -12,6 +12,7 @@ from app.domain.user_entity import UserEntity
 from app.helpers.passwords import hash_password_async, verify_password_async
 from app.helpers.tokens import create_access_token, decode_access_token, generate_api_key, hash_api_key, is_api_key
 from app.infrastructure.repositories.api_key_repository import ApiKeyRepositoryAbstract
+from app.infrastructure.repositories.ownership_repository import OwnershipRepositoryAbstract
 from app.infrastructure.repositories.user_repository import UserRepositoryAbstract
 from app.schemas.auth_schema import (
     ApiKeyCreatedResponse,
@@ -47,9 +48,15 @@ def _api_key_response(key: ApiKeyEntity) -> ApiKeyResponse:
 class AuthService:
     """Registers accounts, issues console tokens and API keys, and resolves a bearer token to a Principal."""
 
-    def __init__(self, user_repository: UserRepositoryAbstract, api_key_repository: ApiKeyRepositoryAbstract) -> None:
+    def __init__(
+        self,
+        user_repository: UserRepositoryAbstract,
+        api_key_repository: ApiKeyRepositoryAbstract,
+        ownership_repository: OwnershipRepositoryAbstract | None = None,
+    ) -> None:
         self._users = user_repository
         self._api_keys = api_key_repository
+        self._ownership = ownership_repository
 
     async def register(self, data: RegisterRequest) -> UserResponse:
         if not get_settings().ALLOW_SELF_SIGNUP:
@@ -57,7 +64,19 @@ class AuthService:
         user = UserEntity(email=data.email, password_hash=await hash_password_async(data.password))
         created = await self._users.create(user)
         logger.info(f"Registered account {created.id}")
+        await self._claim_legacy_data(created)
         return _user_response(created)
+
+    async def _claim_legacy_data(self, user: UserEntity) -> None:
+        """Servers, Tools and Sessions from before accounts existed go to the first account ever registered."""
+        if self._ownership is None:
+            return
+        oldest = await self._users.get_oldest()
+        if oldest is None or oldest.id != user.id:
+            return
+        claimed = await self._ownership.claim_unowned(user.id)
+        if claimed:
+            logger.info(f"Account {user.id} claimed {claimed} pre-existing server(s)")
 
     async def login(self, data: LoginRequest) -> TokenResponse:
         user = await self._users.get_by_email(data.email)

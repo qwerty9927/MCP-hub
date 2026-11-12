@@ -19,12 +19,12 @@ class ServerRepositoryAbstract(ABC):
         pass
 
     @abstractmethod
-    async def get_by_id(self, server_id: UUID) -> ServerEntity | None:
+    async def get_by_id(self, server_id: UUID, owner_id: UUID | None = None) -> ServerEntity | None:
         """Retrieve server by ID."""
         pass
 
     @abstractmethod
-    async def get_by_name(self, name: str) -> ServerEntity | None:
+    async def get_by_name(self, name: str, owner_id: UUID | None = None) -> ServerEntity | None:
         """Retrieve server by unique name."""
         pass
 
@@ -39,6 +39,7 @@ class ServerRepositoryAbstract(ABC):
         search: str | None = None,
         sort_by: str = "created_at",
         sort_order: str = "desc",
+        owner_id: UUID | None = None,
     ) -> tuple[list[ServerEntity], int]:
         """List servers with pagination, filtering, and sorting."""
         pass
@@ -76,16 +77,20 @@ class PostgresServerRepository(ServerRepositoryAbstract):
             await session.refresh(model)
             return model.to_domain()
 
-    async def get_by_id(self, server_id: UUID) -> ServerEntity | None:
+    async def get_by_id(self, server_id: UUID, owner_id: UUID | None = None) -> ServerEntity | None:
         async with self.session_factory() as session:
             stmt = select(ServerModel).where(ServerModel.id == str(server_id))
+            if owner_id is not None:
+                stmt = stmt.where(ServerModel.owner_id == str(owner_id))
             result = await session.execute(stmt)
             model = result.scalar_one_or_none()
             return model.to_domain() if model else None
 
-    async def get_by_name(self, name: str) -> ServerEntity | None:
+    async def get_by_name(self, name: str, owner_id: UUID | None = None) -> ServerEntity | None:
         async with self.session_factory() as session:
-            stmt = select(ServerModel).where(func.lower(ServerModel.name) == name.lower())
+            # Names are unique per owner, so the lookup is scoped to the same owner (or to unowned servers).
+            owner_clause = ServerModel.owner_id == str(owner_id) if owner_id else ServerModel.owner_id.is_(None)
+            stmt = select(ServerModel).where(func.lower(ServerModel.name) == name.lower(), owner_clause)
             result = await session.execute(stmt)
             model = result.scalar_one_or_none()
             return model.to_domain() if model else None
@@ -100,11 +105,14 @@ class PostgresServerRepository(ServerRepositoryAbstract):
         search: str | None = None,
         sort_by: str = "created_at",
         sort_order: str = "desc",
+        owner_id: UUID | None = None,
     ) -> tuple[list[ServerEntity], int]:
         async with self.session_factory() as session:
             stmt = select(ServerModel)
 
             # Filtering
+            if owner_id is not None:
+                stmt = stmt.where(ServerModel.owner_id == str(owner_id))
             if enabled is not None:
                 stmt = stmt.where(ServerModel.enabled == enabled)
             if transport is not None:

@@ -34,7 +34,7 @@ from app.models.user_model import UserModel  # noqa: E402
 # Configure test engine with NullPool to prevent event loop cross-task issues in pytest-asyncio.
 # Allows overriding DATABASE_URL with TEST_DATABASE_URL to protect local development data.
 _settings = get_settings()
-_test_db_url = os.environ.get("TEST_DATABASE_URL", _settings.DATABASE_URL)
+_test_db_url = os.environ.get("TEST_DATABASE_URL", "")
 db_module.engine = db_module.create_database_engine(_test_db_url, poolclass=NullPool)
 db_module.async_session_factory = async_sessionmaker(
     bind=db_module.engine,
@@ -74,9 +74,46 @@ async def cleanup_dependencies():
     await db_module.engine.dispose()
 
 
+DEFAULT_PASSWORD = "test-password-123"
+
+
+async def login_headers(client: AsyncClient, email: str, password: str = DEFAULT_PASSWORD) -> dict[str, str]:
+    """Register `email` (if needed) and return an Authorization header for its console token."""
+    await client.post("/api/v1/auth/register", json={"email": email, "password": password})
+    res = await client.post("/api/v1/auth/login", json={"email": email, "password": password})
+    assert res.status_code == 200, res.text
+    return {"Authorization": f"Bearer {res.json()['access_token']}"}
+
+
 @pytest.fixture
-async def async_client() -> AsyncGenerator[AsyncClient, None]:
-    """Async HTTP client bound to the FastAPI application."""
+async def anon_client() -> AsyncGenerator[AsyncClient, None]:
+    """Async HTTP client bound to the FastAPI application, with no credentials."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         yield client
+
+
+@pytest.fixture
+async def async_client() -> AsyncGenerator[AsyncClient, None]:
+    """Async HTTP client signed in as the default test account (owner@test.local)."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        client.headers.update(await login_headers(client, "owner@test.local"))
+        yield client
+
+
+@pytest.fixture
+async def other_user_client() -> AsyncGenerator[AsyncClient, None]:
+    """Async HTTP client signed in as a second, unrelated account."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        client.headers.update(await login_headers(client, "intruder@test.local"))
+        yield client
+
+
+@pytest.fixture
+async def owner_id(async_client: AsyncClient):
+    """Account ID of the default test account."""
+    from uuid import UUID
+
+    return UUID((await async_client.get("/api/v1/auth/me")).json()["id"])
