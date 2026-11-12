@@ -23,7 +23,9 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     const { data: me, isError } = useMe(Boolean(token));
 
     useEffect(() => {
-        if (!token) {
+        // Read storage here rather than trusting `token`: on a hard load the first (hydration) render
+        // uses the server snapshot, which is always null, and redirecting on that would sign the user out.
+        if (!getAuthToken()) {
             router.replace(loginPath(pathname ?? undefined));
         } else if (isError) {
             clearAuthToken();
