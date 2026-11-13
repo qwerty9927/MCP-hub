@@ -121,7 +121,7 @@ async def delete_server(
     tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog)],
     mcp_server: Annotated[MCPServer, Depends(get_mcp_server)],
 ) -> None:
-    """Remove server registration, close active connections, and purge cached tools."""
+    """Remove server registration, close active connections, and delete its stored tools."""
     await registry.get_server_entity(server_id, owner_id=principal.user_id)
     await connection_mgr.disconnect(server_id)
     await tool_cat.remove_server_tools(server_id)
@@ -214,7 +214,7 @@ async def refresh_server_tools(
     tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog)],
     mcp_server: Annotated[MCPServer, Depends(get_mcp_server)],
 ) -> list[ToolResponse]:
-    """Query the MCP server for tools and update the unified catalog cache."""
+    """Query the MCP server for tools and replace its entries in the tool catalog."""
     server = await registry.get_server_entity(server_id, owner_id=principal.user_id)
     tools = await tool_cat.refresh_server_tools(server, connection_mgr)
     await registry.update_health(server_id, ServerHealthStatus.HEALTHY, len(tools))

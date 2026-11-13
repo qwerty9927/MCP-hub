@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.routing import Route
 
-from app.api.dependencies import get_connection_manager, get_mcp_server, get_tool_catalog
+from app.api.dependencies import get_connection_manager, get_mcp_server
 from app.api.v1.auth_router import router as auth_router
 from app.api.v1.executions_router import router as executions_router
 from app.api.v1.servers_router import router as servers_router
@@ -30,10 +30,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     setup_logging()
     settings = get_settings()
     logger.info(f"Starting {settings.PROJECT_NAME} v{settings.VERSION} [{settings.ENVIRONMENT}]")
-
-    # Preload discovered tools into catalog cache
-    tool_catalog = get_tool_catalog()
-    await tool_catalog.initialize_cache()
 
     # Start MCP Server Streamable HTTP lifecycle
     mcp_server = get_mcp_server()

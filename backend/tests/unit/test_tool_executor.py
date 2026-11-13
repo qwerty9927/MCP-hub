@@ -8,7 +8,9 @@ import asyncio
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import update
 
+import app.infrastructure.database as db_module
 from app.core.enums.execution_enum import ExecutionOutcomeKind, RejectionReason
 from app.core.enums.server_enum import TransportType
 from app.core.enums.session_enum import ToolCallStatus
@@ -18,6 +20,7 @@ from app.infrastructure.repositories.execution_repository import PostgresExecuti
 from app.infrastructure.repositories.server_repository import PostgresServerRepository
 from app.infrastructure.repositories.session_repository import PostgresSessionRepository
 from app.infrastructure.repositories.tool_repository import PostgresToolRepository
+from app.models.tool_model import ToolModel
 from app.schemas.connection_schema import StdioConfig
 from app.services.server_registry import ServerRegistryService
 from app.services.tool_catalog import ToolCatalogService
@@ -211,7 +214,9 @@ async def test_disabled_server_rejected_and_recorded(executor, server_repo, exec
 
 async def test_unavailable_tool_rejected_and_recorded(executor, catalog, execution_repo, downstream, connected_server):
     tool = await catalog.get_tool("add", server_id=connected_server.id)
-    tool.availability_status = "UNAVAILABLE"
+    async with db_module.async_session_factory() as session:
+        await session.execute(update(ToolModel).where(ToolModel.id == tool.id).values(availability_status="UNAVAILABLE"))
+        await session.commit()
 
     outcome = await executor.execute("math_server__add", {"a": 1, "b": 2}, owner_id=None)
 

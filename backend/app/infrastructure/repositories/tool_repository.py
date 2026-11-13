@@ -51,11 +51,6 @@ class ToolRepositoryAbstract(ABC):
         """List and search tools across servers with pagination."""
         pass
 
-    @abstractmethod
-    async def load_all_tools(self) -> list[ToolEntity]:
-        """Load all discovered tools from persistent storage."""
-        pass
-
 
 class PostgresToolRepository(ToolRepositoryAbstract):
     """PostgreSQL implementation of ToolRepositoryAbstract using SQLAlchemy."""
@@ -174,10 +169,3 @@ class PostgresToolRepository(ToolRepositoryAbstract):
             result = await session.execute(stmt)
             models = result.scalars().all()
             return [m.to_domain() for m in models], total
-
-    async def load_all_tools(self) -> list[ToolEntity]:
-        async with self.session_factory() as session:
-            stmt = select(ToolModel)
-            result = await session.execute(stmt)
-            models = result.scalars().all()
-            return [m.to_domain() for m in models]

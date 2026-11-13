@@ -266,7 +266,7 @@ Performs an ephemeral test connection and tool discovery to verify connectivity 
 ### 2.9 Refresh Server Tools
 `POST /api/v1/servers/{server_id}/refresh-tools`
 
-Refreshes discovered tools from the server and updates catalog cache.
+Refreshes discovered tools from the server and replaces its stored tools.
 
 #### Response (`200 OK`):
 Returns array of `ToolResponse` items.
@@ -528,7 +528,7 @@ The Hub maintains an explicit internal mapping between:
 
 When an MCP client requests the tool catalog:
 1. The gateway queries all currently enabled and available downstream servers.
-2. Discovered tool definitions are retrieved from the cache or refreshed.
+2. Discovered tool definitions are read from the database, or refreshed from the server when a Qualified Tool ID misses.
 3. Descriptions and JSON input schemas are preserved.
 4. The client receives the aggregated, namespaced tool list.
 5. Connected clients receive `notifications/tools/list_changed` when servers are added, refreshed, or disabled.

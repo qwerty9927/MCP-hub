@@ -13,7 +13,7 @@ A target external or local Model Context Protocol server connected to the hub vi
 A callable capability discovered dynamically from an active downstream MCP server.
 - **Qualified Tool ID**: Unique identifier formatted as `{server_id}:{tool_name}` used in REST routing.
 - **Tool Slug**: Namespaced collision-resistant identifier formatted as `{server_slug}__{tool_name}` exposed to upstream agents on `/mcp`.
-- **Tool Catalog**: In-memory cache backed by persistent storage indexing all discovered tools across connected servers.
+- **Tool Catalog**: The stored index of all discovered tools across connected servers. Read from the database on every lookup; there is no in-memory cache.
 
 ### Execution
 A discrete, audited attempt to invoke a resolved Tool on a registered Server, recording input arguments, duration in milliseconds, outcome status, structured output, and correlation metadata.

@@ -8,6 +8,8 @@ import pytest
 from app.core.enums.server_enum import TransportType
 from app.core.exceptions import NotFoundError
 from app.domain.server_entity import ServerEntity
+from app.infrastructure.repositories.server_repository import PostgresServerRepository
+from app.infrastructure.repositories.tool_repository import PostgresToolRepository
 from app.services.connection_manager import ConnectionManager
 from app.services.tool_catalog import ToolCatalogService
 
@@ -32,15 +34,15 @@ class MockConnectionManager(ConnectionManager):
 
 @pytest.fixture
 def catalog_service() -> ToolCatalogService:
-    return ToolCatalogService()
+    return ToolCatalogService(repository=PostgresToolRepository())
+
+
+async def stored_server(name: str) -> ServerEntity:
+    return await PostgresServerRepository().create(ServerEntity(id=uuid4(), name=name, transport=TransportType.STDIO))
 
 
 async def test_refresh_and_list_tools(catalog_service: ToolCatalogService):
-    server = ServerEntity(
-        id=uuid4(),
-        name="server-alpha",
-        transport=TransportType.STDIO,
-    )
+    server = await stored_server("server-alpha")
     mock_mgr = MockConnectionManager()
 
     tools = await catalog_service.refresh_server_tools(server, mock_mgr)
@@ -63,8 +65,8 @@ async def test_refresh_and_list_tools(catalog_service: ToolCatalogService):
 
 async def test_duplicate_tool_names_across_servers(catalog_service: ToolCatalogService):
     """Duplicate tool names on different servers should have distinct qualified IDs."""
-    server1 = ServerEntity(id=uuid4(), name="server-1", transport=TransportType.STDIO)
-    server2 = ServerEntity(id=uuid4(), name="server-2", transport=TransportType.STDIO)
+    server1 = await stored_server("server-1")
+    server2 = await stored_server("server-2")
     mock_mgr = MockConnectionManager()
 
     await catalog_service.refresh_server_tools(server1, mock_mgr)
@@ -78,6 +80,19 @@ async def test_duplicate_tool_names_across_servers(catalog_service: ToolCatalogS
 
     tool2 = await catalog_service.get_tool(f"{server2.id}:tool_a")
     assert tool2.server_id == server2.id
+
+
+async def test_reads_reflect_the_database_without_a_restart(catalog_service: ToolCatalogService):
+    """Tools written by another service instance are visible immediately: nothing is cached in memory."""
+    server = await stored_server("server-shared")
+    await ToolCatalogService(repository=PostgresToolRepository()).refresh_server_tools(server, MockConnectionManager())
+
+    assert (await catalog_service.get_tool(f"{server.id}:tool_a")).name == "tool_a"
+
+    await ToolCatalogService(repository=PostgresToolRepository()).remove_server_tools(server.id)
+
+    with pytest.raises(NotFoundError):
+        await catalog_service.get_tool(f"{server.id}:tool_a")
 
 
 async def test_get_tool_not_found(catalog_service: ToolCatalogService):
