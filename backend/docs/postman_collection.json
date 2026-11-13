@@ -2,10 +2,144 @@
   "info": {
     "_postman_id": "a9d8f7e6-1234-4567-89ab-cdef01234567",
     "name": "MCP Hub & Gateway API",
-    "description": "Complete Postman collection for MCP Hub REST API and the unified Streamable HTTP MCP Gateway (/mcp). Automatically extracts and passes mcp-session-id between requests.",
+    "description": "Postman collection for the MCP Hub REST API and the Streamable HTTP MCP Gateway (/mcp). Start with '0. Account & API Key'. REST requests use {{access_token}}; /mcp requests use {{mcp_api_key}}. Initialize stores mcp-session-id. The hub keeps MCP sessions in memory, so after a backend restart (or a new API key) /mcp answers 404 'Session not found': run '1. Initialize Session' again.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
+    {
+      "name": "0. Account & API Key",
+      "description": "Run once per Postman environment: creates an account (skip Register if it exists), logs in, and generates the API key the /mcp requests use. The console token from Login expires; run Login again when REST calls return 401.",
+      "item": [
+        {
+          "name": "Register Account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Self sign-up. 409 means the account already exists: go straight to Login.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Stores the console token in {{access_token}}, used by all REST requests.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Logged in', () => pm.response.to.have.status(200));",
+                  "pm.environment.set('access_token', pm.response.json().access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create MCP API Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"postman\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/api-keys",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "api-keys"
+              ]
+            },
+            "description": "Stores the key in {{mcp_api_key}}, used by every /mcp request. The full key is only returned here.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Key created', () => pm.response.to.have.status(201));",
+                  "pm.environment.set('mcp_api_key', pm.response.json().key);",
+                  "pm.environment.unset('mcp_session_id');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
     {
       "name": "MCP Gateway (/mcp)",
       "description": "Requests interacting directly with the unified MCP Server endpoint via Streamable HTTP (JSON-RPC 2.0).",
@@ -13,6 +147,16 @@
         {
           "name": "1. Initialize Session",
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// A new handshake must not carry the previous session's id",
+                  "pm.environment.unset('mcp_session_id');"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
@@ -52,8 +196,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/mcp",
-              "host": ["{{baseUrl}}"],
-              "path": ["mcp"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mcp"
+              ]
             },
             "description": "Initializes the MCP session handshake. Postman test script automatically stores the returned 'mcp-session-id' header into the environment variable {{mcp_session_id}}."
           }
@@ -82,8 +230,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/mcp",
-              "host": ["{{baseUrl}}"],
-              "path": ["mcp"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mcp"
+              ]
             },
             "description": "Notifies the MCP Gateway that the client has completed initialization (returns 202 Accepted)."
           }
@@ -112,8 +264,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/mcp",
-              "host": ["{{baseUrl}}"],
-              "path": ["mcp"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mcp"
+              ]
             },
             "description": "Returns the list of all tools aggregated from enabled downstream servers, namespaced as <server_slug>__<tool_name>."
           }
@@ -142,8 +298,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/mcp",
-              "host": ["{{baseUrl}}"],
-              "path": ["mcp"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mcp"
+              ]
             },
             "description": "Performs pure discovery across downstream tools using atomic keyword queries and returns relevance-ranked candidate tools."
           }
@@ -172,8 +332,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/mcp",
-              "host": ["{{baseUrl}}"],
-              "path": ["mcp"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mcp"
+              ]
             },
             "description": "Executes multiple downstream tool calls concurrently via asyncio.gather with per-call failure isolation."
           }
@@ -202,8 +366,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/mcp",
-              "host": ["{{baseUrl}}"],
-              "path": ["mcp"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mcp"
+              ]
             },
             "description": "Invokes the 'calculate' tool on downstream Server 1 ('math_server')."
           }
@@ -232,8 +400,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/mcp",
-              "host": ["{{baseUrl}}"],
-              "path": ["mcp"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mcp"
+              ]
             },
             "description": "Invokes the duplicate-named 'calculate' tool on Server 2 ('text_server') to prove collision-free routing."
           }
@@ -262,8 +434,12 @@
             },
             "url": {
               "raw": "{{baseUrl}}/mcp",
-              "host": ["{{baseUrl}}"],
-              "path": ["mcp"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mcp"
+              ]
             },
             "description": "Invokes 'text_transform' on Server 2."
           }
@@ -280,13 +456,38 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/mcp",
-              "host": ["{{baseUrl}}"],
-              "path": ["mcp"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mcp"
+              ]
             },
             "description": "Closes and discards the active Streamable HTTP session on the MCP Gateway."
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.unset('mcp_session_id');"
+                ]
+              }
+            }
+          ]
         }
-      ]
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{mcp_api_key}}",
+            "type": "string"
+          }
+        ]
+      }
     },
     {
       "name": "REST API - Server Management",
@@ -323,8 +524,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/servers",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "servers"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "servers"
+              ]
             }
           }
         },
@@ -359,8 +566,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/servers",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "servers"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "servers"
+              ]
             }
           }
         },
@@ -371,8 +584,16 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/v1/servers/{{server1_id}}/connect",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "servers", "{{server1_id}}", "connect"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "servers",
+                "{{server1_id}}",
+                "connect"
+              ]
             }
           }
         },
@@ -383,8 +604,16 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/v1/servers/{{server2_id}}/connect",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "servers", "{{server2_id}}", "connect"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "servers",
+                "{{server2_id}}",
+                "connect"
+              ]
             }
           }
         },
@@ -395,8 +624,14 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/v1/servers",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "servers"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "servers"
+              ]
             }
           }
         },
@@ -416,8 +651,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/servers/{{server2_id}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "servers", "{{server2_id}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "servers",
+                "{{server2_id}}"
+              ]
             }
           }
         },
@@ -437,8 +679,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/servers/{{server2_id}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "servers", "{{server2_id}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "servers",
+                "{{server2_id}}"
+              ]
             }
           }
         }
@@ -455,8 +704,14 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/v1/tools",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "tools"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tools"
+              ]
             }
           }
         },
@@ -467,8 +722,14 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/v1/executions",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "executions"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "executions"
+              ]
             }
           }
         }
@@ -485,8 +746,15 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/health",
-              "host": ["{{baseUrl}}"],
-              "path": ["health"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
             }
           }
         },
@@ -497,8 +765,15 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/ready",
-              "host": ["{{baseUrl}}"],
-              "path": ["ready"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ready"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
             }
           }
         },
@@ -509,12 +784,54 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/metrics",
-              "host": ["{{baseUrl}}"],
-              "path": ["metrics"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "metrics"
+              ]
             }
           }
         }
       ]
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "email",
+      "value": "you@example.com"
+    },
+    {
+      "key": "password",
+      "value": "change-me-please"
+    }
+  ],
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// The hub forgets MCP sessions on restart; the spec answer is 404 'Session not found'.",
+          "if (pm.request.url.getPath() === '/mcp' && pm.response.code === 404) {",
+          "    pm.environment.unset('mcp_session_id');",
+          "    pm.test(\"MCP session expired or belongs to another API key: run '1. Initialize Session' again\", () => { throw new Error('Session not found'); });",
+          "}",
+          "if (pm.response.code === 401) {",
+          "    pm.test(\"Not authenticated: run 'Login' (REST) or 'Create MCP API Key' (/mcp) in '0. Account & API Key'\", () => { throw new Error('401'); });",
+          "}"
+        ]
+      }
     }
   ]
 }

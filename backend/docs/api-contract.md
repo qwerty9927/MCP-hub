@@ -500,6 +500,7 @@ Any MCP-compliant client (Claude Desktop, IDE extensions, autonomous agents, Pyt
 - **Headers:**
   - `Authorization: Bearer <api key or console token>`: **required**. Without a valid one the endpoint answers `401` with `WWW-Authenticate`.
   - `mcp-session-id`: Automatically managed session identifier assigned during `initialize` (handshake-era protocol versions only)
+    - Sessions live in the hub's memory: a backend restart forgets them all, and a session only accepts the API key (or console login) that opened it. Either way the hub answers `404` with `{"error": {"code": -32600, "message": "Session not found"}}`. Per the MCP spec the client must then send a new `initialize` without the old header.
 - **Protocol versions:** handshake-era versions (`2024-11-05` … `2025-11-25`) and the sessionless `2026-07-28`. For sessionless clients the hub derives a session from account + API key + client name/version (ADR-0003); `tools/list_changed` reaches them through `subscriptions/listen`.
 - **Scope:** `SEARCH_TOOLS` and `MULTI_EXECUTE_TOOLS` see only the calling account's servers.
 
