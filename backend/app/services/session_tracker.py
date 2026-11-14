@@ -38,12 +38,6 @@ class ClientIdentity:
     protocol_version: str | None = None
 
 
-def client_fingerprint(principal: Principal, client: ClientIdentity) -> str:
-    """Stable key for "the same client of the same account, on the same API key"."""
-    parts = (str(principal.user_id), str(principal.api_key_id or ""), client.name or "unknown", client.version or "unknown")
-    return hashlib.sha256("\x1f".join(parts).encode("utf-8")).hexdigest()
-
-
 class SessionTracker:
     """Maps each upstream MCP request to the hub Session it belongs to."""
 
@@ -108,6 +102,12 @@ class SessionTracker:
             )
             logger.info(f"Opened derived session {session_id[:8]} for account {principal.user_id}")
             return session_id
+
+
+def client_fingerprint(principal: Principal, client: ClientIdentity) -> str:
+    """Stable key for "the same client of the same account, on the same API key"."""
+    parts = (str(principal.user_id), str(principal.api_key_id or ""), client.name or "unknown", client.version or "unknown")
+    return hashlib.sha256("\x1f".join(parts).encode("utf-8")).hexdigest()
 
 
 def _metadata(client: ClientIdentity, source: str) -> dict[str, Any]:

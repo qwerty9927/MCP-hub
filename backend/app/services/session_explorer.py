@@ -25,23 +25,6 @@ SENSITIVE_KEY_REGEX = re.compile(
 )
 
 
-def mask_sensitive_data(value: Any) -> Any:
-    """Recursively mask sensitive values in dictionaries and lists."""
-    if isinstance(value, dict):
-        masked: dict[str, Any] = {}
-        for k, v in value.items():
-            if SENSITIVE_KEY_REGEX.search(str(k)):
-                masked[k] = "***MASKED***"
-            else:
-                masked[k] = mask_sensitive_data(v)
-        return masked
-    elif isinstance(value, list):
-        return [mask_sensitive_data(item) for item in value]
-    elif isinstance(value, tuple):
-        return tuple(mask_sensitive_data(item) for item in value)
-    return value
-
-
 class SessionExplorerService:
     """Orchestrates session discovery, metrics calculation, and tool call history."""
 
@@ -227,3 +210,20 @@ class SessionExplorerService:
             arguments=mask_sensitive_data(call.arguments),
             response=mask_sensitive_data(call.response) if call.response else None,
         )
+
+
+def mask_sensitive_data(value: Any) -> Any:
+    """Recursively mask sensitive values in dictionaries and lists."""
+    if isinstance(value, dict):
+        masked: dict[str, Any] = {}
+        for k, v in value.items():
+            if SENSITIVE_KEY_REGEX.search(str(k)):
+                masked[k] = "***MASKED***"
+            else:
+                masked[k] = mask_sensitive_data(v)
+        return masked
+    elif isinstance(value, list):
+        return [mask_sensitive_data(item) for item in value]
+    elif isinstance(value, tuple):
+        return tuple(mask_sensitive_data(item) for item in value)
+    return value

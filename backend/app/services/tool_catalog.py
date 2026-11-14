@@ -16,22 +16,6 @@ from app.schemas.tool_schema import ToolResponse
 from app.services.connection_manager import ConnectionManager
 
 
-def qualified_tool_id(server_id: UUID, tool_name: str) -> str:
-    """Build a Qualified Tool ID "{server_id}:{tool_name}"."""
-    return f"{server_id}:{tool_name}"
-
-
-def split_qualified_tool_id(tool_reference: str) -> tuple[UUID | None, str]:
-    """Split a Qualified Tool ID "{server_id}:{tool_name}"; returns (None, reference) for anything else."""
-    prefix, sep, tool_name = tool_reference.partition(":")
-    if not sep or not tool_name:
-        return None, tool_reference
-    try:
-        return UUID(prefix), tool_name
-    except ValueError:
-        return None, tool_reference
-
-
 class ToolCatalogService:
     """Indexes the tools discovered across MCP servers. Every read goes to the database; nothing is cached in memory."""
 
@@ -165,3 +149,19 @@ class ToolCatalogService:
                 "server_id": str(server_id) if server_id else None,
             },
         )
+
+
+def qualified_tool_id(server_id: UUID, tool_name: str) -> str:
+    """Build a Qualified Tool ID "{server_id}:{tool_name}"."""
+    return f"{server_id}:{tool_name}"
+
+
+def split_qualified_tool_id(tool_reference: str) -> tuple[UUID | None, str]:
+    """Split a Qualified Tool ID "{server_id}:{tool_name}"; returns (None, reference) for anything else."""
+    prefix, sep, tool_name = tool_reference.partition(":")
+    if not sep or not tool_name:
+        return None, tool_reference
+    try:
+        return UUID(prefix), tool_name
+    except ValueError:
+        return None, tool_reference

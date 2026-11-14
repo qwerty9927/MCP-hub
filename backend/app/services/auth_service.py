@@ -30,21 +30,6 @@ API_KEY_TOUCH_INTERVAL = timedelta(seconds=60)
 _INVALID_CREDENTIALS = "Invalid email or password"
 
 
-def _user_response(user: UserEntity) -> UserResponse:
-    return UserResponse(id=user.id, email=user.email, created_at=user.created_at)
-
-
-def _api_key_response(key: ApiKeyEntity) -> ApiKeyResponse:
-    return ApiKeyResponse(
-        id=key.id,
-        name=key.name,
-        key_prefix=key.key_prefix,
-        created_at=key.created_at,
-        last_used_at=key.last_used_at,
-        revoked_at=key.revoked_at,
-    )
-
-
 class AuthService:
     """Registers accounts, issues console tokens and API keys, and resolves a bearer token to a Principal."""
 
@@ -66,17 +51,6 @@ class AuthService:
         logger.info(f"Registered account {created.id}")
         await self._claim_legacy_data(created)
         return _user_response(created)
-
-    async def _claim_legacy_data(self, user: UserEntity) -> None:
-        """Servers, Tools and Sessions from before accounts existed go to the first account ever registered."""
-        if self._ownership is None:
-            return
-        oldest = await self._users.get_oldest()
-        if oldest is None or oldest.id != user.id:
-            return
-        claimed = await self._ownership.claim_unowned(user.id)
-        if claimed:
-            logger.info(f"Account {user.id} claimed {claimed} pre-existing server(s)")
 
     async def login(self, data: LoginRequest) -> TokenResponse:
         user = await self._users.get_by_email(data.email)
@@ -125,3 +99,29 @@ class AuthService:
             except Exception as exc:
                 logger.warning(f"Could not update last_used_at for API key {key.id}: {exc}")
         return Principal(user_id=key.user_id, api_key_id=key.id)
+
+    async def _claim_legacy_data(self, user: UserEntity) -> None:
+        """Servers, Tools and Sessions from before accounts existed go to the first account ever registered."""
+        if self._ownership is None:
+            return
+        oldest = await self._users.get_oldest()
+        if oldest is None or oldest.id != user.id:
+            return
+        claimed = await self._ownership.claim_unowned(user.id)
+        if claimed:
+            logger.info(f"Account {user.id} claimed {claimed} pre-existing server(s)")
+
+
+def _user_response(user: UserEntity) -> UserResponse:
+    return UserResponse(id=user.id, email=user.email, created_at=user.created_at)
+
+
+def _api_key_response(key: ApiKeyEntity) -> ApiKeyResponse:
+    return ApiKeyResponse(
+        id=key.id,
+        name=key.name,
+        key_prefix=key.key_prefix,
+        created_at=key.created_at,
+        last_used_at=key.last_used_at,
+        revoked_at=key.revoked_at,
+    )

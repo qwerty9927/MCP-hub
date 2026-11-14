@@ -57,41 +57,6 @@ class ExecutionOutcome:
     duration_ms: float = 0.0
 
 
-class _Unresolved(Exception):
-    """Private control flow: the Tool Reference could not be resolved to a Tool, for a known reason."""
-
-    def __init__(self, kind: ExecutionOutcomeKind, message: str, reason: RejectionReason | None = None) -> None:
-        super().__init__(message)
-        self.kind = kind
-        self.message = message
-        self.reason = reason
-
-
-def _server_disabled_message(server: ServerEntity) -> str:
-    return f"Server '{server.name}' is disabled. Enable it before performing this operation."
-
-
-def _content_blocks(result: mcp_types.CallToolResult) -> list[dict[str, Any]]:
-    blocks: list[dict[str, Any]] = []
-    for block in result.content or []:
-        if hasattr(block, "model_dump"):
-            blocks.append(block.model_dump(exclude_none=True))
-        elif isinstance(block, dict):
-            blocks.append(block)
-        else:
-            blocks.append({"type": "text", "text": str(block)})
-    return blocks
-
-
-def _tool_error_message(blocks: list[dict[str, Any]]) -> str:
-    texts = [b["text"] for b in blocks if b.get("type") == "text" and b.get("text")]
-    return "\n".join(texts) if texts else TOOL_ERROR_FALLBACK_MESSAGE
-
-
-def _elapsed_ms(start: float) -> float:
-    return round((time.perf_counter() - start) * 1000, 2)
-
-
 class ToolExecutor:
     """Executes Tools on downstream Servers and records every resolved attempt as an Execution."""
 
@@ -318,3 +283,38 @@ class ToolExecutor:
             await self._session_repository.update_activity(session_id, timestamp or datetime.now(UTC))
         except Exception as exc:
             logger.error(f"Failed to update activity for session '{session_id}': {exc}")
+
+
+class _Unresolved(Exception):
+    """Private control flow: the Tool Reference could not be resolved to a Tool, for a known reason."""
+
+    def __init__(self, kind: ExecutionOutcomeKind, message: str, reason: RejectionReason | None = None) -> None:
+        super().__init__(message)
+        self.kind = kind
+        self.message = message
+        self.reason = reason
+
+
+def _server_disabled_message(server: ServerEntity) -> str:
+    return f"Server '{server.name}' is disabled. Enable it before performing this operation."
+
+
+def _content_blocks(result: mcp_types.CallToolResult) -> list[dict[str, Any]]:
+    blocks: list[dict[str, Any]] = []
+    for block in result.content or []:
+        if hasattr(block, "model_dump"):
+            blocks.append(block.model_dump(exclude_none=True))
+        elif isinstance(block, dict):
+            blocks.append(block)
+        else:
+            blocks.append({"type": "text", "text": str(block)})
+    return blocks
+
+
+def _tool_error_message(blocks: list[dict[str, Any]]) -> str:
+    texts = [b["text"] for b in blocks if b.get("type") == "text" and b.get("text")]
+    return "\n".join(texts) if texts else TOOL_ERROR_FALLBACK_MESSAGE
+
+
+def _elapsed_ms(start: float) -> float:
+    return round((time.perf_counter() - start) * 1000, 2)
