@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import jwt
 import pytest
+from jwt.exceptions import InvalidTokenError
 
 from app.core.config import get_settings
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError, UnauthorizedError
@@ -55,7 +56,8 @@ def test_expired_and_foreign_tokens_are_rejected():
     unsigned = jwt.encode({"sub": str(user_id), "aud": JWT_AUDIENCE}, None, algorithm="none")
 
     for token in (expired, wrong_secret, wrong_audience, unsigned, "garbage"):
-        assert decode_access_token(token) is None
+        with pytest.raises(InvalidTokenError):
+            decode_access_token(token)
 
 
 def test_generated_api_keys_are_unique_and_hashed():
@@ -72,7 +74,7 @@ async def test_register_and_login(auth: AuthService):
     assert user.email == "alice@example.com"
 
     token = await auth.login(LoginRequest(email="alice@example.com", password="s3cret-pass"))
-    principal = await auth.authenticate_console(token.access_token)
+    principal = auth.authenticate_console(token.access_token)
     assert principal is not None and principal.user_id == user.id and principal.api_key_id is None
 
 
@@ -112,7 +114,7 @@ async def test_api_key_lifecycle(auth: AuthService):
     assert principal is not None and principal.user_id == user.id and principal.api_key_id == created.id
     assert (await auth.list_api_keys(user.id))[0].last_used_at is not None
     # An API key is not a console token: it must not open the REST API.
-    assert await auth.authenticate_console(created.key) is None
+    assert auth.authenticate_console(created.key) is None
 
     await auth.revoke_api_key(user.id, created.id)
     assert await auth.authenticate_api_key(created.key) is None
@@ -131,10 +133,10 @@ async def test_api_key_belongs_to_its_owner(auth: AuthService):
     assert await auth.list_api_keys(other.id) == []
 
 
-async def test_unknown_api_key_and_console_token_in_authenticate(auth: AuthService):
+async def test_unknown_api_key_and_console_token_are_rejected_for_mcp(auth: AuthService):
     assert await auth.authenticate_api_key("mhk_does-not-exist") is None
 
+    # /mcp accepts API keys only: a console login token must not authenticate there.
     user = await auth.register(RegisterRequest(email="dave@example.com", password="s3cret-pass"))
     token, _ = create_access_token(user.id)
-    principal = await auth.authenticate_api_key(token)
-    assert principal is not None and principal.user_id == user.id
+    assert await auth.authenticate_api_key(token) is None

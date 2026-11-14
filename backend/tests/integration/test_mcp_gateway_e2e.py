@@ -125,7 +125,7 @@ async def test_mcp_gateway_e2e_two_servers_and_dynamic_lifecycle(
 
         # 4. Connect MCP Client to the Hub's /mcp Streamable HTTP endpoint
         async with (
-            create_mcp_http_client(headers={"Authorization": f"Bearer {handshake_key}"}) as handshake_http,
+            create_mcp_http_client(headers={"x-api-key": handshake_key}) as handshake_http,
             streamable_http_client(server_mcp_url, http_client=handshake_http) as (read_stream, write_stream),
             ClientSession(read_stream, write_stream) as session,
         ):
@@ -231,7 +231,7 @@ async def test_mcp_gateway_e2e_two_servers_and_dynamic_lifecycle(
 
         # 10. A 2026-07-28 client: no initialize, no Mcp-Session-Id. The hub derives its session.
         async with (
-            create_mcp_http_client(headers={"Authorization": f"Bearer {sessionless_key}"}) as sessionless_http,
+            create_mcp_http_client(headers={"x-api-key": sessionless_key}) as sessionless_http,
             streamable_http_client(server_mcp_url, http_client=sessionless_http) as (read_stream, write_stream),
             ClientSession(read_stream, write_stream) as modern,
         ):

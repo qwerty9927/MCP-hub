@@ -18,6 +18,7 @@ from app.core.constants.meta_tools import (
 )
 from app.core.enums.execution_enum import ExecutionOutcomeKind
 from app.core.enums.server_enum import ServerHealthStatus, TransportType
+from app.core.exceptions import UnauthorizedError
 from app.domain.principal_entity import Principal
 from app.domain.session_entity import SessionEntity
 from app.mcp.mcp_proxy_asgi import MCPProxyASGI, authenticated_user
@@ -27,6 +28,7 @@ from app.mcp.search_tools import SEARCH_TOOLS_SCHEMA
 from app.schemas.common_schema import PaginatedResponse
 from app.schemas.server_schema import ServerResponse
 from app.schemas.tool_schema import ToolResponse
+from app.services.session_tracker import SessionTrackerService
 from app.services.tool_executor import ExecutionOutcome
 
 
@@ -67,7 +69,7 @@ def mcp_server(mock_registry, mock_tool_catalog, mock_connection_mgr, mock_tool_
         tool_catalog=mock_tool_catalog,
         connection_manager=mock_connection_mgr,
         tool_executor=mock_tool_executor,
-        session_tracker=mock_session_repo,
+        session_tracker=SessionTrackerService(mock_session_repo),
         auth_service=mock_auth_service,
     )
 
@@ -279,11 +281,11 @@ async def test_handle_call_tool_search(mcp_server, mock_registry, mock_tool_cata
 
 
 @pytest.mark.asyncio
-async def test_handle_call_tool_multi_execute(mcp_server, mock_tool_executor):
+async def test_handle_call_tool_multi_execute(mcp_server, mock_tool_executor, mock_session_repo):
     """Verify Multi-Execute dispatches each item to the Execution module with the discovered session."""
     srv_id = uuid4()
     ctx = _create_mock_context("sess-multi")
-    mcp_server.session_repo.get_or_create.return_value = SessionEntity(id="sess-multi", owner_id=PRINCIPAL.user_id)
+    mock_session_repo.get_or_create.return_value = SessionEntity(id="sess-multi", owner_id=PRINCIPAL.user_id)
     slug = f"{srv_id}:add"
     mock_tool_executor.execute.return_value = ExecutionOutcome(
         kind=ExecutionOutcomeKind.SUCCEEDED,
@@ -320,14 +322,14 @@ async def test_notify_tools_changed_broadcasts(mcp_server):
 
 
 @pytest.mark.asyncio
-async def test_mcp_proxy_asgi_delete_handling(mcp_server, mock_session_repo, mock_auth_service):
-    """Verify MCPProxyASGI authenticates, then marks only the caller's session completed on DELETE."""
-    mock_auth_service.authenticate.return_value = PRINCIPAL
+async def test_mcp_proxy_asgi_authenticates_api_key_and_forwards(mcp_server, mock_auth_service):
+    """Verify MCPProxyASGI authenticates the x-api-key header, attaches the caller, and forwards the request."""
+    mock_auth_service.authenticate_api_key.return_value = PRINCIPAL
     proxy = MCPProxyASGI(mcp_server)
     scope = {
         "type": "http",
-        "method": "DELETE",
-        "headers": [(b"mcp-session-id", b"delete-session-123"), (b"authorization", b"Bearer mhk_valid")],
+        "method": "POST",
+        "headers": [(b"mcp-session-id", b"session-123"), (b"x-api-key", b"mhk_valid")],
     }
     receive = AsyncMock()
     send = AsyncMock()
@@ -335,24 +337,29 @@ async def test_mcp_proxy_asgi_delete_handling(mcp_server, mock_session_repo, moc
 
     await proxy(scope, receive, send)
 
-    mock_auth_service.authenticate.assert_awaited_once_with("mhk_valid")
-    mock_session_repo.update_status.assert_called_once_with("delete-session-123", "completed", owner_id=PRINCIPAL.user_id)
+    mock_auth_service.authenticate_api_key.assert_awaited_once_with("mhk_valid")
     mcp_server.session_manager.asgi_app.assert_called_once_with(scope, receive, send)
     assert scope["user"].access_token.subject == str(PRINCIPAL.user_id)
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("headers", [[], [(b"authorization", b"Bearer mhk_revoked")], [(b"authorization", b"Basic abc")]])
+@pytest.mark.parametrize(
+    "headers",
+    [
+        [],
+        [(b"x-api-key", b"mhk_revoked")],
+        [(b"authorization", b"Bearer mhk_valid")],
+        [(b"x-api-key", b"not-an-api-key")],
+    ],
+    ids=["no-credentials", "revoked-key", "bearer-header-not-accepted", "not-an-api-key"],
+)
 async def test_mcp_proxy_asgi_rejects_unauthenticated(mcp_server, mock_auth_service, headers):
-    mock_auth_service.authenticate.return_value = None
+    mock_auth_service.authenticate_api_key.return_value = None
     proxy = MCPProxyASGI(mcp_server)
     scope = {"type": "http", "method": "POST", "headers": headers}
-    send = AsyncMock()
     mcp_server.session_manager.asgi_app = AsyncMock()
 
-    await proxy(scope, AsyncMock(), send)
+    with pytest.raises(UnauthorizedError):
+        await proxy(scope, AsyncMock(), AsyncMock())
 
-    start = send.await_args_list[0].args[0]
-    assert start["status"] == 401
-    assert (b"www-authenticate", b'Bearer realm="mcp-hub"') in start["headers"]
     mcp_server.session_manager.asgi_app.assert_not_called()
