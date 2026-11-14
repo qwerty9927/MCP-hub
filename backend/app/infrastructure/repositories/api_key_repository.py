@@ -32,7 +32,7 @@ class ApiKeyRepositoryAbstract(ABC):
         """Revoke a key owned by `user_id`; False when there is no such active key."""
 
     @abstractmethod
-    async def touch_last_used(self, key_id: UUID, timestamp: datetime | None = None) -> None:
+    async def touch_last_used(self, key_id: UUID, timestamp: datetime) -> None:
         pass
 
 
@@ -83,9 +83,7 @@ class PostgresApiKeyRepository(ApiKeyRepositoryAbstract):
             await session.commit()
             return result.rowcount > 0
 
-    async def touch_last_used(self, key_id: UUID, timestamp: datetime | None = None) -> None:
+    async def touch_last_used(self, key_id: UUID, timestamp: datetime) -> None:
         async with self.session_factory() as session:
-            await session.execute(
-                update(ApiKeyModel).where(ApiKeyModel.id == str(key_id)).values(last_used_at=timestamp or datetime.now(UTC))
-            )
+            await session.execute(update(ApiKeyModel).where(ApiKeyModel.id == str(key_id)).values(last_used_at=timestamp))
             await session.commit()

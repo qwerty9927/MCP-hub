@@ -10,7 +10,7 @@ from app.api.dependencies import (
     get_current_principal,
     get_mcp_server,
     get_server_registry_service,
-    get_tool_catalog,
+    get_tool_catalog_service,
 )
 from app.core.enums.server_enum import ServerHealthStatus, TransportType
 from app.domain.principal_entity import Principal
@@ -118,7 +118,7 @@ async def delete_server(
     principal: Annotated[Principal, Depends(get_current_principal)],
     registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
     connection_mgr: Annotated[ConnectionManager, Depends(get_connection_manager)],
-    tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog)],
+    tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog_service)],
     mcp_server: Annotated[MCPServer, Depends(get_mcp_server)],
 ) -> None:
     """Remove server registration, close active connections, and delete its stored tools."""
@@ -139,7 +139,7 @@ async def connect_server(
     principal: Annotated[Principal, Depends(get_current_principal)],
     registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
     connection_mgr: Annotated[ConnectionManager, Depends(get_connection_manager)],
-    tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog)],
+    tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog_service)],
     mcp_server: Annotated[MCPServer, Depends(get_mcp_server)],
 ) -> ServerResponse:
     """Establish active session to the server and discover available tools."""
@@ -211,7 +211,7 @@ async def refresh_server_tools(
     principal: Annotated[Principal, Depends(get_current_principal)],
     registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
     connection_mgr: Annotated[ConnectionManager, Depends(get_connection_manager)],
-    tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog)],
+    tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog_service)],
     mcp_server: Annotated[MCPServer, Depends(get_mcp_server)],
 ) -> list[ToolResponse]:
     """Query the MCP server for tools and replace its entries in the tool catalog."""

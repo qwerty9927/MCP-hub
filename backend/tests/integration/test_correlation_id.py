@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.api.dependencies import get_tool_executor
+from app.api.dependencies import get_tool_executor_service
 from app.core.config import get_settings
 from app.core.enums.execution_enum import ExecutionOutcomeKind
 from app.main import app
@@ -169,7 +169,7 @@ async def test_correlation_id_exposed_on_tool_execute_success(client: AsyncClien
         )
 
     stub_executor.execute = stub_execute
-    app.dependency_overrides[get_tool_executor] = lambda: stub_executor
+    app.dependency_overrides[get_tool_executor_service] = lambda: stub_executor
     try:
         response = await client.post(
             f"/api/v1/servers/{server_uuid}/tools/test_tool/execute",
@@ -182,7 +182,7 @@ async def test_correlation_id_exposed_on_tool_execute_success(client: AsyncClien
         assert body["correlation_id"] == corr_id
         assert body["execution_id"] == str(exec_uuid)
     finally:
-        app.dependency_overrides.pop(get_tool_executor, None)
+        app.dependency_overrides.pop(get_tool_executor_service, None)
 
 
 # --- 2. ERROR API CALLS (404, 422, APP EXCEPTION) ---

@@ -67,7 +67,7 @@ def mcp_server(mock_registry, mock_tool_catalog, mock_connection_mgr, mock_tool_
         tool_catalog=mock_tool_catalog,
         connection_manager=mock_connection_mgr,
         tool_executor=mock_tool_executor,
-        session_repository=mock_session_repo,
+        session_tracker=mock_session_repo,
         auth_service=mock_auth_service,
     )
 

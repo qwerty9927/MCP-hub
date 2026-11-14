@@ -32,7 +32,6 @@ from app.core.constants.meta_tools import (
 from app.core.exceptions import ValidationError
 from app.core.logging import logger
 from app.domain.principal_entity import Principal
-from app.infrastructure.repositories.session_repository import SessionRepositoryAbstract
 from app.mcp.mcp_proxy_asgi import MCPProxyASGI
 from app.mcp.multi_execute_tools import (
     MULTI_EXECUTE_TOOLS_SCHEMA,
@@ -47,7 +46,7 @@ from app.mcp.search_tools import (
 from app.services.auth_service import AuthService
 from app.services.connection_manager import ConnectionManager
 from app.services.server_registry import ServerRegistryService
-from app.services.session_tracker import ClientIdentity, SessionTracker
+from app.services.session_tracker import ClientIdentity, SessionTrackerService
 from app.services.tool_catalog import ToolCatalogService
 from app.services.tool_executor import ToolExecutor
 
@@ -61,22 +60,21 @@ class MCPServer:
         tool_catalog: ToolCatalogService,
         connection_manager: ConnectionManager,
         tool_executor: ToolExecutor,
-        session_repository: SessionRepositoryAbstract | None = None,
-        auth_service: AuthService | None = None,
+        session_tracker: SessionTrackerService,
+        auth_service: AuthService,
     ) -> None:
         self.server_registry = server_registry
         self.tool_catalog = tool_catalog
         self.connection_manager = connection_manager
         self.tool_executor = tool_executor
-        self.session_repo = session_repository
         self.auth_service = auth_service
-        self.session_tracker = SessionTracker(session_repository) if session_repository else None
+        self.session_tracker = session_tracker
 
         # Handshake-era clients only: they hold a standing stream that notifications can reach.
         self._active_sessions: set[ServerSession] = set()
         # Sessionless (2026-07-28) clients receive notifications through `subscriptions/listen` streams fed from here.
         self._subscription_bus = InMemorySubscriptionBus()
-        self._server: _HubServer | None = None
+        self._server: _HubServer
         self._proxy_asgi = MCPProxyASGI(self)
 
         self._init_server()

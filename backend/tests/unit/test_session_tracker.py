@@ -12,7 +12,7 @@ from app.domain.user_entity import UserEntity
 from app.infrastructure.repositories.api_key_repository import PostgresApiKeyRepository
 from app.infrastructure.repositories.session_repository import PostgresSessionRepository
 from app.infrastructure.repositories.user_repository import PostgresUserRepository
-from app.services.session_tracker import SESSION_IDLE_SECONDS, ClientIdentity, SessionTracker, client_fingerprint
+from app.services.session_tracker import SESSION_IDLE_SECONDS, ClientIdentity, SessionTrackerService, client_fingerprint
 
 CLIENT = ClientIdentity(name="claude-code", version="2.0.0", protocol_version="2026-07-28")
 
@@ -23,8 +23,8 @@ def repo() -> PostgresSessionRepository:
 
 
 @pytest.fixture
-def tracker(repo) -> SessionTracker:
-    return SessionTracker(repo)
+def tracker(repo) -> SessionTrackerService:
+    return SessionTrackerService(repo)
 
 
 async def _principal(email: str, with_key: bool = True) -> Principal:
@@ -112,4 +112,4 @@ async def test_repository_failure_never_raises():
 
     principal = Principal(user_id=uuid4())
 
-    assert await SessionTracker(Broken()).resolve(principal, None, CLIENT) is None
+    assert await SessionTrackerService(Broken()).resolve(principal, None, CLIENT) is None

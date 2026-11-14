@@ -108,14 +108,14 @@ async def test_api_key_lifecycle(auth: AuthService):
     assert [k.id for k in listed] == [created.id]
     assert not hasattr(listed[0], "key")
 
-    principal = await auth.authenticate(created.key)
+    principal = await auth.authenticate_api_key(created.key)
     assert principal is not None and principal.user_id == user.id and principal.api_key_id == created.id
     assert (await auth.list_api_keys(user.id))[0].last_used_at is not None
     # An API key is not a console token: it must not open the REST API.
     assert await auth.authenticate_console(created.key) is None
 
     await auth.revoke_api_key(user.id, created.id)
-    assert await auth.authenticate(created.key) is None
+    assert await auth.authenticate_api_key(created.key) is None
     with pytest.raises(NotFoundError):
         await auth.revoke_api_key(user.id, created.id)
 
@@ -127,14 +127,14 @@ async def test_api_key_belongs_to_its_owner(auth: AuthService):
 
     with pytest.raises(NotFoundError):
         await auth.revoke_api_key(other.id, created.id)
-    assert await auth.authenticate(created.key) is not None
+    assert await auth.authenticate_api_key(created.key) is not None
     assert await auth.list_api_keys(other.id) == []
 
 
 async def test_unknown_api_key_and_console_token_in_authenticate(auth: AuthService):
-    assert await auth.authenticate("mhk_does-not-exist") is None
+    assert await auth.authenticate_api_key("mhk_does-not-exist") is None
 
     user = await auth.register(RegisterRequest(email="dave@example.com", password="s3cret-pass"))
     token, _ = create_access_token(user.id)
-    principal = await auth.authenticate(token)
+    principal = await auth.authenticate_api_key(token)
     assert principal is not None and principal.user_id == user.id

@@ -6,8 +6,10 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import jwt
+from jwt.exceptions import InvalidTokenError
 
 from app.core.config import get_settings
+from app.core.exceptions import UnauthorizedError
 
 JWT_ALGORITHM = "HS256"
 JWT_AUDIENCE = "mcp-hub"
@@ -29,19 +31,17 @@ def create_access_token(user_id: UUID, now: datetime | None = None) -> tuple[str
     return jwt.encode(claims, settings.JWT_SECRET, algorithm=JWT_ALGORITHM), int(lifetime.total_seconds())
 
 
-def decode_access_token(token: str) -> UUID | None:
+def decode_access_token(token: str) -> UUID:
     """Return the account a valid, unexpired console token belongs to, or None."""
-    try:
-        claims = jwt.decode(
-            token,
-            get_settings().JWT_SECRET,
-            algorithms=[JWT_ALGORITHM],
-            audience=JWT_AUDIENCE,
-            options={"require": ["exp", "sub", "aud"]},
-        )
-        return UUID(claims["sub"])
-    except (jwt.InvalidTokenError, ValueError):
-        return None
+    claims = jwt.decode(
+        token,
+        get_settings().JWT_SECRET,
+        algorithms=[JWT_ALGORITHM],
+        audience=JWT_AUDIENCE,
+        options={"require": ["exp", "sub", "aud"]},
+    )
+
+    return UUID(claims["sub"])
 
 
 def generate_api_key() -> tuple[str, str, str]:

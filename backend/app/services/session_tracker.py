@@ -38,7 +38,7 @@ class ClientIdentity:
     protocol_version: str | None = None
 
 
-class SessionTracker:
+class SessionTrackerService:
     """Maps each upstream MCP request to the hub Session it belongs to."""
 
     def __init__(self, session_repository: SessionRepositoryAbstract) -> None:

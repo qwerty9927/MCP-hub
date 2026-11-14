@@ -55,7 +55,7 @@ def downstream() -> FakeDownstream:
 
 @pytest.fixture
 def catalog() -> ToolCatalogService:
-    return ToolCatalogService(repository=PostgresToolRepository())
+    return ToolCatalogService(tool_repository=PostgresToolRepository())
 
 
 def build_executor(

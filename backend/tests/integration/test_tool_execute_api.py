@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from app.api.dependencies import get_tool_executor
+from app.api.dependencies import get_tool_executor_service
 from app.core.enums.server_enum import TransportType
 from app.core.enums.session_enum import ToolCallStatus
 from app.domain.server_entity import ServerEntity
@@ -33,13 +33,13 @@ def fake_executor():
     executor = ToolExecutor(
         server_registry=ServerRegistryService(repository=PostgresServerRepository()),
         connection_manager=downstream,
-        tool_catalog=ToolCatalogService(repository=PostgresToolRepository()),
+        tool_catalog=ToolCatalogService(tool_repository=PostgresToolRepository()),
         execution_repository=PostgresExecutionRepository(),
         session_repository=PostgresSessionRepository(),
     )
-    app.dependency_overrides[get_tool_executor] = lambda: executor
+    app.dependency_overrides[get_tool_executor_service] = lambda: executor
     yield downstream
-    app.dependency_overrides.pop(get_tool_executor, None)
+    app.dependency_overrides.pop(get_tool_executor_service, None)
 
 
 async def execute(async_client, server_id, tool_name: str, arguments: dict):

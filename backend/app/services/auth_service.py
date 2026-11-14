@@ -3,6 +3,8 @@
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
+from jwt import InvalidTokenError
+
 from app.core.config import get_settings
 from app.core.exceptions import ForbiddenError, NotFoundError, UnauthorizedError
 from app.core.logging import logger
@@ -79,25 +81,28 @@ class AuthService:
             raise NotFoundError(f"API key '{key_id}' not found", details={"api_key_id": str(key_id)})
         logger.info(f"Revoked API key {key_id} for account {user_id}")
 
-    async def authenticate_console(self, token: str) -> Principal | None:
+    def authenticate_console(self, token: str) -> Principal | None:
         """Resolve a console login token (JWT) only. REST endpoints use this so a leaked MCP key cannot manage the account."""
-        user_id = decode_access_token(token)
-        return Principal(user_id=user_id) if user_id else None
+        try:
+            user_id = decode_access_token(token)
 
-    async def authenticate(self, token: str) -> Principal | None:
+            return Principal(user_id=user_id)
+        except InvalidTokenError:
+            return None
+
+    async def authenticate_api_key(self, token: str) -> Principal | None:
         """Resolve any bearer token: an API key (`mhk_...`) or a console JWT. Used by the /mcp endpoint."""
-        if not is_api_key(token):
-            return await self.authenticate_console(token)
-
         key = await self._api_keys.get_by_hash(hash_api_key(token))
         if key is None or key.revoked_at is not None:
             return None
+
         now = datetime.now(UTC)
         if key.last_used_at is None or now - key.last_used_at > API_KEY_TOUCH_INTERVAL:
             try:
                 await self._api_keys.touch_last_used(key.id, now)
             except Exception as exc:
                 logger.warning(f"Could not update last_used_at for API key {key.id}: {exc}")
+
         return Principal(user_id=key.user_id, api_key_id=key.id)
 
     async def _claim_legacy_data(self, user: UserEntity) -> None:

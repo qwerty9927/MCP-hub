@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 
-from app.api.dependencies import get_current_principal, get_server_registry_service, get_tool_catalog, get_tool_executor
+from app.api.dependencies import get_current_principal, get_server_registry_service, get_tool_catalog_service, get_tool_executor_service
 from app.core.enums.execution_enum import ExecutionOutcomeKind, RejectionReason
 from app.core.exceptions import AppError, BadGatewayError, BadRequestError, ConflictError, NotFoundError, ValidationError
 from app.core.logging import get_correlation_id
@@ -33,7 +33,7 @@ _REJECTION_ERRORS: dict[RejectionReason, type[AppError]] = {
 )
 async def list_tools(
     principal: Annotated[Principal, Depends(get_current_principal)],
-    tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog)],
+    tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog_service)],
     server_id: UUID | None = Query(default=None, description="Filter by server UUID"),
     tool_name: str | None = Query(default=None, description="Filter by tool name"),
     status: str | None = Query(default=None, description="Filter by availability status"),
@@ -61,7 +61,7 @@ async def list_tools(
 async def list_server_tools(
     server_id: UUID,
     principal: Annotated[Principal, Depends(get_current_principal)],
-    tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog)],
+    tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog_service)],
     registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
     tool_name: str | None = Query(default=None, description="Filter by tool name"),
     status: str | None = Query(default=None, description="Filter by availability status"),
@@ -90,7 +90,7 @@ async def list_server_tools(
 async def get_tool(
     tool_id: str,
     principal: Annotated[Principal, Depends(get_current_principal)],
-    tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog)],
+    tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog_service)],
 ) -> ToolResponse:
     """Retrieve details and schema of a specific tool by qualified ID or name."""
     entity = await tool_cat.get_tool(tool_id, owner_id=principal.user_id)
@@ -116,7 +116,7 @@ async def execute_tool(
     tool_name: str,
     payload: ToolExecuteRequest,
     principal: Annotated[Principal, Depends(get_current_principal)],
-    executor: Annotated[ToolExecutor, Depends(get_tool_executor)],
+    executor: Annotated[ToolExecutor, Depends(get_tool_executor_service)],
 ) -> ToolExecuteResponse:
     """Validate arguments and invoke the specified MCP tool on the target server."""
     outcome = await executor.execute(

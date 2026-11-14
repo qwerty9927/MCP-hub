@@ -34,7 +34,7 @@ class MockConnectionManager(ConnectionManager):
 
 @pytest.fixture
 def catalog_service() -> ToolCatalogService:
-    return ToolCatalogService(repository=PostgresToolRepository())
+    return ToolCatalogService(tool_repository=PostgresToolRepository())
 
 
 async def stored_server(name: str) -> ServerEntity:
@@ -85,11 +85,11 @@ async def test_duplicate_tool_names_across_servers(catalog_service: ToolCatalogS
 async def test_reads_reflect_the_database_without_a_restart(catalog_service: ToolCatalogService):
     """Tools written by another service instance are visible immediately: nothing is cached in memory."""
     server = await stored_server("server-shared")
-    await ToolCatalogService(repository=PostgresToolRepository()).refresh_server_tools(server, MockConnectionManager())
+    await ToolCatalogService(tool_repository=PostgresToolRepository()).refresh_server_tools(server, MockConnectionManager())
 
     assert (await catalog_service.get_tool(f"{server.id}:tool_a")).name == "tool_a"
 
-    await ToolCatalogService(repository=PostgresToolRepository()).remove_server_tools(server.id)
+    await ToolCatalogService(tool_repository=PostgresToolRepository()).remove_server_tools(server.id)
 
     with pytest.raises(NotFoundError):
         await catalog_service.get_tool(f"{server.id}:tool_a")

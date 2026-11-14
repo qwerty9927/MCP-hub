@@ -19,8 +19,8 @@ from app.services.connection_manager import ConnectionManager
 class ToolCatalogService:
     """Indexes the tools discovered across MCP servers. Every read goes to the database; nothing is cached in memory."""
 
-    def __init__(self, repository: ToolRepositoryAbstract) -> None:
-        self.repository = repository
+    def __init__(self, tool_repository: ToolRepositoryAbstract) -> None:
+        self.tool_repo = tool_repository
 
     async def refresh_server_tools(
         self,
@@ -57,13 +57,13 @@ class ToolCatalogService:
                 )
             )
 
-        await self.repository.save_server_tools(server.id, server.name, discovered)
+        await self.tool_repo.save_server_tools(server.id, server.name, discovered)
         logger.info(f"Refreshed tool catalog for server '{server.name}' ({len(discovered)} tools discovered)")
         return discovered
 
     async def remove_server_tools(self, server_id: UUID) -> None:
         """Remove tools associated with a server when deleted or disabled."""
-        await self.repository.delete_server_tools(server_id)
+        await self.tool_repo.delete_server_tools(server_id)
         logger.info(f"Removed stored tools for server {server_id}")
 
     async def list_tools(
@@ -77,7 +77,7 @@ class ToolCatalogService:
         owner_id: UUID | None = None,
     ) -> PaginatedResponse[ToolResponse]:
         """Search and list tools with filtering and pagination; `owner_id` limits it to that account's Servers."""
-        items, total = await self.repository.list_tools(
+        items, total = await self.tool_repo.list_tools(
             server_id=server_id,
             tool_name=tool_name,
             status=status,
@@ -137,7 +137,7 @@ class ToolCatalogService:
 
     async def get_tool(self, tool_id_or_name: str, server_id: UUID | None = None, owner_id: UUID | None = None) -> ToolEntity:
         """Find a tool by qualified ID, or by name on `server_id` (only that server) or on any of the owner's servers."""
-        tool = await self.repository.get_tool(tool_id_or_name, server_id=server_id, owner_id=owner_id)
+        tool = await self.tool_repo.get_tool(tool_id_or_name, server_id=server_id, owner_id=owner_id)
         if tool is not None:
             return tool
 
