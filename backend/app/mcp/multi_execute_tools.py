@@ -61,6 +61,23 @@ MULTI_EXECUTE_TOOLS_SCHEMA: dict[str, Any] = {
 }
 
 
+class ToolExecutionItem(BaseModel):
+    """Single tool execution specification for MULTI_EXECUTE_TOOLS."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    tool_slug: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    arguments: dict[str, Any] = Field(default_factory=dict)
+
+
+class MultiExecuteToolsInput(BaseModel):
+    """Pydantic validation schema for MULTI_EXECUTE_TOOLS arguments."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    executions: list[ToolExecutionItem] = Field(..., min_length=1)
+
+
 def get_multi_execute_tool_definition() -> Tool:
     """Return MCP Tool definition for MULTI_EXECUTE_TOOLS."""
     return Tool(
@@ -85,52 +102,6 @@ def get_multi_execute_tool_definition() -> Tool:
         ),
         input_schema=MULTI_EXECUTE_TOOLS_SCHEMA,
     )
-
-
-class ToolExecutionItem(BaseModel):
-    """Single tool execution specification for MULTI_EXECUTE_TOOLS."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    tool_slug: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
-    arguments: dict[str, Any] = Field(default_factory=dict)
-
-
-class MultiExecuteToolsInput(BaseModel):
-    """Pydantic validation schema for MULTI_EXECUTE_TOOLS arguments."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    executions: list[ToolExecutionItem] = Field(..., min_length=1)
-
-
-def _agent_data(content: list[dict[str, Any]]) -> Any:
-    """Shape content blocks for agents: a single text block is JSON-decoded when possible."""
-    if not content:
-        return None
-    if len(content) == 1 and content[0].get("type") == "text" and "text" in content[0]:
-        text_val = content[0]["text"]
-        try:
-            parsed = json.loads(text_val)
-        except (TypeError, ValueError):
-            return text_val
-        return parsed if isinstance(parsed, (dict, list)) else text_val
-    return content
-
-
-def _agent_result(outcome: ExecutionOutcome) -> dict[str, Any]:
-    """Map an Execution Outcome onto the agent-facing per-item result."""
-    slug = outcome.tool_reference
-    if outcome.kind == ExecutionOutcomeKind.SUCCEEDED:
-        return {"tool_slug": slug, "status": "success", "data": _agent_data(outcome.content), "error": None}
-    if outcome.rejection_reason == RejectionReason.INVALID_ARGUMENTS:
-        return {
-            "tool_slug": slug,
-            "status": "validation_error",
-            "data": None,
-            "error": f"Argument validation failed: {outcome.error_message}",
-        }
-    return {"tool_slug": slug, "status": "error", "data": None, "error": outcome.error_message}
 
 
 async def execute_single_tool(
@@ -175,3 +146,32 @@ async def handle_multi_execute_tools(
 
     results = await asyncio.gather(*(execute_single_tool(item, executor, owner_id, session_id) for item in validated.executions))
     return {"results": list(results)}
+
+
+def _agent_data(content: list[dict[str, Any]]) -> Any:
+    """Shape content blocks for agents: a single text block is JSON-decoded when possible."""
+    if not content:
+        return None
+    if len(content) == 1 and content[0].get("type") == "text" and "text" in content[0]:
+        text_val = content[0]["text"]
+        try:
+            parsed = json.loads(text_val)
+        except (TypeError, ValueError):
+            return text_val
+        return parsed if isinstance(parsed, (dict, list)) else text_val
+    return content
+
+
+def _agent_result(outcome: ExecutionOutcome) -> dict[str, Any]:
+    """Map an Execution Outcome onto the agent-facing per-item result."""
+    slug = outcome.tool_reference
+    if outcome.kind == ExecutionOutcomeKind.SUCCEEDED:
+        return {"tool_slug": slug, "status": "success", "data": _agent_data(outcome.content), "error": None}
+    if outcome.rejection_reason == RejectionReason.INVALID_ARGUMENTS:
+        return {
+            "tool_slug": slug,
+            "status": "validation_error",
+            "data": None,
+            "error": f"Argument validation failed: {outcome.error_message}",
+        }
+    return {"tool_slug": slug, "status": "error", "data": None, "error": outcome.error_message}

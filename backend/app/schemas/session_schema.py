@@ -16,10 +16,6 @@ class SessionCreateRequest(BaseModel):
     metadata: dict[str, Any] | None = Field(default=None, description="Optional metadata or client attributes")
 
 
-# Backward-compatible alias
-SessionCreate = SessionCreateRequest
-
-
 class SessionResponse(BaseModel):
     """Session summary response schema."""
 
@@ -29,10 +25,6 @@ class SessionResponse(BaseModel):
     created_at: datetime = Field(..., description="Timestamp when session was created")
     last_activity_at: datetime = Field(..., description="Timestamp of most recent activity in session")
     total_tool_calls: int = Field(default=0, description="Total count of tool calls belonging to this session")
-
-
-# Backward-compatible alias
-SessionRead = SessionResponse
 
 
 class SessionDetailResponse(BaseModel):
@@ -64,3 +56,10 @@ class ToolCallResponse(BaseModel):
     error_summary: str | None = Field(default=None, description="Summary error message if execution failed")
     arguments: dict[str, Any] = Field(default_factory=dict, description="Tool execution input arguments")
     response: Any | None = Field(default=None, description="Output payload returned by the tool")
+
+
+# Backward-compatible alias
+SessionCreate = SessionCreateRequest
+
+# Backward-compatible alias
+SessionRead = SessionResponse

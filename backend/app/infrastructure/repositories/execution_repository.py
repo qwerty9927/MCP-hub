@@ -15,13 +15,6 @@ from app.models.execution_model import ExecutionModel
 from app.models.server_model import ServerModel
 
 
-def _owned(stmt: Select, owner_id: UUID | None) -> Select:
-    """Limit an Execution query to Servers owned by `owner_id` (no limit when None)."""
-    if owner_id is None:
-        return stmt
-    return stmt.join(ServerModel, ServerModel.id == ExecutionModel.server_id).where(ServerModel.owner_id == str(owner_id))
-
-
 class ExecutionRepositoryAbstract(ABC):
     """Abstract repository for tool execution logs."""
 
@@ -226,3 +219,10 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
             result = await session.execute(stmt)
             model = result.scalar_one_or_none()
             return model.to_tool_call_domain() if model else None
+
+
+def _owned(stmt: Select, owner_id: UUID | None) -> Select:
+    """Limit an Execution query to Servers owned by `owner_id` (no limit when None)."""
+    if owner_id is None:
+        return stmt
+    return stmt.join(ServerModel, ServerModel.id == ExecutionModel.server_id).where(ServerModel.owner_id == str(owner_id))

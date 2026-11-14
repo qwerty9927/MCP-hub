@@ -38,16 +38,6 @@ def create_database_engine(
     )
 
 
-engine = create_database_engine(_settings.DATABASE_URL, _settings.DEBUG)
-
-async_session_factory = async_sessionmaker(
-    bind=engine,
-    autoflush=False,
-    expire_on_commit=False,
-    class_=AsyncSession,
-)
-
-
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     """Dependency for obtaining an asynchronous database session."""
     async with async_session_factory() as session:
@@ -64,3 +54,13 @@ async def init_db(target_engine: AsyncEngine | None = None) -> None:
     eng = target_engine or engine
     async with eng.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+
+engine = create_database_engine(_settings.DATABASE_URL, _settings.DEBUG)
+
+async_session_factory = async_sessionmaker(
+    bind=engine,
+    autoflush=False,
+    expire_on_commit=False,
+    class_=AsyncSession,
+)

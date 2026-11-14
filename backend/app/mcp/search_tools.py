@@ -48,6 +48,15 @@ SEARCH_TOOLS_SCHEMA: dict[str, Any] = {
 }
 
 
+class SearchToolsInput(BaseModel):
+    """Pydantic validation schema for SEARCH_TOOLS arguments."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    queries: list[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=256)]] = Field(..., min_length=1)
+    top_k: int = Field(default=5, ge=1, le=20)
+
+
 def get_search_tool_definition() -> Tool:
     """Return MCP Tool definition for SEARCH_TOOLS."""
     return Tool(
@@ -76,20 +85,6 @@ def get_search_tool_definition() -> Tool:
         ),
         input_schema=SEARCH_TOOLS_SCHEMA,
     )
-
-
-class SearchToolsInput(BaseModel):
-    """Pydantic validation schema for SEARCH_TOOLS arguments."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    queries: list[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=256)]] = Field(..., min_length=1)
-    top_k: int = Field(default=5, ge=1, le=20)
-
-
-def _tokenize(text: str) -> list[str]:
-    """Extract lowercase alphanumeric tokens from text."""
-    return [t.lower() for t in re.split(r"[_\W]+", text) if t]
 
 
 def score_tool_match(
@@ -264,3 +259,8 @@ def handle_search_tools(
         "matched_count": len(matched_tools),
         "tools": matched_tools,
     }
+
+
+def _tokenize(text: str) -> list[str]:
+    """Extract lowercase alphanumeric tokens from text."""
+    return [t.lower() for t in re.split(r"[_\W]+", text) if t]

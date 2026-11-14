@@ -17,23 +17,6 @@ from app.schemas.execution_schema import ExecutionResponse
 router = APIRouter(prefix="/executions", tags=["Executions"])
 
 
-def _to_response(execution: ExecutionEntity) -> ExecutionResponse:
-    """Map an Execution entity to its API response."""
-    return ExecutionResponse(
-        id=execution.id,
-        server_id=execution.server_id,
-        server_name=execution.server_name,
-        tool_name=execution.tool_name,
-        arguments=execution.arguments,
-        is_error=execution.is_error,
-        status=execution.status or ("failed" if execution.is_error else "completed"),
-        error_message=execution.error_message,
-        duration_ms=execution.duration_ms,
-        executed_at=execution.executed_at,
-        response=execution.response,
-    )
-
-
 @router.get(
     "",
     response_model=PaginatedResponse[ExecutionResponse],
@@ -89,3 +72,20 @@ async def get_execution(
             details={"execution_id": str(execution_id)},
         )
     return _to_response(record)
+
+
+def _to_response(execution: ExecutionEntity) -> ExecutionResponse:
+    """Map an Execution entity to its API response."""
+    return ExecutionResponse(
+        id=execution.id,
+        server_id=execution.server_id,
+        server_name=execution.server_name,
+        tool_name=execution.tool_name,
+        arguments=execution.arguments,
+        is_error=execution.is_error,
+        status=execution.status or ("failed" if execution.is_error else "completed"),
+        error_message=execution.error_message,
+        duration_ms=execution.duration_ms,
+        executed_at=execution.executed_at,
+        response=execution.response,
+    )

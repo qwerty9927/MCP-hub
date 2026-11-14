@@ -81,36 +81,6 @@ class MCPServer:
 
         self._init_server()
 
-    def _init_server(self) -> None:
-        """Initialize or reset the lowlevel MCP Server and Streamable HTTP manager."""
-        settings = get_settings()
-
-        # In non-production environments, allow test and localhost host variations
-        transport_security = None
-        if settings.ENVIRONMENT != "production":
-            transport_security = TransportSecuritySettings(
-                enable_dns_rebinding_protection=False,
-                allowed_hosts=["*"],
-                allowed_origins=["*"],
-            )
-
-        self._server = _HubServer(
-            name="mcp-hub-server",
-            version=settings.VERSION,
-            instructions="Unified MCP Server providing Search and Multi-Execute across connected MCP servers.",
-            on_list_tools=self.handle_list_tools,
-            on_call_tool=self.handle_call_tool,
-            get_tool_input_schema=self.get_tool_input_schema,
-            on_subscriptions_listen=ListenHandler(self._subscription_bus),
-        )
-
-        # Initialize streamable HTTP app and session manager on the server
-        self._server.streamable_http_app(
-            streamable_http_path="/mcp",
-            transport_security=transport_security,
-        )
-        logger.info("Initialized HubServer and Streamable HTTP manager on '/mcp'")
-
     @property
     def server(self) -> "_HubServer":
         """Return the current HubServer instance."""
@@ -140,48 +110,6 @@ class MCPServer:
             logger.info("MCPServer Streamable HTTP Session Manager is active and serving.")
             yield
         logger.info("MCPServer Streamable HTTP Session Manager shut down.")
-
-    def _discover_session_id(self, ctx: ServerRequestContext) -> str | None:
-        """Discover session ID from ServerRequestContext HTTP request headers or session connection."""
-        if ctx.request and hasattr(ctx.request, "headers"):
-            header_id = ctx.request.headers.get("mcp-session-id")
-            if header_id:
-                return header_id
-        conn = getattr(ctx.session, "_connection", None)
-        if conn and isinstance(getattr(conn, "session_id", None), str):
-            return conn.session_id
-        return None
-
-    @staticmethod
-    def _principal(ctx: ServerRequestContext) -> Principal | None:
-        """The caller MCPProxyASGI authenticated for this request (None if the request did not come through it)."""
-        request = ctx.request
-        user = request.scope.get("user") if request is not None and hasattr(request, "scope") else None
-        if not isinstance(user, AuthenticatedUser):
-            return None
-        return (user.access_token.claims or {}).get("principal")
-
-    @staticmethod
-    def _client_identity(ctx: ServerRequestContext) -> ClientIdentity:
-        """Client name/version from the initialize handshake, or from a sessionless request's `_meta`."""
-        name = version = None
-        try:
-            client_params = ctx.session.client_params
-            if client_params and client_params.client_info:
-                name = client_params.client_info.name
-                version = client_params.client_info.version
-        except Exception:
-            pass
-        return ClientIdentity(name=name, version=version, protocol_version=ctx.protocol_version)
-
-    async def _track_session(self, ctx: ServerRequestContext, principal: Principal | None) -> str | None:
-        """Attribute the request to a hub Session, keeping the handshake session for notifications."""
-        transport_session_id = self._discover_session_id(ctx)
-        if transport_session_id:
-            self._active_sessions.add(ctx.session)
-        if principal is None or self.session_tracker is None:
-            return None
-        return await self.session_tracker.resolve(principal, transport_session_id, self._client_identity(ctx))
 
     async def handle_list_tools(
         self,
@@ -242,6 +170,95 @@ class MCPServer:
                 )
             ],
         )
+
+    async def notify_tools_changed(self) -> None:
+        """Broadcast tools/list_changed to handshake-era sessions and to sessionless clients' listen streams."""
+        try:
+            await self._subscription_bus.publish(ToolsListChanged())
+        except Exception as exc:
+            logger.debug(f"Failed to publish tools/list_changed to listen streams: {exc}")
+        dead_sessions: list[ServerSession] = []
+        for session in list(self._active_sessions):
+            try:
+                await session.send_tool_list_changed()
+            except Exception as exc:
+                logger.debug(f"Failed to notify client session (likely disconnected): {exc}")
+                dead_sessions.append(session)
+
+        for session in dead_sessions:
+            self._active_sessions.discard(session)
+
+    def _init_server(self) -> None:
+        """Initialize or reset the lowlevel MCP Server and Streamable HTTP manager."""
+        settings = get_settings()
+
+        # In non-production environments, allow test and localhost host variations
+        transport_security = None
+        if settings.ENVIRONMENT != "production":
+            transport_security = TransportSecuritySettings(
+                enable_dns_rebinding_protection=False,
+                allowed_hosts=["*"],
+                allowed_origins=["*"],
+            )
+
+        self._server = _HubServer(
+            name="mcp-hub-server",
+            version=settings.VERSION,
+            instructions="Unified MCP Server providing Search and Multi-Execute across connected MCP servers.",
+            on_list_tools=self.handle_list_tools,
+            on_call_tool=self.handle_call_tool,
+            get_tool_input_schema=self.get_tool_input_schema,
+            on_subscriptions_listen=ListenHandler(self._subscription_bus),
+        )
+
+        # Initialize streamable HTTP app and session manager on the server
+        self._server.streamable_http_app(
+            streamable_http_path="/mcp",
+            transport_security=transport_security,
+        )
+        logger.info("Initialized HubServer and Streamable HTTP manager on '/mcp'")
+
+    def _discover_session_id(self, ctx: ServerRequestContext) -> str | None:
+        """Discover session ID from ServerRequestContext HTTP request headers or session connection."""
+        if ctx.request and hasattr(ctx.request, "headers"):
+            header_id = ctx.request.headers.get("mcp-session-id")
+            if header_id:
+                return header_id
+        conn = getattr(ctx.session, "_connection", None)
+        if conn and isinstance(getattr(conn, "session_id", None), str):
+            return conn.session_id
+        return None
+
+    @staticmethod
+    def _principal(ctx: ServerRequestContext) -> Principal | None:
+        """The caller MCPProxyASGI authenticated for this request (None if the request did not come through it)."""
+        request = ctx.request
+        user = request.scope.get("user") if request is not None and hasattr(request, "scope") else None
+        if not isinstance(user, AuthenticatedUser):
+            return None
+        return (user.access_token.claims or {}).get("principal")
+
+    @staticmethod
+    def _client_identity(ctx: ServerRequestContext) -> ClientIdentity:
+        """Client name/version from the initialize handshake, or from a sessionless request's `_meta`."""
+        name = version = None
+        try:
+            client_params = ctx.session.client_params
+            if client_params and client_params.client_info:
+                name = client_params.client_info.name
+                version = client_params.client_info.version
+        except Exception:
+            pass
+        return ClientIdentity(name=name, version=version, protocol_version=ctx.protocol_version)
+
+    async def _track_session(self, ctx: ServerRequestContext, principal: Principal | None) -> str | None:
+        """Attribute the request to a hub Session, keeping the handshake session for notifications."""
+        transport_session_id = self._discover_session_id(ctx)
+        if transport_session_id:
+            self._active_sessions.add(ctx.session)
+        if principal is None or self.session_tracker is None:
+            return None
+        return await self.session_tracker.resolve(principal, transport_session_id, self._client_identity(ctx))
 
     async def _handle_search_tools_call(
         self,
@@ -339,23 +356,6 @@ class MCPServer:
                     )
                 ],
             )
-
-    async def notify_tools_changed(self) -> None:
-        """Broadcast tools/list_changed to handshake-era sessions and to sessionless clients' listen streams."""
-        try:
-            await self._subscription_bus.publish(ToolsListChanged())
-        except Exception as exc:
-            logger.debug(f"Failed to publish tools/list_changed to listen streams: {exc}")
-        dead_sessions: list[ServerSession] = []
-        for session in list(self._active_sessions):
-            try:
-                await session.send_tool_list_changed()
-            except Exception as exc:
-                logger.debug(f"Failed to notify client session (likely disconnected): {exc}")
-                dead_sessions.append(session)
-
-        for session in dead_sessions:
-            self._active_sessions.discard(session)
 
 
 class _HubServer(Server):

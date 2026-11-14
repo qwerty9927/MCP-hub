@@ -18,6 +18,13 @@ from app.services.tool_executor import ExecutionOutcome, ToolExecutor
 
 router = APIRouter(tags=["Tools"])
 
+_REJECTION_ERRORS: dict[RejectionReason, type[AppError]] = {
+    RejectionReason.UNKNOWN_TOOL: NotFoundError,
+    RejectionReason.SERVER_DISABLED: BadRequestError,
+    RejectionReason.TOOL_UNAVAILABLE: ConflictError,
+    RejectionReason.INVALID_ARGUMENTS: ValidationError,
+}
+
 
 @router.get(
     "/tools",
@@ -116,14 +123,6 @@ async def execute_tool(
         qualified_tool_id(server_id, tool_name), payload.arguments, owner_id=principal.user_id, session_id=payload.session_id
     )
     return _execute_response(outcome)
-
-
-_REJECTION_ERRORS: dict[RejectionReason, type[AppError]] = {
-    RejectionReason.UNKNOWN_TOOL: NotFoundError,
-    RejectionReason.SERVER_DISABLED: BadRequestError,
-    RejectionReason.TOOL_UNAVAILABLE: ConflictError,
-    RejectionReason.INVALID_ARGUMENTS: ValidationError,
-}
 
 
 def _execute_response(outcome: ExecutionOutcome) -> ToolExecuteResponse:

@@ -46,6 +46,8 @@ _connection_manager = ConnectionManager()
 _tool_catalog = ToolCatalogService(repository=_tool_repo)
 _mcp_server: MCPServer | None = None
 
+_bearer_scheme = HTTPBearer(auto_error=False, description="Console login token from POST /auth/login")
+
 
 def get_server_repository() -> ServerRepositoryAbstract:
     """Return server repository instance."""
@@ -70,9 +72,6 @@ def get_session_repository() -> SessionRepositoryAbstract:
 def get_auth_service() -> AuthService:
     """Return the account and API key service."""
     return AuthService(user_repository=_user_repo, api_key_repository=_api_key_repo, ownership_repository=_ownership_repo)
-
-
-_bearer_scheme = HTTPBearer(auto_error=False, description="Console login token from POST /auth/login")
 
 
 async def get_current_principal(

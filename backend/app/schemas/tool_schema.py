@@ -20,10 +20,6 @@ class ToolResponse(BaseModel):
     last_discovered_at: datetime = Field(..., description="Timestamp of when tool was last discovered/refreshed")
 
 
-# Backward-compatible alias
-ToolRead = ToolResponse
-
-
 class ToolSummaryResponse(BaseModel):
     """Compact summary of a discovered tool."""
 
@@ -33,10 +29,6 @@ class ToolSummaryResponse(BaseModel):
     server_name: str = Field(..., description="Parent server name")
     description: str | None = None
     availability_status: str = "AVAILABLE"
-
-
-# Backward-compatible alias
-ToolSummaryRead = ToolSummaryResponse
 
 
 class ToolExecuteRequest(BaseModel):
@@ -66,3 +58,10 @@ class ToolExecuteResponse(BaseModel):
     duration_ms: float
     executed_at: datetime
     correlation_id: str | None = Field(default=None, description="Request correlation ID for execution tracing")
+
+
+# Backward-compatible alias
+ToolRead = ToolResponse
+
+# Backward-compatible alias
+ToolSummaryRead = ToolSummaryResponse

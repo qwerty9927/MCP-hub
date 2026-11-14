@@ -10,6 +10,8 @@ from app.core.config import get_settings
 # ContextVar for request correlation ID
 _correlation_id_ctx: ContextVar[str] = ContextVar("correlation_id", default="")
 
+logger = logging.getLogger("mcp_hub")
+
 
 class CorrelationIdFilter(logging.Filter):
     """Logging filter that injects the correlation_id into log records."""
@@ -57,6 +59,3 @@ def setup_logging() -> None:
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("asyncio").setLevel(logging.WARNING)
-
-
-logger = logging.getLogger("mcp_hub")
