@@ -198,4 +198,3 @@ frontend/
 ## 9. Open Questions & Roadmap
 
 - **Authentication Strategy:** Console tokens expire with no refresh token; an expired token sends the user back to the login page. A refresh flow would avoid that.
-- **Unified MCP Gateway Live SSE:** Backend exposes SSE streams at `/mcp`. Live client notification handling (e.g. `notifications/tools/list_changed`) will be connected in future telemetry milestones.

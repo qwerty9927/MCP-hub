@@ -7,14 +7,11 @@ from typing import Any
 
 from mcp.server.auth.middleware.bearer_auth import AuthenticatedUser
 from mcp.server.context import ServerRequestContext
-from mcp.server.lowlevel import NotificationOptions, Server
-from mcp.server.models import InitializationOptions
-from mcp.server.session import ServerSession
+from mcp.server.lowlevel import Server
 from mcp.server.streamable_http_manager import (
     StreamableHTTPSessionManager,
     TransportSecuritySettings,
 )
-from mcp.server.subscriptions import InMemorySubscriptionBus, ListenHandler, ToolsListChanged
 from mcp.types import (
     CallToolRequestParams,
     CallToolResult,
@@ -70,17 +67,13 @@ class MCPServer:
         self.auth_service = auth_service
         self.session_tracker = session_tracker
 
-        # Handshake-era clients only: they hold a standing stream that notifications can reach.
-        self._active_sessions: set[ServerSession] = set()
-        # Sessionless (2026-07-28) clients receive notifications through `subscriptions/listen` streams fed from here.
-        self._subscription_bus = InMemorySubscriptionBus()
-        self._server: _HubServer
+        self._server: Server
         self._proxy_asgi = MCPProxyASGI(self)
 
         self._init_server()
 
     @property
-    def server(self) -> "_HubServer":
+    def server(self) -> Server:
         """Return the current HubServer instance."""
         if self._server is None:
             self._init_server()
@@ -169,23 +162,6 @@ class MCPServer:
             ],
         )
 
-    async def notify_tools_changed(self) -> None:
-        """Broadcast tools/list_changed to handshake-era sessions and to sessionless clients' listen streams."""
-        try:
-            await self._subscription_bus.publish(ToolsListChanged())
-        except Exception as exc:
-            logger.debug(f"Failed to publish tools/list_changed to listen streams: {exc}")
-        dead_sessions: list[ServerSession] = []
-        for session in list(self._active_sessions):
-            try:
-                await session.send_tool_list_changed()
-            except Exception as exc:
-                logger.debug(f"Failed to notify client session (likely disconnected): {exc}")
-                dead_sessions.append(session)
-
-        for session in dead_sessions:
-            self._active_sessions.discard(session)
-
     def _init_server(self) -> None:
         """Initialize or reset the lowlevel MCP Server and Streamable HTTP manager."""
         settings = get_settings()
@@ -199,14 +175,13 @@ class MCPServer:
                 allowed_origins=["*"],
             )
 
-        self._server = _HubServer(
+        self._server = Server(
             name="mcp-hub-server",
             version=settings.VERSION,
             instructions="Unified MCP Server providing Search and Multi-Execute across connected MCP servers.",
             on_list_tools=self.handle_list_tools,
             on_call_tool=self.handle_call_tool,
             get_tool_input_schema=self.get_tool_input_schema,
-            on_subscriptions_listen=ListenHandler(self._subscription_bus),
         )
 
         # Initialize streamable HTTP app and session manager on the server
@@ -250,10 +225,8 @@ class MCPServer:
         return ClientIdentity(name=name, version=version, protocol_version=ctx.protocol_version)
 
     async def _track_session(self, ctx: ServerRequestContext, principal: Principal | None) -> str | None:
-        """Attribute the request to a hub Session, keeping the handshake session for notifications."""
+        """Attribute the request to a hub Session."""
         transport_session_id = self._discover_session_id(ctx)
-        if transport_session_id:
-            self._active_sessions.add(ctx.session)
         if principal is None or self.session_tracker is None:
             return None
         return await self.session_tracker.resolve(principal, transport_session_id, self._client_identity(ctx))
@@ -354,20 +327,3 @@ class MCPServer:
                     )
                 ],
             )
-
-
-class _HubServer(Server):
-    """Subclass of MCP lowlevel Server that advertises tool change notifications capability."""
-
-    def create_initialization_options(
-        self,
-        notification_options: NotificationOptions | None = None,
-        experimental_capabilities: dict[str, dict[str, Any]] | None = None,
-        extensions: dict[str, dict[str, Any]] | None = None,
-    ) -> InitializationOptions:
-        notif = notification_options or NotificationOptions(tools_changed=True)
-        return super().create_initialization_options(
-            notification_options=notif,
-            experimental_capabilities=experimental_capabilities,
-            extensions=extensions,
-        )

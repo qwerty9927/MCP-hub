@@ -8,13 +8,11 @@ from fastapi import APIRouter, Depends, Query, status
 from app.api.dependencies import (
     get_connection_manager,
     get_current_principal,
-    get_mcp_server,
     get_server_registry_service,
     get_tool_catalog_service,
 )
 from app.core.enums.server_enum import ServerHealthStatus, TransportType
 from app.domain.principal_entity import Principal
-from app.mcp.mcp_server import MCPServer
 from app.schemas.common_schema import PaginatedResponse
 from app.schemas.server_schema import (
     ServerCreateRequest,
@@ -100,11 +98,9 @@ async def update_server(
     payload: ServerUpdateRequest,
     principal: Annotated[Principal, Depends(get_current_principal)],
     registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
-    mcp_server: Annotated[MCPServer, Depends(get_mcp_server)],
 ) -> ServerResponse:
     """Update configuration attributes of an existing MCP server."""
     result = await registry.update_server(server_id, payload, owner_id=principal.user_id)
-    await mcp_server.notify_tools_changed()
     return result
 
 
@@ -119,14 +115,12 @@ async def delete_server(
     registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
     connection_mgr: Annotated[ConnectionManager, Depends(get_connection_manager)],
     tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog_service)],
-    mcp_server: Annotated[MCPServer, Depends(get_mcp_server)],
 ) -> None:
     """Remove server registration, close active connections, and delete its stored tools."""
     await registry.get_server_entity(server_id, owner_id=principal.user_id)
     await connection_mgr.disconnect(server_id)
     await tool_cat.remove_server_tools(server_id)
     await registry.delete_server(server_id, owner_id=principal.user_id)
-    await mcp_server.notify_tools_changed()
 
 
 @router.post(
@@ -140,7 +134,6 @@ async def connect_server(
     registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
     connection_mgr: Annotated[ConnectionManager, Depends(get_connection_manager)],
     tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog_service)],
-    mcp_server: Annotated[MCPServer, Depends(get_mcp_server)],
 ) -> ServerResponse:
     """Establish active session to the server and discover available tools."""
     server = await registry.get_server_entity(server_id, owner_id=principal.user_id)
@@ -148,7 +141,6 @@ async def connect_server(
         await connection_mgr.get_or_create_session(server)
         tools = await tool_cat.refresh_server_tools(server, connection_mgr)
         await registry.update_health(server_id, ServerHealthStatus.HEALTHY, len(tools))
-        await mcp_server.notify_tools_changed()
     except Exception:
         await registry.update_health(server_id, ServerHealthStatus.UNHEALTHY)
         raise
@@ -166,13 +158,11 @@ async def disconnect_server(
     principal: Annotated[Principal, Depends(get_current_principal)],
     registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
     connection_mgr: Annotated[ConnectionManager, Depends(get_connection_manager)],
-    mcp_server: Annotated[MCPServer, Depends(get_mcp_server)],
 ) -> ServerResponse:
     """Disconnect active session for the given server."""
     await registry.get_server_entity(server_id, owner_id=principal.user_id)
     await connection_mgr.disconnect(server_id)
     await registry.update_health(server_id, ServerHealthStatus.DISCONNECTED)
-    await mcp_server.notify_tools_changed()
     return await registry.get_server(server_id, owner_id=principal.user_id)
 
 
@@ -212,13 +202,11 @@ async def refresh_server_tools(
     registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
     connection_mgr: Annotated[ConnectionManager, Depends(get_connection_manager)],
     tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog_service)],
-    mcp_server: Annotated[MCPServer, Depends(get_mcp_server)],
 ) -> list[ToolResponse]:
     """Query the MCP server for tools and replace its entries in the tool catalog."""
     server = await registry.get_server_entity(server_id, owner_id=principal.user_id)
     tools = await tool_cat.refresh_server_tools(server, connection_mgr)
     await registry.update_health(server_id, ServerHealthStatus.HEALTHY, len(tools))
-    await mcp_server.notify_tools_changed()
 
     return [
         ToolResponse(

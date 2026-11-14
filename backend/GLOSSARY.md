@@ -46,7 +46,6 @@ A run of requests from one upstream agent (e.g., Claude, Cursor, or an MCP SDK c
 ### MCP Gateway (Hub Server)
 The hub acting as an upstream MCP Server exposing the aggregated tool catalog over Streamable HTTP at `POST /mcp`.
 - Exposes native meta-tools to upstream LLM planners.
-- Handles tool list change notifications (`tools/list_changed`) across connected sessions.
 
 ### Meta-Tool
 Native high-leverage tools provided directly by the MCP Gateway to upstream agents:

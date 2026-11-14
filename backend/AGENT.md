@@ -179,7 +179,6 @@ Strict unidirectional dependency flow:
 
 ### Sessions for sessionless MCP clients (ADR-0003)
 - Protocol 2026-07-28 has no `initialize` and no `Mcp-Session-Id`. `SessionTracker` derives a Session from account + API key + client name/version, rotating after `SESSION_IDLE_SECONDS` idle.
-- Only handshake-era `ServerSession`s go into `MCPServer._active_sessions`; per-request ones can never be notified. Sessionless clients get `tools/list_changed` via `subscriptions/listen` (`InMemorySubscriptionBus`).
 
 ### Configuration Policy (Strict .env Compliance)
 - **Invariant**: Do NOT add hardcoded fallback default values for application configuration in `app/core/config.py`. All settings in `Settings` must be explicitly declared and loaded from `.env` or environment variables.

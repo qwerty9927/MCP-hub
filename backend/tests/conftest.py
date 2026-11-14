@@ -17,10 +17,7 @@ if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
 import app.infrastructure.database as db_module  # noqa: E402
-from app.api.dependencies import (  # noqa: E402
-    _connection_manager,
-    get_mcp_server,
-)
+from app.api.dependencies import _connection_manager  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models.api_key_model import ApiKeyModel  # noqa: E402
@@ -64,9 +61,6 @@ async def cleanup_dependencies():
         await session.execute(delete(ApiKeyModel))
         await session.execute(delete(UserModel))
         await session.commit()
-
-    mcp_server = get_mcp_server()
-    mcp_server._active_sessions.clear()
 
     await db_module.engine.dispose()
 

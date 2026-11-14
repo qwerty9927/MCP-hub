@@ -18,7 +18,7 @@ The hub supplies its own session identity, from things it can trust:
 2. **Handshake-era clients** keep using the transport session ID. The Session is stamped with the account and API key, and the SDK binds the transport session to the credential that opened it, so another key cannot use it.
 3. **Sessionless clients** get a **derived Session**, keyed on a fingerprint of `(account, API key, client name, client version)`. Requests with the same fingerprint join the most recent active Session with it, until that Session has been idle for 30 minutes (the SDK's own idle timeout). After that it is marked `completed` and the next request opens a new one.
 4. Session metadata records `session_source`: `transport` or `derived`.
-5. Only handshake-era SDK sessions are kept for `tools/list_changed`. Sessionless clients receive it through `subscriptions/listen`.
+5. No SDK sessions are kept for notifications: the hub's tool list is fixed, so it sends no `tools/list_changed`.
 
 ## Why
 - Account + API key is the only identity the hub can verify. The client name, version and source address are client-supplied or shared (NAT, proxies), so on their own they would merge unrelated clients, and nothing would stop one caller writing into another's Session.

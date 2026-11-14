@@ -156,7 +156,6 @@ async def test_transport_session_is_registered_to_the_caller(mcp_server, mock_se
             "protocol_version": "2024-11-05",
         },
     )
-    assert ctx.session in mcp_server._active_sessions
 
 
 @pytest.mark.asyncio
@@ -170,17 +169,6 @@ async def test_handle_list_tools_returns_strictly_two_tools(mcp_server):
     assert len(tool_names) == 2
     assert SEARCH_TOOLS_NAME in tool_names
     assert MULTI_EXECUTE_TOOLS_NAME in tool_names
-
-
-@pytest.mark.asyncio
-async def test_sessionless_requests_do_not_accumulate_notification_targets(mcp_server, mock_session_repo):
-    """Per-request sessions of 2026-07-28 clients can never be notified, so they must not be kept."""
-    mock_session_repo.find_active_by_fingerprint.return_value = None
-    for _ in range(3):
-        ctx = _create_mock_context(session_id=None, client_info_name="modern-client")
-        await mcp_server.handle_list_tools(ctx, params=PaginatedRequestParams())
-
-    assert mcp_server._active_sessions == set()
 
 
 @pytest.mark.asyncio
@@ -305,20 +293,6 @@ async def test_handle_call_tool_multi_execute(mcp_server, mock_tool_executor, mo
     data = json.loads(res.content[0].text)
     assert data["results"] == [{"tool_slug": slug, "status": "success", "data": "42", "error": None}]
     mock_tool_executor.execute.assert_awaited_once_with(slug, {"a": 20, "b": 22}, owner_id=PRINCIPAL.user_id, session_id="sess-multi")
-
-
-@pytest.mark.asyncio
-async def test_notify_tools_changed_broadcasts(mcp_server):
-    """Verify notify_tools_changed notifies active sessions."""
-    mock_session = AsyncMock()
-    mcp_server._active_sessions.add(mock_session)
-    events = []
-    mcp_server._subscription_bus.subscribe(events.append)
-
-    await mcp_server.notify_tools_changed()
-    mock_session.send_tool_list_changed.assert_called_once()
-    # Sessionless clients get it through their subscriptions/listen streams.
-    assert [type(e).__name__ for e in events] == ["ToolsListChanged"]
 
 
 @pytest.mark.asyncio

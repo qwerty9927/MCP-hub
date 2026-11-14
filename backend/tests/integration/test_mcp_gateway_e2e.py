@@ -132,7 +132,8 @@ async def test_mcp_gateway_e2e_two_servers_and_dynamic_lifecycle(
             init_res = await session.initialize()
             assert init_res.server_info.name == "mcp-hub-server"
             assert init_res.capabilities.tools is not None
-            assert init_res.capabilities.tools.list_changed is True
+            # The tool list is fixed, so the hub advertises no list-change notifications.
+            assert init_res.capabilities.tools.list_changed is False
 
             # 5. List tools: strictly SEARCH_TOOLS and MULTI_EXECUTE_TOOLS
             tools_res = await session.list_tools()
