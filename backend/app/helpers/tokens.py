@@ -6,10 +6,8 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import jwt
-from jwt.exceptions import InvalidTokenError
 
 from app.core.config import get_settings
-from app.core.exceptions import UnauthorizedError
 
 JWT_ALGORITHM = "HS256"
 JWT_AUDIENCE = "mcp-hub"

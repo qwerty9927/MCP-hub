@@ -12,7 +12,7 @@ from app.domain.api_key_entity import ApiKeyEntity
 from app.domain.principal_entity import Principal
 from app.domain.user_entity import UserEntity
 from app.helpers.passwords import hash_password_async, verify_password_async
-from app.helpers.tokens import create_access_token, decode_access_token, generate_api_key, hash_api_key, is_api_key
+from app.helpers.tokens import create_access_token, decode_access_token, generate_api_key, hash_api_key
 from app.infrastructure.repositories.api_key_repository import ApiKeyRepositoryAbstract
 from app.infrastructure.repositories.ownership_repository import OwnershipRepositoryAbstract
 from app.infrastructure.repositories.user_repository import UserRepositoryAbstract

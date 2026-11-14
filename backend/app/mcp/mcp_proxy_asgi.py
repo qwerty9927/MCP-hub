@@ -1,15 +1,13 @@
 """ASGI proxy application for MCPServer: authenticates every /mcp request, then hands it to the SDK."""
 
-import json
 from typing import TYPE_CHECKING
 
 from mcp.server.auth.middleware.bearer_auth import AuthenticatedUser
 from mcp.server.auth.provider import AccessToken
 from starlette.authentication import AuthCredentials
-from starlette.types import Message, Receive, Scope, Send
+from starlette.types import Receive, Scope, Send
 
 from app.core.exceptions import UnauthorizedError
-from app.core.logging import get_correlation_id, logger
 from app.domain.principal_entity import Principal
 from app.helpers.tokens import is_api_key
 
