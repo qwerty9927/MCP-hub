@@ -39,9 +39,7 @@ A revocable credential an upstream MCP client uses to call `/mcp` on behalf of a
 The authenticated caller of a request: an Account, plus the API Key it presented (none for a console login token).
 
 ### Session
-A run of requests from one upstream agent (e.g., Claude, Cursor, or an MCP SDK client), as tracked by the hub. It belongs to one Account and tracks activity, tool calls and their outcomes. It comes from one of two sources (ADR-0003):
-- **Transport Session**: the Streamable HTTP session a handshake-era client opens with `initialize` (`Mcp-Session-Id`).
-- **Derived Session**: for sessionless (2026-07-28) clients, requests with the same Account, API Key, client name and version, until 30 idle minutes pass.
+A run of requests from one upstream agent (e.g., Claude, Cursor, or an MCP SDK client), as tracked by the hub. It belongs to one Account and tracks activity, tool calls and their outcomes. Every Session is a **Derived Session** (ADR-0003, ADR-0004): requests with the same Account, API Key and client (its name and version, or its User-Agent when it does not name itself), until 30 idle minutes pass. `/mcp` is stateless, so there are no Transport Sessions (`Mcp-Session-Id`); older Session rows may still be labelled `transport`.
 
 ### MCP Gateway (Hub Server)
 The hub acting as an upstream MCP Server exposing the aggregated tool catalog over Streamable HTTP at `POST /mcp`.

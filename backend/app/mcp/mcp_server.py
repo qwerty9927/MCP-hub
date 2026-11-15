@@ -184,23 +184,16 @@ class MCPServer:
             get_tool_input_schema=self.get_tool_input_schema,
         )
 
-        # Initialize streamable HTTP app and session manager on the server
+        # Stateless (ADR-0004): every POST is served on its own, with no transport session and no
+        # Mcp-Session-Id, so any instance can answer and a restart never yields "Session not found".
+        # JSON responses, since the hub sends nothing to the client mid-call.
         self._server.streamable_http_app(
             streamable_http_path="/mcp",
+            stateless_http=True,
+            json_response=True,
             transport_security=transport_security,
         )
-        logger.info("Initialized HubServer and Streamable HTTP manager on '/mcp'")
-
-    def _discover_session_id(self, ctx: ServerRequestContext) -> str | None:
-        """Discover session ID from ServerRequestContext HTTP request headers or session connection."""
-        if ctx.request and hasattr(ctx.request, "headers"):
-            header_id = ctx.request.headers.get("mcp-session-id")
-            if header_id:
-                return header_id
-        conn = getattr(ctx.session, "_connection", None)
-        if conn and isinstance(getattr(conn, "session_id", None), str):
-            return conn.session_id
-        return None
+        logger.info("Initialized HubServer and stateless Streamable HTTP manager on '/mcp'")
 
     @staticmethod
     def _principal(ctx: ServerRequestContext) -> Principal | None:
@@ -213,7 +206,11 @@ class MCPServer:
 
     @staticmethod
     def _client_identity(ctx: ServerRequestContext) -> ClientIdentity:
-        """Client name/version from the initialize handshake, or from a sessionless request's `_meta`."""
+        """What the request says about its client.
+
+        2026-07-28 clients send name/version in every request's `_meta`. Handshake-era clients only named
+        themselves in `initialize`, which a stateless server forgets, so their User-Agent stands in.
+        """
         name = version = None
         try:
             client_params = ctx.session.client_params
@@ -222,14 +219,16 @@ class MCPServer:
                 version = client_params.client_info.version
         except Exception:
             pass
-        return ClientIdentity(name=name, version=version, protocol_version=ctx.protocol_version)
+        user_agent = None
+        if ctx.request is not None and hasattr(ctx.request, "headers"):
+            user_agent = ctx.request.headers.get("user-agent") or None
+        return ClientIdentity(name=name, version=version, protocol_version=ctx.protocol_version, user_agent=user_agent)
 
     async def _track_session(self, ctx: ServerRequestContext, principal: Principal | None) -> str | None:
         """Attribute the request to a hub Session."""
-        transport_session_id = self._discover_session_id(ctx)
-        if principal is None or self.session_tracker is None:
+        if principal is None:
             return None
-        return await self.session_tracker.resolve(principal, transport_session_id, self._client_identity(ctx))
+        return await self.session_tracker.resolve(principal, self._client_identity(ctx))
 
     async def _handle_search_tools_call(
         self,

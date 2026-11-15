@@ -494,14 +494,14 @@ Any MCP-compliant client (Claude Desktop, IDE extensions, autonomous agents, Pyt
 - **Protocol:** Model Context Protocol (MCP) JSON-RPC 2.0 over Streamable HTTP
 - **URL:** `http://<host>:<port>/mcp`
 - **Supported Methods:**
-  - `POST /mcp`: JSON-RPC messages (Handshake initialization, tool listing, tool invocation)
-  - `GET /mcp`: Server-Sent Events (SSE) stream for real-time notifications
-  - `DELETE /mcp`: Graceful session termination
+  - `POST /mcp`: JSON-RPC messages (tool listing, tool invocation; `initialize` is answered but optional). Responses are plain `application/json`.
+  - `GET /mcp` and `DELETE /mcp`: `405 Method Not Allowed`. There is no notification stream and no session to end.
+- **Stateless (ADR-0004):** every POST is served on its own. The hub issues no `mcp-session-id` and ignores one if a client sends it, so a backend restart or idle time never produces `404 Session not found`, and any instance behind a load balancer can answer any request.
 - **Headers:**
-  - `Authorization: Bearer <api key or console token>`: **required**. Without a valid one the endpoint answers `401` with `WWW-Authenticate`.
-  - `mcp-session-id`: Automatically managed session identifier assigned during `initialize` (handshake-era protocol versions only)
-    - Sessions live in the hub's memory: a backend restart forgets them all, and a session only accepts the API key (or console login) that opened it. Either way the hub answers `404` with `{"error": {"code": -32600, "message": "Session not found"}}`. Per the MCP spec the client must then send a new `initialize` without the old header.
-- **Protocol versions:** handshake-era versions (`2024-11-05` … `2025-11-25`) and the sessionless `2026-07-28`. For sessionless clients the hub derives a session from account + API key + client name/version (ADR-0003).
+  - `x-api-key: <api key>`: **required**. Only API keys (`mhk_...`) are accepted; an `Authorization` header or a console token is ignored. Without a valid key the endpoint answers `401` with `WWW-Authenticate`.
+  - `Accept: application/json, text/event-stream`: as the Streamable HTTP spec requires.
+  - `mcp-protocol-version`: the client's protocol version, as the spec requires after negotiation.
+- **Protocol versions:** handshake-era versions (`2024-11-05` … `2025-11-25`) and `2026-07-28`. The hub groups requests into Sessions from account + API key + client name/version, or the `User-Agent` when the client does not name itself, which is the case for handshake-era clients on a stateless server (ADR-0003, ADR-0004). Give each client its own API key to keep their Sessions apart.
 - **Scope:** `SEARCH_TOOLS` and `MULTI_EXECUTE_TOOLS` see only the calling account's servers.
 
 ### 6.2 Tool Namespacing & Identity Mapping
@@ -612,7 +612,7 @@ async def main():
     api_key = "mhk_..."  # Settings > API Keys in the console
 
     async with (
-        create_mcp_http_client(headers={"Authorization": f"Bearer {api_key}"}) as http_client,
+        create_mcp_http_client(headers={"x-api-key": api_key}) as http_client,
         streamable_http_client(hub_mcp_url, http_client=http_client) as (read_stream, write_stream),
         ClientSession(read_stream, write_stream) as session,
     ):

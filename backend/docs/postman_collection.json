@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "a9d8f7e6-1234-4567-89ab-cdef01234567",
     "name": "MCP Hub & Gateway API",
-    "description": "Postman collection for the MCP Hub REST API and the Streamable HTTP MCP Gateway (/mcp). Start with '0. Account & API Key'. REST requests use {{access_token}}; /mcp requests use {{mcp_api_key}}. Initialize stores mcp-session-id. The hub keeps MCP sessions in memory, so after a backend restart (or a new API key) /mcp answers 404 'Session not found': run '1. Initialize Session' again.",
+    "description": "Postman collection for the MCP Hub REST API and the Streamable HTTP MCP Gateway (/mcp). Start with '0. Account & API Key'. REST requests use {{access_token}}; /mcp requests send {{mcp_api_key}} in the x-api-key header. /mcp is stateless: every request stands alone, with no initialize step and no mcp-session-id, so requests keep working across backend restarts.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -131,8 +131,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Key created', () => pm.response.to.have.status(201));",
-                  "pm.environment.set('mcp_api_key', pm.response.json().key);",
-                  "pm.environment.unset('mcp_session_id');"
+                  "pm.environment.set('mcp_api_key', pm.response.json().key);"
                 ]
               }
             }
@@ -145,39 +144,7 @@
       "description": "Requests interacting directly with the unified MCP Server endpoint via Streamable HTTP (JSON-RPC 2.0).",
       "item": [
         {
-          "name": "1. Initialize Session",
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "// A new handshake must not carry the previous session's id",
-                  "pm.environment.unset('mcp_session_id');"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test(\"Status code is 200\", function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "",
-                  "// Extract mcp-session-id header and store into environment variable",
-                  "var sessionId = pm.response.headers.get(\"mcp-session-id\");",
-                  "if (sessionId) {",
-                  "    pm.environment.set(\"mcp_session_id\", sessionId);",
-                  "    console.log(\"Saved mcp_session_id: \" + sessionId);",
-                  "} else {",
-                  "    console.error(\"mcp-session-id header not found\");",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
+          "name": "1. Initialize (optional)",
           "request": {
             "method": "POST",
             "header": [
@@ -203,41 +170,7 @@
                 "mcp"
               ]
             },
-            "description": "Initializes the MCP session handshake. Postman test script automatically stores the returned 'mcp-session-id' header into the environment variable {{mcp_session_id}}."
-          }
-        },
-        {
-          "name": "2. Initialized Notification",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Accept",
-                "value": "application/json, text/event-stream"
-              },
-              {
-                "key": "mcp-session-id",
-                "value": "{{mcp_session_id}}"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"notifications/initialized\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/mcp",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "mcp"
-              ]
-            },
-            "description": "Notifies the MCP Gateway that the client has completed initialization (returns 202 Accepted)."
+            "description": "Optional on a stateless server: returns the hub's info and capabilities, but opens no session and returns no mcp-session-id. Every other request works without it."
           }
         },
         {
@@ -252,10 +185,6 @@
               {
                 "key": "Accept",
                 "value": "application/json, text/event-stream"
-              },
-              {
-                "key": "mcp-session-id",
-                "value": "{{mcp_session_id}}"
               }
             ],
             "body": {
@@ -286,10 +215,6 @@
               {
                 "key": "Accept",
                 "value": "application/json, text/event-stream"
-              },
-              {
-                "key": "mcp-session-id",
-                "value": "{{mcp_session_id}}"
               }
             ],
             "body": {
@@ -320,10 +245,6 @@
               {
                 "key": "Accept",
                 "value": "application/json, text/event-stream"
-              },
-              {
-                "key": "mcp-session-id",
-                "value": "{{mcp_session_id}}"
               }
             ],
             "body": {
@@ -354,10 +275,6 @@
               {
                 "key": "Accept",
                 "value": "application/json, text/event-stream"
-              },
-              {
-                "key": "mcp-session-id",
-                "value": "{{mcp_session_id}}"
               }
             ],
             "body": {
@@ -388,10 +305,6 @@
               {
                 "key": "Accept",
                 "value": "application/json, text/event-stream"
-              },
-              {
-                "key": "mcp-session-id",
-                "value": "{{mcp_session_id}}"
               }
             ],
             "body": {
@@ -422,10 +335,6 @@
               {
                 "key": "Accept",
                 "value": "application/json, text/event-stream"
-              },
-              {
-                "key": "mcp-session-id",
-                "value": "{{mcp_session_id}}"
               }
             ],
             "body": {
@@ -443,47 +352,24 @@
             },
             "description": "Invokes 'text_transform' on Server 2."
           }
-        },
-        {
-          "name": "9. Terminate Session",
-          "request": {
-            "method": "DELETE",
-            "header": [
-              {
-                "key": "mcp-session-id",
-                "value": "{{mcp_session_id}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/mcp",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "mcp"
-              ]
-            },
-            "description": "Closes and discards the active Streamable HTTP session on the MCP Gateway."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.environment.unset('mcp_session_id');"
-                ]
-              }
-            }
-          ]
         }
       ],
       "auth": {
-        "type": "bearer",
-        "bearer": [
+        "type": "apikey",
+        "apikey": [
           {
-            "key": "token",
+            "key": "key",
+            "value": "x-api-key",
+            "type": "string"
+          },
+          {
+            "key": "value",
             "value": "{{mcp_api_key}}",
+            "type": "string"
+          },
+          {
+            "key": "in",
+            "value": "header",
             "type": "string"
           }
         ]
@@ -822,11 +708,6 @@
       "script": {
         "type": "text/javascript",
         "exec": [
-          "// The hub forgets MCP sessions on restart; the spec answer is 404 'Session not found'.",
-          "if (pm.request.url.getPath() === '/mcp' && pm.response.code === 404) {",
-          "    pm.environment.unset('mcp_session_id');",
-          "    pm.test(\"MCP session expired or belongs to another API key: run '1. Initialize Session' again\", () => { throw new Error('Session not found'); });",
-          "}",
           "if (pm.response.code === 401) {",
           "    pm.test(\"Not authenticated: run 'Login' (REST) or 'Create MCP API Key' (/mcp) in '0. Account & API Key'\", () => { throw new Error('401'); });",
           "}"

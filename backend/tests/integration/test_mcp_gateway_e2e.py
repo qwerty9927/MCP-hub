@@ -245,13 +245,37 @@ async def test_mcp_gateway_e2e_two_servers_and_dynamic_lifecycle(
                 )
                 assert json.loads(call.content[0].text)["results"][0]["status"] == "success"
 
+        # 11. Stateless /mcp (ADR-0004): a leftover Mcp-Session-Id is ignored rather than answered with
+        # 404 "Session not found", no initialize is needed, and there is no GET stream to open.
+        mcp_headers = {
+            "x-api-key": handshake_key,
+            "accept": "application/json, text/event-stream",
+            "mcp-protocol-version": "2025-11-25",
+        }
+        stale = await rest_client.post(
+            "/mcp",
+            headers={**mcp_headers, "mcp-session-id": "expired-session-from-before-a-restart"},
+            json={"jsonrpc": "2.0", "id": 7, "method": "tools/list"},
+        )
+        assert stale.status_code == 200, stale.text
+        assert "mcp-session-id" not in stale.headers
+        assert len(stale.json()["result"]["tools"]) == 2
+        assert (await rest_client.get("/mcp", headers=mcp_headers)).status_code == 405
+
         sessions = (await rest_client.get("/api/v1/sessions")).json()["items"]
         details = [(await rest_client.get(f"/api/v1/sessions/{s['id']}")).json() for s in sessions]
-        by_source = {d["metadata"]["session_source"]: d for d in details}
-        assert set(by_source) == {"transport", "derived"}
-        # Both sessionless requests landed in one derived session, apart from the handshake client's.
-        assert by_source["derived"]["total_tool_calls"] == 2
-        assert by_source["transport"]["total_tool_calls"] >= 2
+        assert {d["metadata"]["session_source"] for d in details} == {"derived"}
+        # The modern client names itself in `_meta`; the handshake client's name died with its initialize,
+        # so its User-Agent identifies it. The raw request in step 11 shares the handshake client's API key
+        # but not its User-Agent, so it lands in a Session of its own.
+        named = [d for d in details if d["metadata"].get("client_name")]
+        unnamed = sorted((d for d in details if not d["metadata"].get("client_name")), key=lambda d: d["total_tool_calls"])
+        assert len(named) == 1 and named[0]["total_tool_calls"] == 2
+        assert len(unnamed) == 2
+        raw_request, handshake_client = unnamed
+        assert raw_request["total_tool_calls"] == 0
+        assert handshake_client["total_tool_calls"] >= 2
+        assert raw_request["metadata"]["user_agent"] != handshake_client["metadata"]["user_agent"]
 
         # 11. Verify execution audit logs in Hub database
         audit_res = await rest_client.get("/api/v1/executions")

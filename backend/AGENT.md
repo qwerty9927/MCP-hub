@@ -109,7 +109,7 @@ backend/
 │   │   │       └── tool_repository.py      # ToolRepositoryAbstract, PostgresToolRepository
 │   │   ├── mcp/                         # Upstream MCP protocol extensions & meta-tools
 │   │   │   ├── mcp_proxy_asgi.py        # Streamable HTTP ASGI proxy application
-│   │   │   ├── mcp_server.py            # MCPServer exposing the hub over Streamable HTTP (/mcp)
+│   │   │   ├── mcp_server.py            # MCPServer exposing the hub over stateless Streamable HTTP (/mcp)
 │   │   │   ├── multi_execute_tools.py   # MULTI_EXECUTE_TOOLS parallel dispatcher & failure isolator
 │   │   │   └── search_tools.py          # SEARCH_TOOLS discovery handler & relevance scoring
 │   │   ├── middlewares/                 # ASGI middleware components
@@ -133,7 +133,7 @@ backend/
 │   │       ├── server_registry.py       # Server CRUD, uniqueness validation, status management
 │   │       ├── auth_service.py          # Accounts, console JWT login, API keys, bearer token -> Principal
 │   │       ├── session_explorer.py      # Session discovery and execution history
-│   │       ├── session_tracker.py       # Maps each /mcp request to a hub Session, incl. derived sessions (ADR-0003)
+│   │       ├── session_tracker.py       # Maps each /mcp request to a derived hub Session (ADR-0003, ADR-0004)
 │   │       ├── tool_catalog.py          # Tool index over discovered_tools (no in-memory cache), Tool Reference resolution
 │   │       └── tool_executor.py         # Execution module: resolve Tool Reference, check, validate, call, audit (ADR-0002)
 ├── demo_server/                         # Standalone downstream demo MCP servers for E2E tests
@@ -173,12 +173,13 @@ Strict unidirectional dependency flow:
 ### Accounts, Authentication & Ownership
 - **Every router depends on the caller**: each endpoint in `app/api/v1/` (except `/auth/register`, `/auth/login`, `/health`, `/ready`) takes `principal: Annotated[Principal, Depends(get_current_principal)]` and passes `owner_id=principal.user_id` down. Service methods that read or change owned data take a keyword-only `owner_id` with no default, so a forgotten owner is a TypeError, not a data leak.
 - Another account's resource is a `NotFoundError` (404), never 403, so its existence is not revealed.
-- REST accepts only console JWTs (`AuthService.authenticate_console`). `/mcp` accepts API keys or console JWTs (`AuthService.authenticate`), checked in `MCPProxyASGI`, which also sets the SDK's `scope["user"]` so transport sessions are bound to the credential that opened them.
+- REST accepts only console JWTs (`AuthService.authenticate_console`). `/mcp` accepts only API keys, sent in the `x-api-key` header (`AuthService.authenticate_api_key`), checked in `MCPProxyASGI`, which also sets the SDK's `scope["user"]` so transport sessions are bound to the credential that opened them.
 - `discovered_tools.owner_id` is a copy of the server's owner so catalog lookups can be scoped without a join.
 - Settings: `JWT_SECRET` (32+ chars), `ACCESS_TOKEN_EXPIRE_MINUTES`, `ALLOW_SELF_SIGNUP`. Keep `ALLOW_SELF_SIGNUP=false` on any network-exposed deployment: a registered user can add stdio servers.
 
-### Sessions for sessionless MCP clients (ADR-0003)
-- Protocol 2026-07-28 has no `initialize` and no `Mcp-Session-Id`. `SessionTracker` derives a Session from account + API key + client name/version, rotating after `SESSION_IDLE_SECONDS` idle.
+### Stateless `/mcp` and derived Sessions (ADR-0003, ADR-0004)
+- `/mcp` runs the SDK stateless with JSON responses: no transport sessions, no `Mcp-Session-Id` (a client-sent one is ignored), `GET`/`DELETE` answer 405. Do not add features that need a server-to-client channel (sampling, elicitation, notification streams) without revisiting ADR-0004.
+- `SessionTracker` derives every Session from account + API key + client name/version (from `_meta`), or the `User-Agent` when the client does not name itself (handshake-era clients), rotating after `SESSION_IDLE_SECONDS` idle.
 
 ### Configuration Policy (Strict .env Compliance)
 - **Invariant**: Do NOT add hardcoded fallback default values for application configuration in `app/core/config.py`. All settings in `Settings` must be explicitly declared and loaded from `.env` or environment variables.

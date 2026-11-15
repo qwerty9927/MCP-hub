@@ -1,7 +1,7 @@
 # ADR 0003: Session Identity Without Transport Sessions
 
 ## Status
-Accepted
+Accepted. Point 2 (transport sessions) superseded by ADR-0004: `/mcp` is stateless and every Session is derived.
 
 ## Date
 2026-11-12
@@ -14,7 +14,7 @@ Protocol 2026-07-28 (served by `mcp` 2.3) removed the handshake: each POST to `/
 ## Decision
 The hub supplies its own session identity, from things it can trust:
 
-1. **Every `/mcp` request is authenticated** (ADR context: accounts and API keys). An MCP client presents an API key; a console login token is also accepted. No credential, 401.
+1. **Every `/mcp` request is authenticated** (ADR context: accounts and API keys). An MCP client presents an API key in the `x-api-key` header. No valid key, 401. (Amended: console login tokens were originally accepted too; `/mcp` is now API-key only.)
 2. **Handshake-era clients** keep using the transport session ID. The Session is stamped with the account and API key, and the SDK binds the transport session to the credential that opened it, so another key cannot use it.
 3. **Sessionless clients** get a **derived Session**, keyed on a fingerprint of `(account, API key, client name, client version)`. Requests with the same fingerprint join the most recent active Session with it, until that Session has been idle for 30 minutes (the SDK's own idle timeout). After that it is marked `completed` and the next request opens a new one.
 4. Session metadata records `session_source`: `transport` or `derived`.

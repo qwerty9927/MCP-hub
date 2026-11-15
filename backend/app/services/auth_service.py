@@ -91,7 +91,7 @@ class AuthService:
             return None
 
     async def authenticate_api_key(self, token: str) -> Principal | None:
-        """Resolve any bearer token: an API key (`mhk_...`) or a console JWT. Used by the /mcp endpoint."""
+        """Resolve an API key (`mhk_...`) to its account; None if unknown or revoked. Used by the /mcp endpoint."""
         key = await self._api_keys.get_by_hash(hash_api_key(token))
         if key is None or key.revoked_at is not None:
             return None

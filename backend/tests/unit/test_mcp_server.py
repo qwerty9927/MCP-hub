@@ -116,46 +116,40 @@ def _create_mock_context(
     return ctx
 
 
-def test_discover_session_id_from_headers(mcp_server):
-    """Verify session ID is discovered from HTTP request headers."""
-    ctx = _create_mock_context(session_id="fallback-conn-id", request_headers={"mcp-session-id": "header-session-456"})
-    discovered = mcp_server._discover_session_id(ctx)
-    assert discovered == "header-session-456"
-
-
-def test_discover_session_id_from_connection(mcp_server):
-    """Verify session ID falls back to connection session_id when request headers are absent."""
-    ctx = _create_mock_context(session_id="fallback-conn-id", request_headers=None, principal=None)
-    discovered = mcp_server._discover_session_id(ctx)
-    assert discovered == "fallback-conn-id"
-
-
-def test_discover_session_id_none(mcp_server):
-    """Verify None is returned when neither header nor connection provides session_id."""
-    ctx = _create_mock_context(session_id=None, request_headers=None, principal=None)
-    discovered = mcp_server._discover_session_id(ctx)
-    assert discovered is None
-
-
 @pytest.mark.asyncio
-async def test_transport_session_is_registered_to_the_caller(mcp_server, mock_session_repo):
-    """A handshake-era session is registered with the caller as owner and the client's metadata."""
-    ctx = _create_mock_context(session_id="sess-registered", client_info_name="TestClient", client_info_version="2.1.0")
+async def test_request_opens_a_derived_session_for_the_caller(mcp_server, mock_session_repo):
+    """Every request is attributed to a derived Session owned by the caller, carrying the client's identity."""
+    mock_session_repo.find_active_by_fingerprint.return_value = None
+    ctx = _create_mock_context(
+        request_headers={"user-agent": "TestClient-http/2.1"}, client_info_name="TestClient", client_info_version="2.1.0"
+    )
 
     await mcp_server.handle_list_tools(ctx, params=PaginatedRequestParams())
 
-    mock_session_repo.get_or_create.assert_awaited_once_with(
-        session_id="sess-registered",
-        owner_id=PRINCIPAL.user_id,
-        api_key_id=PRINCIPAL.api_key_id,
-        title="TestClient (sess-reg)",
-        metadata={
-            "session_source": "transport",
-            "client_name": "TestClient",
-            "client_version": "2.1.0",
-            "protocol_version": "2024-11-05",
-        },
-    )
+    mock_session_repo.get_or_create.assert_not_awaited()
+    created = mock_session_repo.create.await_args.args[0]
+    assert created.owner_id == PRINCIPAL.user_id
+    assert created.api_key_id == PRINCIPAL.api_key_id
+    assert created.metadata == {
+        "session_source": "derived",
+        "client_name": "TestClient",
+        "client_version": "2.1.0",
+        "protocol_version": "2024-11-05",
+        "user_agent": "TestClient-http/2.1",
+    }
+
+
+@pytest.mark.asyncio
+async def test_client_supplied_session_header_is_ignored(mcp_server, mock_session_repo):
+    """A leftover Mcp-Session-Id never becomes the hub Session ID: the Session is always derived."""
+    mock_session_repo.find_active_by_fingerprint.return_value = None
+    ctx = _create_mock_context(request_headers={"mcp-session-id": "client-chosen-id", "user-agent": "old-client/1.0"})
+
+    await mcp_server.handle_list_tools(ctx, params=PaginatedRequestParams())
+
+    created = mock_session_repo.create.await_args.args[0]
+    assert created.id != "client-chosen-id"
+    assert created.metadata["user_agent"] == "old-client/1.0"
 
 
 @pytest.mark.asyncio
@@ -273,7 +267,7 @@ async def test_handle_call_tool_multi_execute(mcp_server, mock_tool_executor, mo
     """Verify Multi-Execute dispatches each item to the Execution module with the discovered session."""
     srv_id = uuid4()
     ctx = _create_mock_context("sess-multi")
-    mock_session_repo.get_or_create.return_value = SessionEntity(id="sess-multi", owner_id=PRINCIPAL.user_id)
+    mock_session_repo.find_active_by_fingerprint.return_value = SessionEntity(id="sess-multi", owner_id=PRINCIPAL.user_id)
     slug = f"{srv_id}:add"
     mock_tool_executor.execute.return_value = ExecutionOutcome(
         kind=ExecutionOutcomeKind.SUCCEEDED,
@@ -337,3 +331,21 @@ async def test_mcp_proxy_asgi_rejects_unauthenticated(mcp_server, mock_auth_serv
         await proxy(scope, AsyncMock(), AsyncMock())
 
     mcp_server.session_manager.asgi_app.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", ["GET", "DELETE"])
+async def test_mcp_proxy_asgi_refuses_non_post_without_reaching_the_sdk(mcp_server, mock_auth_service, method):
+    """Stateless /mcp has no notification stream or session to end; a GET must not be held open as SSE."""
+    mock_auth_service.authenticate_api_key.return_value = PRINCIPAL
+    proxy = MCPProxyASGI(mcp_server)
+    scope = {"type": "http", "method": method, "headers": [(b"x-api-key", b"mhk_valid")]}
+    send = AsyncMock()
+    mcp_server.session_manager.asgi_app = AsyncMock()
+
+    await proxy(scope, AsyncMock(), send)
+
+    mcp_server.session_manager.asgi_app.assert_not_called()
+    start = send.await_args_list[0].args[0]
+    assert start["status"] == 405
+    assert (b"allow", b"POST") in start["headers"]
