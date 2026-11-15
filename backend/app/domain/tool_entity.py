@@ -10,7 +10,7 @@ from uuid import UUID
 class ToolEntity:
     """Core domain entity representing a discovered tool."""
 
-    id: str
+    id: UUID
     server_id: UUID
     server_name: str
     name: str

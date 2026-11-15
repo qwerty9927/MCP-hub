@@ -1,10 +1,12 @@
 from abc import ABC, abstractmethod
+from dataclasses import replace
 from uuid import UUID
 
 from sqlalchemy import delete, func, select
 
 import app.infrastructure.database as db_module
 from app.domain.tool_entity import ToolEntity
+from app.helpers.validation import is_uuid
 from app.models.tool_model import ToolModel
 
 
@@ -12,13 +14,13 @@ class ToolRepositoryAbstract(ABC):
     """Abstract repository for discovered tool metadata persistence."""
 
     @abstractmethod
-    async def save_server_tools(
+    async def replace_server_tools(
         self,
         server_id: UUID,
         server_name: str,
         tools: list[ToolEntity],
     ) -> list[ToolEntity]:
-        """Atomically persist or replace tools discovered for a server."""
+        """Replace the tools stored for a server with the newly discovered ones."""
         pass
 
     @abstractmethod
@@ -34,7 +36,7 @@ class ToolRepositoryAbstract(ABC):
         *,
         user_id: UUID,
     ) -> ToolEntity | None:
-        """Retrieve a tool by qualified ID or tool name."""
+        """Retrieve a tool by its id, or by name (on `server_id` only, when given)."""
         pass
 
     @abstractmethod
@@ -56,31 +58,21 @@ class ToolRepositoryAbstract(ABC):
 class PostgresToolRepository(ToolRepositoryAbstract):
     """PostgreSQL implementation of ToolRepositoryAbstract using SQLAlchemy."""
 
-    async def save_server_tools(
+    async def replace_server_tools(
         self,
         server_id: UUID,
         server_name: str,
         tools: list[ToolEntity],
     ) -> list[ToolEntity]:
         async with db_module.async_session_factory() as session:
-            # Delete existing tools for this server
+            # Replace the server's tools with the newly discovered ones (each new Tool has a new id).
             await session.execute(delete(ToolModel).where(ToolModel.server_id == str(server_id)))
 
             saved_entities: list[ToolEntity] = []
             for tool in tools:
-                model = ToolModel(
-                    id=tool.id,
-                    server_id=str(server_id),
-                    server_name=server_name,
-                    user_id=str(tool.user_id),
-                    name=tool.name,
-                    description=tool.description,
-                    input_schema=tool.input_schema or {},
-                    availability_status=tool.availability_status,
-                    last_discovered_at=tool.last_discovered_at,
-                )
-                session.add(model)
-                saved_entities.append(tool)
+                saved = replace(tool, server_id=server_id, server_name=server_name)
+                session.add(ToolModel.from_domain(saved))
+                saved_entities.append(saved)
 
             await session.commit()
             return saved_entities
@@ -100,11 +92,12 @@ class PostgresToolRepository(ToolRepositoryAbstract):
         async with db_module.async_session_factory() as session:
             owned = ToolModel.user_id == str(user_id)
 
-            # 1. Look up by exact qualified ID
-            stmt = select(ToolModel).where(ToolModel.id == tool_id_or_name, owned)
-            model = (await session.execute(stmt)).scalar_one_or_none()
-            if model:
-                return model.to_domain()
+            # 1. Look up by Tool ID
+            if is_uuid(tool_id_or_name):
+                stmt = select(ToolModel).where(ToolModel.id == str(UUID(tool_id_or_name)), owned)
+                model = (await session.execute(stmt)).scalar_one_or_none()
+                if model:
+                    return model.to_domain()
 
             name_match = func.lower(ToolModel.name) == tool_id_or_name.lower()
             # 2. Look up by name on the given server; a named server never falls through to other servers

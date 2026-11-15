@@ -180,6 +180,7 @@ Strict unidirectional dependency flow:
 - Another account's resource is a `NotFoundError` (404), never 403, so its existence is not revealed.
 - REST accepts only console JWTs (`AuthService.authenticate_console`). `/mcp` accepts only API keys, sent in the `x-api-key` header (`AuthService.authenticate_api_key`), checked in `MCPProxyASGI`, which also sets the SDK's `scope["user"]` so transport sessions are bound to the credential that opened them.
 - `user_id` is NOT NULL on `mcp_servers`, `discovered_tools` and `mcp_sessions` (foreign key to `users`, cascade delete), and required on their domain entities. `discovered_tools.user_id` is a copy of the server's owner so catalog lookups can be scoped without a join. The only cross-account code is the idle-session sweeper.
+- **Ids**: every table's `id` is a UUID stored as `str(UUID)` in `varchar(36)`. The app generates it (`uuid4()` in the entity or service) and `gen_random_uuid()::text` is the database default for inserts made outside the app. `replace_server_tools` replaces a server's Tools on every re-discovery, so Tool ids change then; `(server_id, name)` is unique. There is no `{server_id}:{tool_name}` id; REST names a tool by name plus `server_id`, agents by Tool Slug.
 - Settings: `JWT_SECRET` (32+ chars), `ACCESS_TOKEN_EXPIRE_MINUTES`, `ALLOW_SELF_SIGNUP`. Keep `ALLOW_SELF_SIGNUP=false` on any network-exposed deployment: a registered user can add stdio servers.
 
 ### Stateless `/mcp` and derived Sessions (ADR-0003, ADR-0004)

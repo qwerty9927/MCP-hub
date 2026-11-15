@@ -12,7 +12,7 @@ SERVER_B_SCRIPT = str(Path(__file__).resolve().parent.parent.parent / "demo_serv
 async def test_multi_server_aggregation_and_duplicate_tool_names(async_client: AsyncClient):
     """Register two distinct MCP servers that share a duplicate tool name ('calculate')
 
-    and verify proper aggregation, qualified ID handling, and isolated routing.
+    and verify proper aggregation, per-server Tool ids, and isolated routing.
     """
     # 1. Register Server A
     res_a = await async_client.post(
@@ -57,12 +57,17 @@ async def test_multi_server_aggregation_and_duplicate_tool_names(async_client: A
     all_tools = tools_res.json()["items"]
     assert len(all_tools) >= 6
 
-    # Verify duplicate tool name 'calculate' has two distinct qualified IDs
+    # Verify duplicate tool name 'calculate' is two distinct Tools, one per server
     calc_tools = [t for t in all_tools if t["name"] == "calculate"]
     assert len(calc_tools) == 2
-    calc_ids = {t["id"] for t in calc_tools}
-    assert f"{server_a_id}:calculate" in calc_ids
-    assert f"{server_b_id}:calculate" in calc_ids
+    assert len({t["id"] for t in calc_tools}) == 2
+    assert {t["server_id"] for t in calc_tools} == {str(server_a_id), str(server_b_id)}
+
+    # A Tool is addressable by its UUID id
+    calc_a = next(t for t in calc_tools if t["server_id"] == str(server_a_id))
+    by_id = await async_client.get(f"/api/v1/tools/{calc_a['id']}")
+    assert by_id.status_code == 200
+    assert by_id.json()["server_id"] == str(server_a_id)
 
     # 5. Filter by Server A
     tools_a_res = await async_client.get(f"/api/v1/servers/{server_a_id}/tools")

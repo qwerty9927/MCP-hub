@@ -27,7 +27,7 @@ from app.infrastructure.repositories.execution_repository import ExecutionReposi
 from app.infrastructure.repositories.session_repository import SessionRepositoryAbstract
 from app.services.connection_manager import ConnectionManager
 from app.services.server_registry import ServerRegistryService
-from app.services.tool_catalog import ToolCatalogService, split_qualified_tool_id
+from app.services.tool_catalog import ToolCatalogService
 
 TOOL_ERROR_FALLBACK_MESSAGE = "Tool execution reported an error"
 
@@ -80,10 +80,11 @@ class ToolExecutor:
         arguments: dict[str, Any],
         *,
         user_id: UUID,
+        server_id: UUID | None = None,
         session_id: str | None = None,
         timeout: float | None = None,
     ) -> ExecutionOutcome:
-        """Execute the owner's Tool named by `tool_reference` and return its Outcome.
+        """Execute the owner's Tool named by `tool_reference` (on `server_id`, when given) and return its Outcome.
 
         A Tool on a Server owned by another account does not resolve, so it is the same Outcome as an unknown Tool.
         `session_id` must be one of the owner's Sessions; anything else raises NotFoundError before any work.
@@ -96,7 +97,7 @@ class ToolExecutor:
         await self._check_session(session_id, user_id)
 
         try:
-            tool = await self._resolve(tool_reference, user_id)
+            tool = await self._resolve(tool_reference, user_id, server_id)
             server = await self._server_for(tool) if tool else None
             if tool is None or server is None:
                 raise _Unresolved(
@@ -152,13 +153,12 @@ class ToolExecutor:
         if await self._session_repository.get_by_id(session_id, user_id=user_id) is None:
             raise NotFoundError(f"Session with id '{session_id}' not found", details={"session_id": session_id})
 
-    async def _resolve(self, tool_reference: str, user_id: UUID) -> ToolEntity | None:
-        tool = await self._tool_catalog.resolve(tool_reference, user_id=user_id)
+    async def _resolve(self, tool_reference: str, user_id: UUID, server_id: UUID | None) -> ToolEntity | None:
+        tool = await self._tool_catalog.resolve(tool_reference, user_id=user_id, server_id=server_id)
         if tool is not None:
             return tool
 
-        # Refresh-on-miss is only possible when the reference names its Server (Qualified Tool ID).
-        server_id, _ = split_qualified_tool_id(tool_reference)
+        # Refresh-on-miss is only possible when the caller names the Server.
         if server_id is None:
             return None
         try:
@@ -174,7 +174,7 @@ class ToolExecutor:
             message = f"Could not refresh tools from server '{server.name}': {format_mcp_error(exc)}"
             raise _Unresolved(ExecutionOutcomeKind.FAILED, message) from exc
         await self._server_registry.update_health(server.id, server.health_status, len(refreshed), user_id=server.user_id)
-        return await self._tool_catalog.resolve(tool_reference, user_id=user_id)
+        return await self._tool_catalog.resolve(tool_reference, user_id=user_id, server_id=server_id)
 
     async def _server_for(self, tool: ToolEntity) -> ServerEntity | None:
         try:

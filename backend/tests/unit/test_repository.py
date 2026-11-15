@@ -1,5 +1,6 @@
 """Unit tests for repository implementations."""
 
+from dataclasses import replace
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -79,7 +80,7 @@ async def test_tool_repository_crud_and_cascade(account_id):
     await server_repo.create(server)
 
     tool1 = ToolEntity(
-        id=f"{server_id}:echo",
+        id=uuid4(),
         server_id=server_id,
         server_name="parent-server",
         name="echo",
@@ -90,7 +91,7 @@ async def test_tool_repository_crud_and_cascade(account_id):
         user_id=account_id,
     )
     tool2 = ToolEntity(
-        id=f"{server_id}:reverse",
+        id=uuid4(),
         server_id=server_id,
         server_name="parent-server",
         name="reverse",
@@ -102,7 +103,7 @@ async def test_tool_repository_crud_and_cascade(account_id):
     )
 
     # 1. Save tools
-    saved = await tool_repo.save_server_tools(server_id, "parent-server", [tool1, tool2])
+    saved = await tool_repo.replace_server_tools(server_id, "parent-server", [tool1, tool2])
     assert len(saved) == 2
 
     # 2. Get tool
@@ -120,7 +121,21 @@ async def test_tool_repository_crud_and_cascade(account_id):
     assert search_total == 1
     assert search_items[0].name == "reverse"
 
-    # 5. Cascade delete when parent server is deleted
+    # 5. Get tool by its id
+    by_id = await tool_repo.get_tool(str(tool1.id), user_id=account_id)
+    assert by_id is not None
+    assert by_id.name == "echo"
+
+    # 6. Re-discovery replaces the server's tools: old ids are gone, the new tools are stored as given
+    rediscovered = [replace(tool1, id=uuid4(), description="Echo v2"), replace(tool2, id=uuid4(), name="upper")]
+    await tool_repo.replace_server_tools(server_id, "parent-server", rediscovered)
+    after, after_total = await tool_repo.list_tools(server_id=server_id, user_id=account_id)
+    assert after_total == 2
+    assert {t.id for t in after} == {t.id for t in rediscovered}
+    assert await tool_repo.get_tool(str(tool1.id), user_id=account_id) is None
+    assert (await tool_repo.get_tool(str(rediscovered[0].id), user_id=account_id)).description == "Echo v2"
+
+    # 7. Cascade delete when parent server is deleted
     await server_repo.delete(server_id)
     remaining_tools, remaining_total = await tool_repo.list_tools(server_id=server_id, user_id=account_id)
     assert remaining_total == 0

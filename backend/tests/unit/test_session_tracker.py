@@ -1,7 +1,7 @@
 """Unit tests for attributing MCP requests to hub Sessions."""
 
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -43,6 +43,7 @@ async def test_same_client_reuses_one_derived_session(tracker, repo):
     second = await tracker.resolve(principal, CLIENT)
 
     assert first is not None and first == second
+    assert str(UUID(first)) == first  # a dashed str(UUID), like every other id
     detail = await repo.get_by_id(first, user_id=principal.user_id)
     assert detail.metadata["session_source"] == "derived"
     assert detail.metadata["client_name"] == "claude-code"

@@ -1,11 +1,21 @@
 """Validation helpers for schemas, tool arguments, and inputs."""
 
 from typing import Any
+from uuid import UUID
 
 import jsonschema
 from jsonschema.exceptions import ValidationError as JSONSchemaValidationError
 
 from app.core.exceptions import ValidationError
+
+
+def is_uuid(value: str) -> bool:
+    """True when `value` parses as a UUID (with or without dashes)."""
+    try:
+        UUID(value)
+    except ValueError:
+        return False
+    return True
 
 
 def validate_tool_arguments(

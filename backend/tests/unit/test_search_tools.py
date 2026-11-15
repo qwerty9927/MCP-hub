@@ -97,7 +97,7 @@ def test_handle_search_tools_ranking_and_deduplication():
 
     tool_list = [
         ToolEntity(
-            id=f"{srv1_id}:calculate",
+            id=uuid4(),
             server_id=srv1_id,
             server_name="math_server",
             name="calculate",
@@ -116,7 +116,7 @@ def test_handle_search_tools_ranking_and_deduplication():
             user_id=USER_ID,
         ),
         ToolEntity(
-            id=f"{srv2_id}:transform",
+            id=uuid4(),
             server_id=srv2_id,
             server_name="text_server",
             name="transform",
@@ -133,7 +133,7 @@ def test_handle_search_tools_ranking_and_deduplication():
             user_id=USER_ID,
         ),
         ToolEntity(
-            id=f"{srv2_id}:echo",
+            id=uuid4(),
             server_id=srv2_id,
             server_name="text_server",
             name="echo",
@@ -174,7 +174,7 @@ def test_handle_search_tools_ranking_and_deduplication():
 def test_handle_search_tools_filters_meta_tools():
     tool_list = [
         ToolEntity(
-            id="hub:SEARCH_TOOLS",
+            id=uuid4(),
             server_id=uuid4(),
             server_name="hub",
             name=SEARCH_TOOLS_NAME,
@@ -184,7 +184,7 @@ def test_handle_search_tools_filters_meta_tools():
             user_id=USER_ID,
         ),
         ToolEntity(
-            id="hub:MULTI_EXECUTE_TOOLS",
+            id=uuid4(),
             server_id=uuid4(),
             server_name="hub",
             name=MULTI_EXECUTE_TOOLS_NAME,
@@ -194,7 +194,7 @@ def test_handle_search_tools_filters_meta_tools():
             user_id=USER_ID,
         ),
         ToolEntity(
-            id="srv:real_tool",
+            id=uuid4(),
             server_id=uuid4(),
             server_name="srv",
             name="real_tool",

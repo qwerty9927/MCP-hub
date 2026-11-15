@@ -3,7 +3,7 @@
 import math
 from datetime import UTC, datetime
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from app.core.exceptions import NotFoundError
 from app.core.logging import logger
@@ -45,7 +45,7 @@ class ToolCatalogService:
 
             discovered.append(
                 ToolEntity(
-                    id=qualified_tool_id(server.id, mcp_tool.name),
+                    id=uuid4(),
                     server_id=server.id,
                     server_name=server.name,
                     user_id=server.user_id,
@@ -57,9 +57,9 @@ class ToolCatalogService:
                 )
             )
 
-        await self._tool_repository.save_server_tools(server.id, server.name, discovered)
-        logger.info(f"Refreshed tool catalog for server '{server.name}' ({len(discovered)} tools discovered)")
-        return discovered
+        saved = await self._tool_repository.replace_server_tools(server.id, server.name, discovered)
+        logger.info(f"Refreshed tool catalog for server '{server.name}' ({len(saved)} tools discovered)")
+        return saved
 
     async def remove_server_tools(self, server_id: UUID) -> None:
         """Remove tools associated with a server when deleted or disabled."""
@@ -112,12 +112,15 @@ class ToolCatalogService:
             total_pages=total_pages,
         )
 
-    async def resolve(self, tool_reference: str, *, user_id: UUID) -> ToolEntity | None:
-        """Resolve a Tool Reference (Qualified Tool ID or Tool Slug) to one of the owner's Tools, or None."""
-        server_id, tool_name = split_qualified_tool_id(tool_reference)
+    async def resolve(self, tool_reference: str, *, user_id: UUID, server_id: UUID | None = None) -> ToolEntity | None:
+        """Resolve a Tool Reference to one of the owner's Tools, or None.
+
+        With `server_id`, the reference is a tool name on that Server only. Without it, it is a Tool ID, a tool name
+        or a Tool Slug.
+        """
         if server_id is not None:
             try:
-                return await self.get_tool(tool_name, server_id=server_id, user_id=user_id)
+                return await self.get_tool(tool_reference, server_id=server_id, user_id=user_id)
             except NotFoundError:
                 return None
 
@@ -133,11 +136,11 @@ class ToolCatalogService:
         candidates = await self.list_tools(tool_name=slug_tool_name, page=1, page_size=100, user_id=user_id)
         for candidate in candidates.items:
             if slugify(candidate.server_name) == server_slug:
-                return await self.get_tool(candidate.id, user_id=user_id)
+                return await self.get_tool(str(candidate.id), user_id=user_id)
         return None
 
     async def get_tool(self, tool_id_or_name: str, server_id: UUID | None = None, *, user_id: UUID) -> ToolEntity:
-        """Find a tool by qualified ID, or by name on `server_id` (only that server) or on any of the owner's servers."""
+        """Find a tool by its id, or by name on `server_id` (only that server) or on any of the owner's servers."""
         tool = await self._tool_repository.get_tool(tool_id_or_name, server_id=server_id, user_id=user_id)
         if tool is not None:
             return tool
@@ -150,19 +153,3 @@ class ToolCatalogService:
                 "server_id": str(server_id) if server_id else None,
             },
         )
-
-
-def qualified_tool_id(server_id: UUID, tool_name: str) -> str:
-    """Build a Qualified Tool ID "{server_id}:{tool_name}"."""
-    return f"{server_id}:{tool_name}"
-
-
-def split_qualified_tool_id(tool_reference: str) -> tuple[UUID | None, str]:
-    """Split a Qualified Tool ID "{server_id}:{tool_name}"; returns (None, reference) for anything else."""
-    prefix, sep, tool_name = tool_reference.partition(":")
-    if not sep or not tool_name:
-        return None, tool_reference
-    try:
-        return UUID(prefix), tool_name
-    except ValueError:
-        return None, tool_reference

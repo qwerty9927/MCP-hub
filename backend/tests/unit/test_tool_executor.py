@@ -124,17 +124,17 @@ async def test_tool_slug_succeeds_and_is_recorded_once(executor, execution_repo,
     assert record.duration_ms == outcome.duration_ms
 
 
-async def test_qualified_tool_id_succeeds(executor, connected_server, account_id):
-    outcome = await executor.execute(f"{connected_server.id}:add", {"a": 1, "b": 1}, user_id=account_id)
+async def test_tool_name_on_a_named_server_succeeds(executor, connected_server, account_id):
+    outcome = await executor.execute("add", {"a": 1, "b": 1}, user_id=account_id, server_id=connected_server.id)
 
     assert outcome.kind == ExecutionOutcomeKind.SUCCEEDED
     assert outcome.structured_content == {"result": 2}
 
 
-async def test_qualified_tool_id_refreshes_catalog_on_miss(executor, server_repo, downstream, account_id):
+async def test_named_server_refreshes_catalog_on_miss(executor, server_repo, downstream, account_id):
     server = await register_server(server_repo, account_id=account_id)  # never refreshed: catalog is empty
 
-    outcome = await executor.execute(f"{server.id}:add", {"a": 4, "b": 4}, user_id=account_id)
+    outcome = await executor.execute("add", {"a": 4, "b": 4}, user_id=account_id, server_id=server.id)
 
     assert outcome.kind == ExecutionOutcomeKind.SUCCEEDED
     assert outcome.structured_content == {"result": 8}
@@ -216,7 +216,7 @@ async def test_disabled_server_rejected_and_recorded(executor, server_repo, exec
 async def test_unavailable_tool_rejected_and_recorded(executor, catalog, execution_repo, downstream, connected_server, account_id):
     tool = await catalog.get_tool("add", server_id=connected_server.id, user_id=account_id)
     async with db_module.async_session_factory() as session:
-        await session.execute(update(ToolModel).where(ToolModel.id == tool.id).values(availability_status="UNAVAILABLE"))
+        await session.execute(update(ToolModel).where(ToolModel.id == str(tool.id)).values(availability_status="UNAVAILABLE"))
         await session.commit()
 
     outcome = await executor.execute("math_server__add", {"a": 1, "b": 2}, user_id=account_id)
@@ -232,7 +232,7 @@ async def test_unavailable_tool_rejected_and_recorded(executor, catalog, executi
 
 
 async def test_unknown_tool_is_rejected_without_execution_record(executor, execution_repo, session_repo, connected_server, account_id):
-    session = await session_repo.get_or_create(session_id=f"sess-{uuid4()}", user_id=account_id)
+    session = await session_repo.get_or_create(session_id=str(uuid4()), user_id=account_id)
     before = session.last_activity_at
 
     outcome = await executor.execute("math_server__does_not_exist", {}, user_id=account_id, session_id=session.id)
@@ -248,8 +248,8 @@ async def test_unknown_tool_is_rejected_without_execution_record(executor, execu
     assert detail.last_activity_at >= before
 
 
-async def test_qualified_id_for_unregistered_server_is_unknown_tool(executor, account_id):
-    outcome = await executor.execute(f"{uuid4()}:add", {"a": 1, "b": 2}, user_id=account_id)
+async def test_unregistered_server_is_unknown_tool(executor, account_id):
+    outcome = await executor.execute("add", {"a": 1, "b": 2}, user_id=account_id, server_id=uuid4())
 
     assert outcome.kind == ExecutionOutcomeKind.REJECTED
     assert outcome.rejection_reason == RejectionReason.UNKNOWN_TOOL
@@ -259,7 +259,7 @@ async def test_qualified_id_for_unregistered_server_is_unknown_tool(executor, ac
 
 
 async def test_execution_is_linked_to_session_and_bumps_activity(executor, execution_repo, session_repo, connected_server, account_id):
-    session = await session_repo.get_or_create(session_id=f"sess-{uuid4()}", user_id=account_id)
+    session = await session_repo.get_or_create(session_id=str(uuid4()), user_id=account_id)
 
     outcome = await executor.execute("math_server__add", {"a": 1, "b": 2}, user_id=account_id, session_id=session.id)
 
@@ -282,12 +282,12 @@ async def test_audit_failure_still_returns_real_outcome(server_repo, downstream,
     assert len(downstream.calls) == 1
 
 
-async def test_qualified_id_on_disabled_uncatalogued_server_is_server_disabled_without_record(
+async def test_disabled_uncatalogued_server_is_server_disabled_without_record(
     executor, server_repo, execution_repo, downstream, account_id
 ):
     server = await register_server(server_repo, enabled=False, account_id=account_id)  # catalog empty, cannot refresh a disabled Server
 
-    outcome = await executor.execute(f"{server.id}:add", {"a": 1, "b": 2}, user_id=account_id)
+    outcome = await executor.execute("add", {"a": 1, "b": 2}, user_id=account_id, server_id=server.id)
 
     assert outcome.kind == ExecutionOutcomeKind.REJECTED
     assert outcome.rejection_reason == RejectionReason.SERVER_DISABLED

@@ -18,7 +18,7 @@ DEMO_SERVER = str(Path(__file__).resolve().parent.parent.parent / "demo_server" 
 
 async def _seed_session(user_id, title: str, metadata: dict | None = None) -> str:
     """Create an active session owned by `user_id` and return its ID."""
-    created = await PostgresSessionRepository().create(SessionEntity(id=uuid4().hex, title=title, metadata=metadata, user_id=user_id))
+    created = await PostgresSessionRepository().create(SessionEntity(id=str(uuid4()), title=title, metadata=metadata, user_id=user_id))
     return created.id
 
 
@@ -109,7 +109,7 @@ async def test_session_explorer_api_lifecycle(async_client: AsyncClient, user_id
     assert single_json["tool_name"] == "calculate"
 
     # 9. Verify 404 on nonexistent session and call
-    fake_session = uuid4().hex
+    fake_session = str(uuid4())
     missing_session_resp = await async_client.get(f"/api/v1/sessions/{fake_session}")
     assert missing_session_resp.status_code == 404
 

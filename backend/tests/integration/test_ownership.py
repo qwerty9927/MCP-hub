@@ -1,6 +1,6 @@
 """Every account sees and acts on only its own Servers, Tools, Executions and Sessions."""
 
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -18,13 +18,12 @@ SERVER = {"name": "math", "transport": "stdio", "stdio_config": {"command": "pyt
 async def owned(async_client, user_id):
     """A server with one tool, one execution and one session, all belonging to the default account."""
     from datetime import UTC, datetime
-    from uuid import uuid4
 
     server = (await async_client.post("/api/v1/servers", json=SERVER)).json()
     server_id = UUID(server["id"])
-    tool = ToolEntity(id=f"{server_id}:add", server_id=server_id, server_name="math", name="add", input_schema={}, user_id=user_id)
-    await PostgresToolRepository().save_server_tools(server_id, "math", [tool])
-    session = await PostgresSessionRepository().create(SessionEntity(id=uuid4().hex, title="mine", user_id=user_id))
+    tool = ToolEntity(id=uuid4(), server_id=server_id, server_name="math", name="add", input_schema={}, user_id=user_id)
+    await PostgresToolRepository().replace_server_tools(server_id, "math", [tool])
+    session = await PostgresSessionRepository().create(SessionEntity(id=str(uuid4()), title="mine", user_id=user_id))
     execution = await PostgresExecutionRepository().create(
         ExecutionEntity(
             id=uuid4(),

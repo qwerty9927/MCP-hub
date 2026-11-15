@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.enums.session_enum import ToolCallStatus
@@ -18,7 +18,7 @@ class ExecutionModel(Base):
 
     __tablename__ = "tool_executions"
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, server_default=text("gen_random_uuid()::text"))
     server_id: Mapped[str] = mapped_column(
         String(36),
         ForeignKey("mcp_servers.id", ondelete="CASCADE"),
@@ -39,7 +39,7 @@ class ExecutionModel(Base):
     )
     response: Mapped[dict[str, Any] | list[Any] | None] = mapped_column(JSON, nullable=True)
     session_id: Mapped[str | None] = mapped_column(
-        String(64),
+        String(36),
         ForeignKey("mcp_sessions.id", ondelete="CASCADE"),
         index=True,
         nullable=True,

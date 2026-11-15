@@ -11,7 +11,7 @@ A target external or local Model Context Protocol server connected to the hub vi
 
 ### Tool (Discovered MCP Tool)
 A callable capability discovered dynamically from an active downstream MCP server.
-- **Qualified Tool ID**: Unique identifier formatted as `{server_id}:{tool_name}` used in REST routing.
+- **Tool ID**: a UUID (stored as `str(UUID)`). Re-discovering a Server replaces its Tools, so they get new ids. Used by the console and `GET /tools/{tool_id}`.
 - **Tool Slug**: Namespaced collision-resistant identifier formatted as `{server_slug}__{tool_name}` exposed to upstream agents on `/mcp`.
 - **Tool Catalog**: The stored index of all discovered tools across connected servers. Read from the database on every lookup; there is no in-memory cache.
 
@@ -27,7 +27,7 @@ A discrete, audited attempt to invoke a resolved Tool on a registered Server, re
 - **Duration** measures only the downstream call; a Rejected attempt has zero duration.
 
 ### Tool Reference
-What a caller uses to name the Tool it wants to execute: either a Tool Slug (upstream agents) or a Qualified Tool ID (REST). Resolving a Tool Reference yields exactly one Tool or none.
+What a caller uses to name the Tool it wants to execute: a Tool Slug (upstream agents), a Tool ID, or a tool name together with its Server's id (REST, `/servers/{server_id}/tools/{tool_name}/execute`). Resolving a Tool Reference yields exactly one Tool or none.
 
 ### Account
 A person signed up to the hub. Every Server, Tool, Execution and Session belongs to exactly one Account, and an Account can see and act on only its own.

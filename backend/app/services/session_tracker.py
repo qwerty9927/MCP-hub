@@ -76,7 +76,7 @@ class SessionTrackerService:
                     return current.id
                 await self._sessions.update_status(current.id, SessionStatus.COMPLETED, user_id=principal.user_id)
 
-            session_id = uuid4().hex
+            session_id = str(uuid4())
             await self._sessions.create(
                 SessionEntity(
                     id=session_id,

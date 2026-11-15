@@ -155,7 +155,7 @@ async def test_correlation_id_exposed_on_tool_execute_success(client: AsyncClien
 
     stub_executor = MagicMock()
 
-    async def stub_execute(tool_reference, arguments, *, user_id=None, session_id=None, timeout=None):
+    async def stub_execute(tool_reference, arguments, *, user_id=None, server_id=None, session_id=None, timeout=None):
         return ExecutionOutcome(
             kind=ExecutionOutcomeKind.SUCCEEDED,
             tool_reference=tool_reference,

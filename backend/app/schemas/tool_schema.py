@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 class ToolResponse(BaseModel):
     """Discovered tool metadata schema."""
 
-    id: str = Field(..., description="Unique server-qualified identifier: '{server_id}:{tool_name}'")
+    id: UUID = Field(..., description="Tool ID (UUID); a new one each time the server's tools are re-discovered")
     name: str = Field(..., description="Tool name exposed by the MCP server")
     description: str | None = Field(default=None, description="Tool description provided by server")
     input_schema: dict[str, Any] = Field(default_factory=dict, description="JSON schema defining input arguments")
@@ -23,7 +23,7 @@ class ToolResponse(BaseModel):
 class ToolSummaryResponse(BaseModel):
     """Compact summary of a discovered tool."""
 
-    id: str = Field(..., description="Unique server-qualified identifier: '{server_id}:{tool_name}'")
+    id: UUID = Field(..., description="Tool ID (UUID); a new one each time the server's tools are re-discovered")
     name: str = Field(..., description="Tool name")
     server_id: UUID = Field(..., description="Parent server UUID")
     server_name: str = Field(..., description="Parent server name")

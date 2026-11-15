@@ -281,7 +281,7 @@ Returns array of `ToolResponse` items.
 ### 3.1 Unified Tool Catalog
 `GET /api/v1/tools`
 
-Aggregates discovered tools across all enabled MCP servers. Handles duplicate tool names using server-qualified IDs (`{server_id}:{tool_name}`).
+Aggregates discovered tools across all enabled MCP servers. Each tool has its own UUID `id`, so duplicate tool names on different servers stay distinct.
 
 #### Query Parameters:
 - `page` *(int, default: 1)*
@@ -296,7 +296,7 @@ Aggregates discovered tools across all enabled MCP servers. Handles duplicate to
 {
   "items": [
     {
-      "id": "e427b3b6-733d-4c3e-862d-96116ca31614:calculate",
+      "id": "0b7f6c1e-5d2a-4c8e-9f31-2a6d4e8b7c90",
       "name": "calculate",
       "description": "Safely calculate a mathematical expression (e.g., '12 + 4 * 2')",
       "input_schema": {
@@ -334,7 +334,7 @@ Returns tools discovered strictly for the specified server.
 ### 3.3 Get Tool Details
 `GET /api/v1/tools/{tool_id}`
 
-Retrieves schema and metadata for a tool by its qualified ID (`{server_id}:{tool_name}`) or tool name.
+Retrieves schema and metadata for a tool by its `id` (UUID) or tool name.
 
 ---
 
@@ -532,7 +532,7 @@ The Hub maintains an explicit internal mapping between:
 
 When an MCP client requests the tool catalog:
 1. The gateway queries all currently enabled and available downstream servers.
-2. Discovered tool definitions are read from the database, or refreshed from the server when a Qualified Tool ID misses.
+2. Discovered tool definitions are read from the database, or refreshed from the server named in the path when the tool is not catalogued yet.
 3. Descriptions and JSON input schemas are preserved.
 4. The client receives the aggregated, namespaced tool list.
 5. The tool list is fixed (`SEARCH_TOOLS` and `MULTI_EXECUTE_TOOLS`), so the hub sends no `notifications/tools/list_changed` and advertises `listChanged: false`.

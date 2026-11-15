@@ -13,7 +13,7 @@ from app.domain.principal_entity import Principal
 from app.schemas.common_schema import PaginatedResponse
 from app.schemas.tool_schema import ToolExecuteRequest, ToolExecuteResponse, ToolResponse
 from app.services.server_registry import ServerRegistryService
-from app.services.tool_catalog import ToolCatalogService, qualified_tool_id
+from app.services.tool_catalog import ToolCatalogService
 from app.services.tool_executor import ExecutionOutcome, ToolExecutor
 
 router = APIRouter(tags=["Tools"])
@@ -92,7 +92,7 @@ async def get_tool(
     principal: Annotated[Principal, Depends(get_current_principal)],
     tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog_service)],
 ) -> ToolResponse:
-    """Retrieve details and schema of a specific tool by qualified ID or name."""
+    """Retrieve details and schema of a specific tool by its id or name."""
     entity = await tool_cat.get_tool(tool_id, user_id=principal.user_id)
     return ToolResponse(
         id=entity.id,
@@ -120,7 +120,7 @@ async def execute_tool(
 ) -> ToolExecuteResponse:
     """Validate arguments and invoke the specified MCP tool on the target server."""
     outcome = await executor.execute(
-        qualified_tool_id(server_id, tool_name), payload.arguments, user_id=principal.user_id, session_id=payload.session_id
+        tool_name, payload.arguments, user_id=principal.user_id, server_id=server_id, session_id=payload.session_id
     )
     return _execute_response(outcome)
 

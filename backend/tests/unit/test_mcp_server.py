@@ -248,7 +248,7 @@ async def test_handle_call_tool_search(mcp_server, mock_registry, mock_tool_cata
     mock_tool_catalog.list_tools.return_value = PaginatedResponse[ToolResponse](
         items=[
             ToolResponse(
-                id=f"{srv_id}:calculate",
+                id=uuid4(),
                 name="calculate",
                 description="Evaluate math expressions",
                 input_schema={
@@ -286,10 +286,9 @@ async def test_handle_call_tool_search(mcp_server, mock_registry, mock_tool_cata
 @pytest.mark.asyncio
 async def test_handle_call_tool_multi_execute(mcp_server, mock_tool_executor, mock_session_repo):
     """Verify Multi-Execute dispatches each item to the Execution module with the discovered session."""
-    srv_id = uuid4()
     ctx = _create_mock_context("sess-multi")
     mock_session_repo.find_active_by_fingerprint.return_value = SessionEntity(id="sess-multi", user_id=PRINCIPAL.user_id)
-    slug = f"{srv_id}:add"
+    slug = "math_server__add"
     mock_tool_executor.execute.return_value = ExecutionOutcome(
         kind=ExecutionOutcomeKind.SUCCEEDED,
         tool_reference=slug,

@@ -5,7 +5,7 @@ import pytest
 from app.core.exceptions import ValidationError
 from app.helpers.errors import format_mcp_error
 from app.helpers.text import slugify
-from app.helpers.validation import validate_tool_arguments
+from app.helpers.validation import is_uuid, validate_tool_arguments
 
 
 def test_text_slugify():
@@ -40,6 +40,12 @@ def test_errors_format_mcp_error():
     # Fallback to class name if empty message
     empty_err = Exception("")
     assert format_mcp_error(empty_err) == "Exception"
+
+
+def test_validation_is_uuid():
+    assert is_uuid("2027ca76-9913-444b-87ec-2577d5b1f6f5")
+    assert not is_uuid("calculate")
+    assert not is_uuid("2027ca76-9913-444b-87ec-2577d5b1f6f5:calculate")
 
 
 def test_validation_validate_tool_arguments():
