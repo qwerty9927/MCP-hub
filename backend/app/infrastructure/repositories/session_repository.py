@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, case, distinct, func, or_, select, update
+from sqlalchemy import Interval, and_, case, distinct, func, or_, select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 import app.infrastructure.database as db_module
@@ -67,6 +67,14 @@ class SessionRepositoryAbstract(ABC):
     @abstractmethod
     async def update_activity(self, session_id: str, timestamp: datetime | None = None) -> None:
         """Update session last activity timestamp."""
+        pass
+
+    @abstractmethod
+    async def complete_idle_sessions(self, now: datetime, default_idle_seconds: int) -> int:
+        """Mark `completed` every active Session idle longer than its own timeout (else the default); returns how many.
+
+        Leaves `last_activity_at` as it was, so it still says when the agent last acted.
+        """
         pass
 
 
@@ -276,3 +284,22 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
             stmt = update(SessionModel).where(SessionModel.id == session_id).values(last_activity_at=now)
             await db_session.execute(stmt)
             await db_session.commit()
+
+    async def complete_idle_sessions(self, now: datetime, default_idle_seconds: int) -> int:
+        # One idempotent statement, so several hub instances can each run the job without a lock.
+        idle_timeout = func.make_interval(
+            0, 0, 0, 0, 0, 0, func.coalesce(SessionModel.idle_timeout_seconds, default_idle_seconds), type_=Interval
+        )
+        async with self.session_factory() as db_session:
+            stmt = (
+                update(SessionModel)
+                .where(
+                    SessionModel.status == SessionStatus.ACTIVE.value,
+                    SessionModel.last_activity_at + idle_timeout < now,
+                )
+                .values(status=SessionStatus.COMPLETED.value)
+                .execution_options(synchronize_session=False)
+            )
+            result = await db_session.execute(stmt)
+            await db_session.commit()
+            return result.rowcount

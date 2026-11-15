@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Index, String
+from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.enums.session_enum import SessionStatus
@@ -23,6 +23,7 @@ class SessionModel(Base):
     owner_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=True)
     api_key_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("api_keys.id", ondelete="SET NULL"), nullable=True)
     client_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    idle_timeout_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     metadata_json: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -36,7 +37,11 @@ class SessionModel(Base):
         nullable=False,
     )
 
-    __table_args__ = (Index("ix_mcp_sessions_owner_fingerprint_activity", "owner_id", "client_fingerprint", "last_activity_at"),)
+    __table_args__ = (
+        Index("ix_mcp_sessions_owner_fingerprint_activity", "owner_id", "client_fingerprint", "last_activity_at"),
+        # The background job's lookup of active Sessions by idle time.
+        Index("ix_mcp_sessions_status_activity", "status", "last_activity_at"),
+    )
 
     # Relationship to execution records
     executions = relationship(
@@ -58,6 +63,7 @@ class SessionModel(Base):
             owner_id=UUID(self.owner_id) if self.owner_id else None,
             api_key_id=UUID(self.api_key_id) if self.api_key_id else None,
             client_fingerprint=self.client_fingerprint,
+            idle_timeout_seconds=self.idle_timeout_seconds,
         )
 
     @classmethod
@@ -73,4 +79,5 @@ class SessionModel(Base):
             owner_id=str(entity.owner_id) if entity.owner_id else None,
             api_key_id=str(entity.api_key_id) if entity.api_key_id else None,
             client_fingerprint=entity.client_fingerprint,
+            idle_timeout_seconds=entity.idle_timeout_seconds,
         )

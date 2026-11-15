@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from app.background_service.session_sweeper import SessionSweeperService
 from app.core.exceptions import UnauthorizedError
 from app.domain.principal_entity import Principal
 from app.infrastructure.repositories.api_key_repository import ApiKeyRepositoryAbstract, PostgresApiKeyRepository
@@ -122,6 +123,11 @@ def get_session_explorer_service() -> SessionExplorerService:
         session_repository=get_session_repository(),
         execution_repository=get_execution_repository(),
     )
+
+
+def get_session_sweeper_service() -> SessionSweeperService:
+    """Return the background job that completes idle Sessions."""
+    return SessionSweeperService(session_repository=get_session_repository())
 
 
 def get_session_tracker_service() -> SessionTrackerService:

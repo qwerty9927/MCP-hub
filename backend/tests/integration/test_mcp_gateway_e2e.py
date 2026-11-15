@@ -266,16 +266,14 @@ async def test_mcp_gateway_e2e_two_servers_and_dynamic_lifecycle(
         details = [(await rest_client.get(f"/api/v1/sessions/{s['id']}")).json() for s in sessions]
         assert {d["metadata"]["session_source"] for d in details} == {"derived"}
         # The modern client names itself in `_meta`; the handshake client's name died with its initialize,
-        # so its User-Agent identifies it. The raw request in step 11 shares the handshake client's API key
-        # but not its User-Agent, so it lands in a Session of its own.
+        # so its User-Agent identifies it. The raw request in step 11 only lists tools, and a Session opens on
+        # the first tool call (ADR-0005), so it leaves no Session.
         named = [d for d in details if d["metadata"].get("client_name")]
-        unnamed = sorted((d for d in details if not d["metadata"].get("client_name")), key=lambda d: d["total_tool_calls"])
+        unnamed = [d for d in details if not d["metadata"].get("client_name")]
         assert len(named) == 1 and named[0]["total_tool_calls"] == 2
-        assert len(unnamed) == 2
-        raw_request, handshake_client = unnamed
-        assert raw_request["total_tool_calls"] == 0
-        assert handshake_client["total_tool_calls"] >= 2
-        assert raw_request["metadata"]["user_agent"] != handshake_client["metadata"]["user_agent"]
+        assert len(unnamed) == 1
+        assert unnamed[0]["total_tool_calls"] >= 2
+        assert unnamed[0]["metadata"]["user_agent"]
 
         # 11. Verify execution audit logs in Hub database
         audit_res = await rest_client.get("/api/v1/executions")

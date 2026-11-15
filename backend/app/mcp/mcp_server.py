@@ -107,9 +107,11 @@ class MCPServer:
         ctx: ServerRequestContext,
         params: PaginatedRequestParams | None = None,
     ) -> ListToolsResult:
-        """Handle incoming tools/list request from an upstream MCP client."""
-        await self._track_session(ctx, self._principal(ctx))
+        """Handle incoming tools/list request from an upstream MCP client.
 
+        Not attributed to a Session: a Session opens on the first tool call (ADR-0005), so a client that only
+        lists tools leaves no empty Session behind.
+        """
         # Strictly two tools are supported
         mcp_tools: list[Tool] = [
             get_search_tool_definition(),

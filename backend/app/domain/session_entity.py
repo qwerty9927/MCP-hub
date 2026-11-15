@@ -22,6 +22,9 @@ class SessionEntity:
     owner_id: UUID | None = None
     api_key_id: UUID | None = None  # API key the session's requests came with, if any
     client_fingerprint: str | None = None  # set on sessions the hub derived for sessionless clients
+    # Seconds without a tool call after which the Session is completed, copied from its API key when it opened.
+    # None (older rows) means DEFAULT_SESSION_IDLE_SECONDS.
+    idle_timeout_seconds: int | None = None
 
 
 @dataclass

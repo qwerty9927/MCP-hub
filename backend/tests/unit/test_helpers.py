@@ -69,3 +69,21 @@ def test_validation_validate_tool_arguments():
     # No schema or empty schema
     validate_tool_arguments({"anything": True}, None, "no_schema_tool")
     validate_tool_arguments({"anything": True}, {}, "empty_schema_tool")
+
+
+def test_session_idle_helpers():
+    """Idle-timeout helpers: the default fallback, minutes to seconds, and the idle boundary (strictly longer)."""
+    from datetime import UTC, datetime, timedelta
+
+    from app.core.constants.session_constants import DEFAULT_SESSION_IDLE_SECONDS
+    from app.helpers.session_idle import effective_idle_seconds, idle_minutes_to_seconds, is_idle
+
+    assert effective_idle_seconds(None) == DEFAULT_SESSION_IDLE_SECONDS
+    assert effective_idle_seconds(120) == 120
+    assert idle_minutes_to_seconds(None) is None
+    assert idle_minutes_to_seconds(5) == 300
+
+    now = datetime.now(UTC)
+    assert is_idle(now - timedelta(seconds=61), 60, now) is True
+    assert is_idle(now - timedelta(seconds=60), 60, now) is False
+    assert is_idle(now - timedelta(seconds=10), 60, now) is False

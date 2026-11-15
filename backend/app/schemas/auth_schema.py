@@ -5,6 +5,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.core.constants.session_constants import DEFAULT_SESSION_IDLE_SECONDS, MAX_SESSION_IDLE_MINUTES, MIN_SESSION_IDLE_MINUTES
+
 _EMAIL_PATTERN = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
 
 
@@ -44,10 +46,31 @@ class UserResponse(BaseModel):
     created_at: datetime
 
 
+_SESSION_IDLE_DESCRIPTION = (
+    "Minutes without a tool call after which a Session opened with this key is marked completed "
+    f"({MIN_SESSION_IDLE_MINUTES}-{MAX_SESSION_IDLE_MINUTES}). Null uses the default of "
+    f"{DEFAULT_SESSION_IDLE_SECONDS // 60}. This is not the key's expiry."
+)
+
+
 class ApiKeyCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(..., min_length=1, max_length=100, description="Label to recognise the key by, e.g. 'laptop Claude'")
+    session_idle_minutes: int | None = Field(
+        default=None, ge=MIN_SESSION_IDLE_MINUTES, le=MAX_SESSION_IDLE_MINUTES, description=_SESSION_IDLE_DESCRIPTION
+    )
+
+
+class ApiKeyUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    session_idle_minutes: int | None = Field(
+        ...,
+        ge=MIN_SESSION_IDLE_MINUTES,
+        le=MAX_SESSION_IDLE_MINUTES,
+        description=f"{_SESSION_IDLE_DESCRIPTION} Applies to Sessions opened afterwards.",
+    )
 
 
 class ApiKeyResponse(BaseModel):
@@ -57,6 +80,7 @@ class ApiKeyResponse(BaseModel):
     created_at: datetime
     last_used_at: datetime | None = None
     revoked_at: datetime | None = None
+    session_idle_minutes: int | None = Field(default=None, description=_SESSION_IDLE_DESCRIPTION)
 
 
 class ApiKeyCreatedResponse(ApiKeyResponse):

@@ -1,7 +1,7 @@
 # ADR 0003: Session Identity Without Transport Sessions
 
 ## Status
-Accepted. Point 2 (transport sessions) superseded by ADR-0004: `/mcp` is stateless and every Session is derived.
+Accepted. Point 2 (transport sessions) superseded by ADR-0004: `/mcp` is stateless and every Session is derived. The fixed 30-minute idle window of point 3 is replaced by a per-API-key timeout, enforced by a background job (ADR-0005).
 
 ## Date
 2026-11-12

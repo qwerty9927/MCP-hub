@@ -11,6 +11,7 @@ from app.schemas.auth_schema import (
     ApiKeyCreatedResponse,
     ApiKeyCreateRequest,
     ApiKeyResponse,
+    ApiKeyUpdateRequest,
     LoginRequest,
     RegisterRequest,
     TokenResponse,
@@ -67,6 +68,17 @@ async def create_api_key(
 ) -> ApiKeyCreatedResponse:
     """The full key is in this response only; the hub keeps a hash."""
     return await auth.create_api_key(principal.user_id, payload)
+
+
+@router.patch("/api-keys/{key_id}", response_model=ApiKeyResponse, summary="Change an API key's Session idle timeout")
+async def update_api_key(
+    key_id: UUID,
+    payload: ApiKeyUpdateRequest,
+    principal: Annotated[Principal, Depends(get_current_principal)],
+    auth: Annotated[AuthService, Depends(get_auth_service)],
+) -> ApiKeyResponse:
+    """Set (or, with null, reset to the default) how long a Session opened with this key may sit idle. Not the key's expiry."""
+    return await auth.update_api_key(principal.user_id, key_id, payload)
 
 
 @router.delete("/api-keys/{key_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Revoke an API key")

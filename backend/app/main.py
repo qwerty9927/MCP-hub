@@ -10,13 +10,14 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.routing import Route
 
-from app.api.dependencies import get_connection_manager, get_mcp_server
+from app.api.dependencies import get_connection_manager, get_mcp_server, get_session_sweeper_service
 from app.api.v1.auth_router import router as auth_router
 from app.api.v1.executions_router import router as executions_router
 from app.api.v1.servers_router import router as servers_router
 from app.api.v1.sessions_router import router as sessions_router
 from app.api.v1.system_router import router as system_router
 from app.api.v1.tools_router import router as tools_router
+from app.background_service.scheduler import create_scheduler
 from app.core.config import get_settings
 from app.core.exceptions import AppError
 from app.core.logging import get_correlation_id, logger, setup_logging
@@ -34,7 +35,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Start MCP Server Streamable HTTP lifecycle
     mcp_server = get_mcp_server()
     async with mcp_server.run():
-        yield
+        # Background jobs (app/background_service/). A fresh scheduler per lifespan: one cannot restart after shutdown.
+        scheduler = create_scheduler(get_session_sweeper_service())
+        scheduler.start()
+        logger.info(f"Background scheduler started with jobs: {[job.id for job in scheduler.get_jobs()]}")
+        try:
+            yield
+        finally:
+            scheduler.shutdown(wait=False)
+            logger.info("Background scheduler shut down.")
 
     logger.info("Initiating graceful shutdown...")
     connection_manager = get_connection_manager()

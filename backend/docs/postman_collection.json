@@ -98,7 +98,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"postman\"\n}"
+              "raw": "{\n  \"name\": \"postman\",\n  \"session_idle_minutes\": 30\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/auth/api-keys",
@@ -131,7 +131,59 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Key created', () => pm.response.to.have.status(201));",
-                  "pm.environment.set('mcp_api_key', pm.response.json().key);"
+                  "pm.environment.set('mcp_api_key', pm.response.json().key);",
+                  "pm.environment.set('mcp_api_key_id', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update MCP API Key",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"session_idle_minutes\": 60\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/api-keys/{{mcp_api_key_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "api-keys",
+                "{{mcp_api_key_id}}"
+              ]
+            },
+            "description": "Change how long a Session opened with this key may go without a tool call before the background job completes it (1-1440 minutes; null = default 30). Not the key's expiry. Applies to Sessions opened afterwards.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Key updated', () => pm.response.to.have.status(200));"
                 ]
               }
             }

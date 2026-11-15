@@ -71,9 +71,12 @@ All listing endpoints return records wrapped in this envelope:
 | `POST` | `/auth/register` | none | `{"email", "password"}` (8-128 chars) | `201` `{"id", "email", "created_at"}`; `409` email taken; `403` sign-up disabled |
 | `POST` | `/auth/login` | none | `{"email", "password"}` | `200` `{"access_token", "token_type": "bearer", "expires_in"}`; `401` bad credentials |
 | `GET` | `/auth/me` | token | | `200` the account |
-| `GET` | `/auth/api-keys` | token | | `200` list of `{"id", "name", "key_prefix", "created_at", "last_used_at", "revoked_at"}` |
-| `POST` | `/auth/api-keys` | token | `{"name"}` | `201` same fields plus `"key"`, the full key, **returned only here** |
+| `GET` | `/auth/api-keys` | token | | `200` list of `{"id", "name", "key_prefix", "created_at", "last_used_at", "revoked_at", "session_idle_minutes"}` |
+| `POST` | `/auth/api-keys` | token | `{"name", "session_idle_minutes"?}` | `201` same fields plus `"key"`, the full key, **returned only here**; `422` when `session_idle_minutes` is outside 1–1440 |
+| `PATCH` | `/auth/api-keys/{id}` | token | `{"session_idle_minutes"}` (`null` = default) | `200` the key; `404` unknown, revoked, or another account's; `422` out of range |
 | `DELETE` | `/auth/api-keys/{id}` | token | | `204`; `404` unknown or already revoked |
+
+`session_idle_minutes` is **not** the key's expiry. A Session opened with the key (on its first tool call) is marked `completed` after that many minutes without a tool call; `null` means the default of 30. Each Session keeps the value it opened with, so a change applies to Sessions opened afterwards. A background job completes idle Sessions every minute (ADR-0005).
 
 The console token is a JWT that expires after `ACCESS_TOKEN_EXPIRE_MINUTES`. API keys start with `mhk_` and do not expire until revoked.
 

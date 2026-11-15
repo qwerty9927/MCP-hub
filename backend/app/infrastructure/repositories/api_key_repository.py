@@ -32,6 +32,10 @@ class ApiKeyRepositoryAbstract(ABC):
         """Revoke a key owned by `user_id`; False when there is no such active key."""
 
     @abstractmethod
+    async def update_session_idle(self, user_id: UUID, key_id: UUID, session_idle_minutes: int | None) -> ApiKeyEntity | None:
+        """Set the Session idle timeout of a key owned by `user_id`; None when there is no such active key."""
+
+    @abstractmethod
     async def touch_last_used(self, key_id: UUID, timestamp: datetime) -> None:
         pass
 
@@ -82,6 +86,22 @@ class PostgresApiKeyRepository(ApiKeyRepositoryAbstract):
             result = await session.execute(stmt)
             await session.commit()
             return result.rowcount > 0
+
+    async def update_session_idle(self, user_id: UUID, key_id: UUID, session_idle_minutes: int | None) -> ApiKeyEntity | None:
+        async with self.session_factory() as session:
+            stmt = (
+                update(ApiKeyModel)
+                .where(
+                    ApiKeyModel.id == str(key_id),
+                    ApiKeyModel.user_id == str(user_id),
+                    ApiKeyModel.revoked_at.is_(None),
+                )
+                .values(session_idle_minutes=session_idle_minutes)
+                .returning(ApiKeyModel)
+            )
+            model = (await session.execute(stmt)).scalar_one_or_none()
+            await session.commit()
+            return model.to_domain() if model else None
 
     async def touch_last_used(self, key_id: UUID, timestamp: datetime) -> None:
         async with self.session_factory() as session:

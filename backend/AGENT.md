@@ -71,10 +71,13 @@ backend/
 ├── docker-compose.yml                   # Local container orchestration
 ├── .env.example                         # Reference environment variables
 ├── app/
-│   │   ├── main.py                      # FastAPI factory, ASGI middlewares, lifespan hooks
+│   │   ├── main.py                      # FastAPI factory, ASGI middlewares, lifespan hooks (starts the scheduler)
+│   │   ├── background_service/          # Scheduled background jobs (APScheduler, ADR-0005)
+│   │   │   ├── scheduler.py             # create_scheduler(): AsyncIOScheduler + job registration
+│   │   │   └── session_sweeper.py       # SessionSweeperService: completes idle Sessions (cron job complete-idle-sessions)
 │   │   ├── api/
 │   │   │   ├── dependencies.py          # Centralized dependency injection providers
-│   │   │   └── v1/                      # API Routers (/servers, /tools, /executions, /system, /sessions)
+│   │   │   └── v1/                      # API Routers (/auth, /servers, /tools, /executions, /system, /sessions)
 │   │   │       ├── executions_router.py # Execution audit log endpoints
 │   │   │       ├── servers_router.py    # MCP Server registration & lifecycle
 │   │   │       ├── sessions_router.py   # MCP Client session management endpoints
@@ -83,7 +86,8 @@ backend/
 │   │   ├── core/
 │   │   │   ├── config.py                # Settings loaded strictly from .env (no in-code defaults)
 │   │   │   ├── constants/               # Application constants partitioned by domain
-│   │   │   │   └── meta_tools.py        # Meta-tool identifiers (SEARCH_TOOLS, MULTI_EXECUTE_TOOLS)
+│   │   │   │   ├── meta_tools.py        # Meta-tool identifiers (SEARCH_TOOLS, MULTI_EXECUTE_TOOLS)
+│   │   │   │   └── session_constants.py # Session idle defaults/bounds, sweep job id and cron schedule
 │   │   │   ├── enums/                   # Core enumerations partitioned by domain (no __init__.py)
 │   │   │   │   ├── execution_enum.py    # ExecutionOutcomeKind, RejectionReason
 │   │   │   │   ├── server_enum.py       # TransportType, ServerHealthStatus
@@ -98,6 +102,7 @@ backend/
 │   │   ├── helpers/                     # Reusable utilities partitioned by responsibility
 │   │   │   ├── errors.py                # MCP error & ExceptionGroup unwrapping (format_mcp_error)
 │   │   │   ├── security.py              # Shell injection, SSRF, env sanitization, header masking
+│   │   │   ├── session_idle.py          # Session idle-timeout arithmetic (effective timeout, is_idle)
 │   │   │   ├── text.py                  # Slugification & string manipulation (slugify)
 │   │   │   └── validation.py            # Tool arguments JSON-schema validation
 │   │   ├── infrastructure/
@@ -179,7 +184,13 @@ Strict unidirectional dependency flow:
 
 ### Stateless `/mcp` and derived Sessions (ADR-0003, ADR-0004)
 - `/mcp` runs the SDK stateless with JSON responses: no transport sessions, no `Mcp-Session-Id` (a client-sent one is ignored), `GET`/`DELETE` answer 405. Do not add features that need a server-to-client channel (sampling, elicitation, notification streams) without revisiting ADR-0004.
-- `SessionTracker` derives every Session from account + API key + client name/version (from `_meta`), or the `User-Agent` when the client does not name itself (handshake-era clients), rotating after `SESSION_IDLE_SECONDS` idle.
+- `SessionTracker` derives every Session from account + API key + client name/version (from `_meta`), or the `User-Agent` when the client does not name itself (handshake-era clients). A Session opens on the first `tools/call` (not `tools/list`) and snapshots its API key's `session_idle_minutes` (default `DEFAULT_SESSION_IDLE_SECONDS`) as `idle_timeout_seconds`; it rotates once idle past that (ADR-0005).
+
+### Background jobs (`app/background_service/`, ADR-0005)
+- One APScheduler `AsyncIOScheduler` per process, built by `create_scheduler()` and started/shut down in `main.py` `lifespan`; a fresh one per lifespan, since a scheduler cannot restart after shutdown. In-memory job store: jobs are defined in code.
+- `complete-idle-sessions` (cron, every minute, `max_instances=1`, `coalesce=True`) runs `SessionSweeperService.complete_idle_sessions`: one idempotent `UPDATE` completing active Sessions idle past their own timeout. It never raises and never touches `last_activity_at`.
+- Every job must be safe to run on several hub instances at once. Do not use FastAPI `BackgroundTasks` for periodic work: it only runs after a request.
+- Job IDs and schedules live in `app/core/constants/session_constants.py`; shared idle arithmetic in `app/helpers/session_idle.py`.
 
 ### Configuration Policy (Strict .env Compliance)
 - **Invariant**: Do NOT add hardcoded fallback default values for application configuration in `app/core/config.py`. All settings in `Settings` must be explicitly declared and loaded from `.env` or environment variables.

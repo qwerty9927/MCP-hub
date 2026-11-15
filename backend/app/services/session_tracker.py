@@ -1,9 +1,11 @@
 """Session tracking for upstream MCP clients.
 
 `/mcp` is stateless (ADR-0004): no request carries a transport session, so the hub derives every Session.
-Requests from the same account, API key and client belong to one Session until it has been idle for
-SESSION_IDLE_SECONDS. The client is its name + version when the request says (2026-07-28 `_meta`), else
-its User-Agent. See docs/adr/0003-session-identity-without-transport-sessions.md.
+A Session opens on the first tool call. Requests from the same account, API key and client belong to one
+Session until it has been idle for longer than its idle timeout: the API key's, copied onto the Session when
+it opens, else DEFAULT_SESSION_IDLE_SECONDS (ADR-0005). The background job in app/background_service/
+completes Sessions that go idle and never send another request. The client is its name + version when the
+request says (2026-07-28 `_meta`), else its User-Agent. See docs/adr/0003-session-identity-without-transport-sessions.md.
 """
 
 import asyncio
@@ -13,22 +15,13 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
+from app.core.constants.session_constants import ACTIVITY_REFRESH_SECONDS, MAX_USER_AGENT_LENGTH, SESSION_SOURCE_DERIVED
 from app.core.enums.session_enum import SessionStatus
 from app.core.logging import logger
 from app.domain.principal_entity import Principal
 from app.domain.session_entity import SessionEntity
+from app.helpers.session_idle import effective_idle_seconds, is_idle
 from app.infrastructure.repositories.session_repository import SessionRepositoryAbstract
-
-# An idle window approximating "one working session" for clients that never say when they start or stop.
-SESSION_IDLE_SECONDS = 30 * 60
-
-# A reused derived Session's last_activity_at is refreshed at most this often.
-_ACTIVITY_REFRESH = timedelta(seconds=60)
-
-# Older rows may still say "transport" (handshake-era sessions from before ADR-0004).
-SOURCE_DERIVED = "derived"
-
-_MAX_USER_AGENT_LENGTH = 255
 
 
 @dataclass(frozen=True)
@@ -76,9 +69,9 @@ class SessionTrackerService:
             now = datetime.now(UTC)
             current = await self._sessions.find_active_by_fingerprint(principal.user_id, fingerprint)
             if current is not None:
-                idle = now - current.last_activity_at
-                if idle <= timedelta(seconds=SESSION_IDLE_SECONDS):
-                    if idle > _ACTIVITY_REFRESH:
+                # Each Session keeps the timeout it opened with, so changing the key's value only affects later Sessions.
+                if not is_idle(current.last_activity_at, effective_idle_seconds(current.idle_timeout_seconds), now):
+                    if now - current.last_activity_at > timedelta(seconds=ACTIVITY_REFRESH_SECONDS):
                         await self._sessions.update_activity(current.id, now)
                     return current.id
                 await self._sessions.update_status(current.id, SessionStatus.COMPLETED, owner_id=principal.user_id)
@@ -95,6 +88,7 @@ class SessionTrackerService:
                     owner_id=principal.user_id,
                     api_key_id=principal.api_key_id,
                     client_fingerprint=fingerprint,
+                    idle_timeout_seconds=effective_idle_seconds(principal.session_idle_seconds),
                 )
             )
             logger.info(f"Opened derived session {session_id[:8]} for account {principal.user_id}")
@@ -118,7 +112,7 @@ def client_fingerprint(principal: Principal, client: ClientIdentity) -> str:
 
 
 def _metadata(client: ClientIdentity) -> dict[str, Any]:
-    metadata: dict[str, Any] = {"session_source": SOURCE_DERIVED}
+    metadata: dict[str, Any] = {"session_source": SESSION_SOURCE_DERIVED}
     if client.name:
         metadata["client_name"] = client.name
     if client.version:
@@ -126,5 +120,5 @@ def _metadata(client: ClientIdentity) -> dict[str, Any]:
     if client.protocol_version:
         metadata["protocol_version"] = client.protocol_version
     if client.user_agent:
-        metadata["user_agent"] = client.user_agent[:_MAX_USER_AGENT_LENGTH]
+        metadata["user_agent"] = client.user_agent[:MAX_USER_AGENT_LENGTH]
     return metadata

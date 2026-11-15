@@ -12,6 +12,7 @@ from app.domain.api_key_entity import ApiKeyEntity
 from app.domain.principal_entity import Principal
 from app.domain.user_entity import UserEntity
 from app.helpers.passwords import hash_password_async, verify_password_async
+from app.helpers.session_idle import idle_minutes_to_seconds
 from app.helpers.tokens import create_access_token, decode_access_token, generate_api_key, hash_api_key
 from app.infrastructure.repositories.api_key_repository import ApiKeyRepositoryAbstract
 from app.infrastructure.repositories.ownership_repository import OwnershipRepositoryAbstract
@@ -20,6 +21,7 @@ from app.schemas.auth_schema import (
     ApiKeyCreatedResponse,
     ApiKeyCreateRequest,
     ApiKeyResponse,
+    ApiKeyUpdateRequest,
     LoginRequest,
     RegisterRequest,
     TokenResponse,
@@ -69,12 +71,28 @@ class AuthService:
 
     async def create_api_key(self, user_id: UUID, data: ApiKeyCreateRequest) -> ApiKeyCreatedResponse:
         plaintext, prefix, key_hash = generate_api_key()
-        created = await self._api_keys.create(ApiKeyEntity(user_id=user_id, name=data.name.strip(), key_prefix=prefix, key_hash=key_hash))
+        created = await self._api_keys.create(
+            ApiKeyEntity(
+                user_id=user_id,
+                name=data.name.strip(),
+                key_prefix=prefix,
+                key_hash=key_hash,
+                session_idle_minutes=data.session_idle_minutes,
+            )
+        )
         logger.info(f"Created API key {created.id} for account {user_id}")
         return ApiKeyCreatedResponse(**_api_key_response(created).model_dump(), key=plaintext)
 
     async def list_api_keys(self, user_id: UUID) -> list[ApiKeyResponse]:
         return [_api_key_response(k) for k in await self._api_keys.list_by_user(user_id)]
+
+    async def update_api_key(self, user_id: UUID, key_id: UUID, data: ApiKeyUpdateRequest) -> ApiKeyResponse:
+        """Change a key's Session idle timeout. Sessions already open keep the timeout they started with."""
+        updated = await self._api_keys.update_session_idle(user_id, key_id, data.session_idle_minutes)
+        if updated is None:
+            raise NotFoundError(f"API key '{key_id}' not found", details={"api_key_id": str(key_id)})
+        logger.info(f"Set session idle timeout of API key {key_id} to {data.session_idle_minutes} min")
+        return _api_key_response(updated)
 
     async def revoke_api_key(self, user_id: UUID, key_id: UUID) -> None:
         if not await self._api_keys.revoke(user_id, key_id):
@@ -103,7 +121,7 @@ class AuthService:
             except Exception as exc:
                 logger.warning(f"Could not update last_used_at for API key {key.id}: {exc}")
 
-        return Principal(user_id=key.user_id, api_key_id=key.id)
+        return Principal(user_id=key.user_id, api_key_id=key.id, session_idle_seconds=idle_minutes_to_seconds(key.session_idle_minutes))
 
     async def _claim_legacy_data(self, user: UserEntity) -> None:
         """Servers, Tools and Sessions from before accounts existed go to the first account ever registered."""
@@ -129,4 +147,5 @@ def _api_key_response(key: ApiKeyEntity) -> ApiKeyResponse:
         created_at=key.created_at,
         last_used_at=key.last_used_at,
         revoked_at=key.revoked_at,
+        session_idle_minutes=key.session_idle_minutes,
     )

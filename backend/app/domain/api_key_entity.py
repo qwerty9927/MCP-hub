@@ -17,3 +17,6 @@ class ApiKeyEntity:
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     last_used_at: datetime | None = None
     revoked_at: datetime | None = None
+    # Minutes without a tool call after which a Session opened with this key is completed; None = the default.
+    # Not the key's expiry.
+    session_idle_minutes: int | None = None

@@ -82,3 +82,36 @@ async def test_api_key_endpoints(anon_client: AsyncClient):
     assert (await anon_client.delete(f"/api/v1/auth/api-keys/{key_id}", headers=headers)).status_code == 204
     assert (await anon_client.delete(f"/api/v1/auth/api-keys/{key_id}", headers=headers)).status_code == 404
     assert (await anon_client.post("/api/v1/auth/api-keys", json={"name": ""}, headers=headers)).status_code == 422
+
+
+async def test_api_key_session_idle_timeout_is_set_and_edited(async_client: AsyncClient, other_user_client: AsyncClient):
+    """The Session idle timeout is optional at creation (null = default), bounded, and editable by the owner only."""
+    default = await async_client.post("/api/v1/auth/api-keys", json={"name": "default"})
+    assert default.status_code == 201
+    assert default.json()["session_idle_minutes"] is None
+
+    custom = await async_client.post("/api/v1/auth/api-keys", json={"name": "custom", "session_idle_minutes": 5})
+    assert custom.status_code == 201
+    key_id = custom.json()["id"]
+    assert custom.json()["session_idle_minutes"] == 5
+
+    for invalid in (0, 1441, "soon"):
+        res = await async_client.post("/api/v1/auth/api-keys", json={"name": "bad", "session_idle_minutes": invalid})
+        assert res.status_code == 422, invalid
+
+    updated = await async_client.patch(f"/api/v1/auth/api-keys/{key_id}", json={"session_idle_minutes": 90})
+    assert updated.status_code == 200
+    assert updated.json()["session_idle_minutes"] == 90
+    listed = {k["id"]: k for k in (await async_client.get("/api/v1/auth/api-keys")).json()}
+    assert listed[key_id]["session_idle_minutes"] == 90
+
+    reset = await async_client.patch(f"/api/v1/auth/api-keys/{key_id}", json={"session_idle_minutes": None})
+    assert reset.status_code == 200 and reset.json()["session_idle_minutes"] is None
+
+    assert (await async_client.patch(f"/api/v1/auth/api-keys/{key_id}", json={"session_idle_minutes": 0})).status_code == 422
+    assert (await async_client.patch(f"/api/v1/auth/api-keys/{key_id}", json={})).status_code == 422
+
+    # Another account's key is not found; so is a revoked one.
+    assert (await other_user_client.patch(f"/api/v1/auth/api-keys/{key_id}", json={"session_idle_minutes": 10})).status_code == 404
+    assert (await async_client.delete(f"/api/v1/auth/api-keys/{key_id}")).status_code == 204
+    assert (await async_client.patch(f"/api/v1/auth/api-keys/{key_id}", json={"session_idle_minutes": 10})).status_code == 404

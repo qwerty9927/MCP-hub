@@ -10,3 +10,6 @@ class Principal:
 
     user_id: UUID
     api_key_id: UUID | None = None
+    # The API key's Session idle timeout in seconds (None = the default). Carried here because the key row is
+    # already loaded to authenticate, so Session tracking needs no extra query.
+    session_idle_seconds: int | None = None

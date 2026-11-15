@@ -33,13 +33,13 @@ What a caller uses to name the Tool it wants to execute: either a Tool Slug (ups
 A person signed up to the hub. Every Server, Tool, Execution and Session belongs to exactly one Account, and an Account can see and act on only its own.
 
 ### API Key
-A revocable credential an upstream MCP client uses to call `/mcp` on behalf of an Account. Shown once when generated; the hub stores only its hash. API keys open `/mcp` only, never the REST API.
+A revocable credential an upstream MCP client uses to call `/mcp` on behalf of an Account. Shown once when generated; the hub stores only its hash. API keys open `/mcp` only, never the REST API. A key may carry a **Session Idle Timeout** (minutes, default 30): how long a Session opened with it may go without a tool call before it is completed. This is not the key's expiry.
 
 ### Principal
 The authenticated caller of a request: an Account, plus the API Key it presented (none for a console login token).
 
 ### Session
-A run of requests from one upstream agent (e.g., Claude, Cursor, or an MCP SDK client), as tracked by the hub. It belongs to one Account and tracks activity, tool calls and their outcomes. Every Session is a **Derived Session** (ADR-0003, ADR-0004): requests with the same Account, API Key and client (its name and version, or its User-Agent when it does not name itself), until 30 idle minutes pass. `/mcp` is stateless, so there are no Transport Sessions (`Mcp-Session-Id`); older Session rows may still be labelled `transport`.
+A run of requests from one upstream agent (e.g., Claude, Cursor, or an MCP SDK client), as tracked by the hub. It belongs to one Account and tracks activity, tool calls and their outcomes. Every Session is a **Derived Session** (ADR-0003, ADR-0004): requests with the same Account, API Key and client (its name and version, or its User-Agent when it does not name itself). It opens on the first tool call and is completed once it has been idle longer than its Session Idle Timeout, copied from its API Key when it opened (ADR-0005); a background job completes Sessions whose client never returns. `/mcp` is stateless, so there are no Transport Sessions (`Mcp-Session-Id`); older Session rows may still be labelled `transport`.
 
 ### MCP Gateway (Hub Server)
 The hub acting as an upstream MCP Server exposing the aggregated tool catalog over Streamable HTTP at `POST /mcp`.

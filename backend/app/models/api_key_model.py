@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, String
+from sqlalchemy import DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.api_key_entity import ApiKeyEntity
@@ -30,6 +30,7 @@ class ApiKeyModel(Base):
     )
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    session_idle_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     def to_domain(self) -> ApiKeyEntity:
         return ApiKeyEntity(
@@ -41,6 +42,7 @@ class ApiKeyModel(Base):
             created_at=self.created_at,
             last_used_at=self.last_used_at,
             revoked_at=self.revoked_at,
+            session_idle_minutes=self.session_idle_minutes,
         )
 
     @classmethod
@@ -54,4 +56,5 @@ class ApiKeyModel(Base):
             created_at=entity.created_at,
             last_used_at=entity.last_used_at,
             revoked_at=entity.revoked_at,
+            session_idle_minutes=entity.session_idle_minutes,
         )

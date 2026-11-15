@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import pytest
 
+from app.core.constants.session_constants import DEFAULT_SESSION_IDLE_SECONDS
 from app.core.enums.session_enum import SessionStatus
 from app.domain.api_key_entity import ApiKeyEntity
 from app.domain.principal_entity import Principal
@@ -12,7 +13,7 @@ from app.domain.user_entity import UserEntity
 from app.infrastructure.repositories.api_key_repository import PostgresApiKeyRepository
 from app.infrastructure.repositories.session_repository import PostgresSessionRepository
 from app.infrastructure.repositories.user_repository import PostgresUserRepository
-from app.services.session_tracker import SESSION_IDLE_SECONDS, ClientIdentity, SessionTrackerService, client_fingerprint
+from app.services.session_tracker import ClientIdentity, SessionTrackerService, client_fingerprint
 
 CLIENT = ClientIdentity(name="claude-code", version="2.0.0", protocol_version="2026-07-28")
 
@@ -50,7 +51,7 @@ async def test_same_client_reuses_one_derived_session(tracker, repo):
 async def test_idle_session_is_completed_and_replaced(tracker, repo):
     principal = await _principal("b@test.local")
     first = await tracker.resolve(principal, CLIENT)
-    stale = datetime.now(UTC) - timedelta(seconds=SESSION_IDLE_SECONDS + 5)
+    stale = datetime.now(UTC) - timedelta(seconds=DEFAULT_SESSION_IDLE_SECONDS + 5)
     await repo.update_activity(first, stale)
 
     second = await tracker.resolve(principal, CLIENT)
@@ -121,3 +122,37 @@ async def test_repository_failure_never_raises():
     principal = Principal(user_id=uuid4())
 
     assert await SessionTrackerService(Broken()).resolve(principal, CLIENT) is None
+
+
+async def test_new_session_snapshots_the_key_idle_timeout(tracker, repo):
+    principal = await _principal("h@test.local")
+    keyed = Principal(user_id=principal.user_id, api_key_id=principal.api_key_id, session_idle_seconds=300)
+    unset = await _principal("i@test.local")
+
+    custom = await tracker.resolve(keyed, CLIENT)
+    default = await tracker.resolve(unset, CLIENT)
+
+    assert (await repo.find_active_by_fingerprint(keyed.user_id, client_fingerprint(keyed, CLIENT))).id == custom
+    custom_entity = await repo.find_active_by_fingerprint(keyed.user_id, client_fingerprint(keyed, CLIENT))
+    default_entity = await repo.find_active_by_fingerprint(unset.user_id, client_fingerprint(unset, CLIENT))
+    assert custom_entity.idle_timeout_seconds == 300
+    assert default_entity.id == default and default_entity.idle_timeout_seconds == DEFAULT_SESSION_IDLE_SECONDS
+
+
+async def test_reuse_follows_the_session_timeout_not_the_current_key_value(tracker, repo):
+    """A Session keeps the timeout it opened with: shortening the key's value later does not end it early."""
+    base = await _principal("j@test.local")
+    opened_with_long = Principal(user_id=base.user_id, api_key_id=base.api_key_id, session_idle_seconds=3600)
+    now_short = Principal(user_id=base.user_id, api_key_id=base.api_key_id, session_idle_seconds=60)
+
+    first = await tracker.resolve(opened_with_long, CLIENT)
+    await repo.update_activity(first, datetime.now(UTC) - timedelta(seconds=600))
+
+    assert await tracker.resolve(now_short, CLIENT) == first
+
+    await repo.update_activity(first, datetime.now(UTC) - timedelta(seconds=3605))
+    replaced = await tracker.resolve(now_short, CLIENT)
+    assert replaced != first
+    assert (await repo.get_by_id(first)).status == SessionStatus.COMPLETED
+    new_entity = await repo.find_active_by_fingerprint(base.user_id, client_fingerprint(base, CLIENT))
+    assert new_entity.id == replaced and new_entity.idle_timeout_seconds == 60

@@ -16,6 +16,7 @@ from app.core.constants.meta_tools import (
     MULTI_EXECUTE_TOOLS_NAME,
     SEARCH_TOOLS_NAME,
 )
+from app.core.constants.session_constants import DEFAULT_SESSION_IDLE_SECONDS
 from app.core.enums.execution_enum import ExecutionOutcomeKind
 from app.core.enums.server_enum import ServerHealthStatus, TransportType
 from app.core.exceptions import UnauthorizedError
@@ -116,20 +117,28 @@ def _create_mock_context(
     return ctx
 
 
+_ANY_TOOL_CALL = CallToolRequestParams(name=SEARCH_TOOLS_NAME, arguments={"queries": ["anything"]})
+
+
 @pytest.mark.asyncio
-async def test_request_opens_a_derived_session_for_the_caller(mcp_server, mock_session_repo):
-    """Every request is attributed to a derived Session owned by the caller, carrying the client's identity."""
+async def test_tool_call_opens_a_derived_session_for_the_caller(mcp_server, mock_session_repo):
+    """A tool call is attributed to a derived Session owned by the caller, with the client's identity and the key's timeout."""
     mock_session_repo.find_active_by_fingerprint.return_value = None
+    principal = Principal(user_id=PRINCIPAL.user_id, api_key_id=PRINCIPAL.api_key_id, session_idle_seconds=300)
     ctx = _create_mock_context(
-        request_headers={"user-agent": "TestClient-http/2.1"}, client_info_name="TestClient", client_info_version="2.1.0"
+        request_headers={"user-agent": "TestClient-http/2.1"},
+        client_info_name="TestClient",
+        client_info_version="2.1.0",
+        principal=principal,
     )
 
-    await mcp_server.handle_list_tools(ctx, params=PaginatedRequestParams())
+    await mcp_server.handle_call_tool(ctx, _ANY_TOOL_CALL)
 
     mock_session_repo.get_or_create.assert_not_awaited()
     created = mock_session_repo.create.await_args.args[0]
     assert created.owner_id == PRINCIPAL.user_id
     assert created.api_key_id == PRINCIPAL.api_key_id
+    assert created.idle_timeout_seconds == 300
     assert created.metadata == {
         "session_source": "derived",
         "client_name": "TestClient",
@@ -145,11 +154,23 @@ async def test_client_supplied_session_header_is_ignored(mcp_server, mock_sessio
     mock_session_repo.find_active_by_fingerprint.return_value = None
     ctx = _create_mock_context(request_headers={"mcp-session-id": "client-chosen-id", "user-agent": "old-client/1.0"})
 
-    await mcp_server.handle_list_tools(ctx, params=PaginatedRequestParams())
+    await mcp_server.handle_call_tool(ctx, _ANY_TOOL_CALL)
 
     created = mock_session_repo.create.await_args.args[0]
     assert created.id != "client-chosen-id"
     assert created.metadata["user_agent"] == "old-client/1.0"
+    assert created.idle_timeout_seconds == DEFAULT_SESSION_IDLE_SECONDS  # the key sets none
+
+
+@pytest.mark.asyncio
+async def test_listing_tools_opens_no_session(mcp_server, mock_session_repo):
+    """A Session opens on the first tool call; a client that only lists tools leaves none behind."""
+    ctx = _create_mock_context(request_headers={"user-agent": "lister/1.0"})
+
+    await mcp_server.handle_list_tools(ctx, params=PaginatedRequestParams())
+
+    mock_session_repo.find_active_by_fingerprint.assert_not_awaited()
+    mock_session_repo.create.assert_not_awaited()
 
 
 @pytest.mark.asyncio
