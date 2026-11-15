@@ -17,9 +17,9 @@ DEMO_SERVER = str(Path(__file__).resolve().parent.parent.parent / "demo_server" 
 
 
 async def _seed_session(user_id, title: str, metadata: dict | None = None) -> str:
-    """Create an active session owned by `user_id` and return its ID."""
-    created = await PostgresSessionRepository().create(SessionEntity(id=str(uuid4()), title=title, metadata=metadata, user_id=user_id))
-    return created.id
+    """Create an active session owned by `user_id` and return its ID, as the API renders it."""
+    created = await PostgresSessionRepository().create(SessionEntity(id=uuid4(), title=title, metadata=metadata, user_id=user_id))
+    return str(created.id)
 
 
 @pytest.mark.asyncio

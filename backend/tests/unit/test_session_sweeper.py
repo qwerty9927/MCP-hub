@@ -20,7 +20,7 @@ async def _session(
     last_activity = datetime.now(UTC) - idle_for
     created = await repo.create(
         SessionEntity(
-            id=str(uuid4()),
+            id=uuid4(),
             status=status,
             created_at=last_activity,
             last_activity_at=last_activity,

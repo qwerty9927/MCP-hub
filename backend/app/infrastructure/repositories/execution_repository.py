@@ -45,7 +45,7 @@ class ExecutionRepositoryAbstract(ABC):
     @abstractmethod
     async def list_by_session(
         self,
-        session_id: str,
+        session_id: UUID,
         page: int = 1,
         page_size: int = 20,
         sort_by: str = "created_at",
@@ -58,7 +58,7 @@ class ExecutionRepositoryAbstract(ABC):
         pass
 
     @abstractmethod
-    async def get_tool_call(self, session_id: str, call_id: UUID) -> ToolCallEntity | None:
+    async def get_tool_call(self, session_id: UUID, call_id: UUID) -> ToolCallEntity | None:
         """Retrieve a specific tool call within a session."""
         pass
 
@@ -120,7 +120,7 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
 
     async def list_by_session(
         self,
-        session_id: str,
+        session_id: UUID,
         page: int = 1,
         page_size: int = 20,
         sort_by: str = "created_at",
@@ -130,7 +130,7 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
         tool_name: str | None = None,
     ) -> tuple[list[ToolCallEntity], int]:
         async with db_module.async_session_factory() as session:
-            conditions = [ExecutionModel.session_id == session_id]
+            conditions = [ExecutionModel.session_id == str(session_id)]
 
             if status:
                 status_clean = status.strip().lower()
@@ -198,12 +198,12 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
             models = result.scalars().all()
             return [m.to_tool_call_domain() for m in models], total
 
-    async def get_tool_call(self, session_id: str, call_id: UUID) -> ToolCallEntity | None:
+    async def get_tool_call(self, session_id: UUID, call_id: UUID) -> ToolCallEntity | None:
         async with db_module.async_session_factory() as session:
             stmt = select(ExecutionModel).where(
                 and_(
                     ExecutionModel.id == str(call_id),
-                    ExecutionModel.session_id == session_id,
+                    ExecutionModel.session_id == str(session_id),
                 )
             )
             result = await session.execute(stmt)

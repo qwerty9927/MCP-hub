@@ -70,7 +70,7 @@ class ExecutionModel(Base):
             duration_ms=self.duration_ms,
             executed_at=self.executed_at,
             response=self.response,
-            session_id=self.session_id,
+            session_id=UUID(self.session_id) if self.session_id else None,
             status=self.status,
             started_at=self.started_at,
             completed_at=self.completed_at,
@@ -85,7 +85,7 @@ class ExecutionModel(Base):
         )
         return ToolCallEntity(
             id=UUID(self.id),
-            session_id=self.session_id,
+            session_id=UUID(self.session_id) if self.session_id else None,
             server_name=self.server_name,
             tool_name=self.tool_name,
             status=status_val,

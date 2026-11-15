@@ -47,7 +47,7 @@ async def list_sessions(
     summary="Get session details and execution metrics",
 )
 async def get_session(
-    session_id: str,
+    session_id: UUID,
     principal: Annotated[Principal, Depends(get_current_principal)],
     service: Annotated[SessionExplorerService, Depends(get_session_explorer_service)],
 ) -> SessionDetailResponse:
@@ -61,7 +61,7 @@ async def get_session(
     summary="List tool execution history for a session",
 )
 async def list_session_tool_calls(
-    session_id: str,
+    session_id: UUID,
     principal: Annotated[Principal, Depends(get_current_principal)],
     service: Annotated[SessionExplorerService, Depends(get_session_explorer_service)],
     page: int = Query(default=1, ge=1, description="Page number"),
@@ -95,7 +95,7 @@ async def list_session_tool_calls(
     summary="Get specific tool call details within a session",
 )
 async def get_session_tool_call(
-    session_id: str,
+    session_id: UUID,
     call_id: UUID,
     principal: Annotated[Principal, Depends(get_current_principal)],
     service: Annotated[SessionExplorerService, Depends(get_session_explorer_service)],

@@ -62,7 +62,7 @@ async def test_session_repository_crud_and_metrics(account_id):
     )
 
     # 2. Create session
-    session_id = str(uuid4())
+    session_id = uuid4()
     now = datetime.now(UTC)
     session = SessionEntity(
         id=session_id,
@@ -185,7 +185,7 @@ async def test_execution_repo_list_by_session_sorting_and_filtering(account_id):
         )
     )
 
-    session_id = str(uuid4())
+    session_id = uuid4()
     await session_repo.get_or_create(session_id, user_id=account_id, title="Sorting Test")
 
     # Add 3 tool calls at sequential timestamps
@@ -277,7 +277,7 @@ async def test_session_explorer_service_errors(account_id):
     service = SessionExplorerService(session_repo, exec_repo)
 
     # Missing session
-    fake_session_id = str(uuid4())
+    fake_session_id = uuid4()
     with pytest.raises(NotFoundError):
         await service.get_session(fake_session_id, user_id=account_id)
 
@@ -285,7 +285,7 @@ async def test_session_explorer_service_errors(account_id):
         await service.list_session_tool_calls(fake_session_id, user_id=account_id)
 
     # Create session, but query missing tool call
-    empty_session = await session_repo.create(SessionEntity(id=str(uuid4()), title="Empty Session", user_id=account_id))
+    empty_session = await session_repo.create(SessionEntity(id=uuid4(), title="Empty Session", user_id=account_id))
     fake_call_id = uuid4()
     with pytest.raises(NotFoundError):
         await service.get_session_tool_call(empty_session.id, fake_call_id, user_id=account_id)

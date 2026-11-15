@@ -81,7 +81,7 @@ class ToolExecutor:
         *,
         user_id: UUID,
         server_id: UUID | None = None,
-        session_id: str | None = None,
+        session_id: UUID | None = None,
         timeout: float | None = None,
     ) -> ExecutionOutcome:
         """Execute the owner's Tool named by `tool_reference` (on `server_id`, when given) and return its Outcome.
@@ -147,11 +147,11 @@ class ToolExecutor:
         await self._record(outcome, arguments, session_id, started_at=executed_at)
         return outcome
 
-    async def _check_session(self, session_id: str | None, user_id: UUID) -> None:
+    async def _check_session(self, session_id: UUID | None, user_id: UUID) -> None:
         if not session_id or self._session_repository is None:
             return
         if await self._session_repository.get_by_id(session_id, user_id=user_id) is None:
-            raise NotFoundError(f"Session with id '{session_id}' not found", details={"session_id": session_id})
+            raise NotFoundError(f"Session with id '{session_id}' not found", details={"session_id": str(session_id)})
 
     async def _resolve(self, tool_reference: str, user_id: UUID, server_id: UUID | None) -> ToolEntity | None:
         tool = await self._tool_catalog.resolve(tool_reference, user_id=user_id, server_id=server_id)
@@ -203,7 +203,7 @@ class ToolExecutor:
         tool: ToolEntity,
         tool_reference: str,
         arguments: dict[str, Any],
-        session_id: str | None,
+        session_id: UUID | None,
         timeout: float | None,
         executed_at: datetime,
     ) -> ExecutionOutcome:
@@ -242,7 +242,7 @@ class ToolExecutor:
         self,
         outcome: ExecutionOutcome,
         arguments: dict[str, Any],
-        session_id: str | None,
+        session_id: UUID | None,
         started_at: datetime,
     ) -> None:
         """Persist the Execution; a failed write is logged, never surfaced (the call may have had side effects)."""
@@ -276,7 +276,7 @@ class ToolExecutor:
             logger.error(f"Failed to record Execution {outcome.execution_id} ({outcome.kind}) for '{outcome.tool_reference}': {exc}")
         await self._touch_session(session_id, completed_at)
 
-    async def _touch_session(self, session_id: str | None, timestamp: datetime | None = None) -> None:
+    async def _touch_session(self, session_id: UUID | None, timestamp: datetime | None = None) -> None:
         if not session_id or self._session_repository is None:
             return
         try:

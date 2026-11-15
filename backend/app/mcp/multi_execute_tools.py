@@ -108,7 +108,7 @@ async def execute_single_tool(
     item: ToolExecutionItem,
     executor: ToolExecutor,
     user_id: UUID,
-    session_id: str | None = None,
+    session_id: UUID | None = None,
 ) -> dict[str, Any]:
     """Execute one batch item through the Execution module, isolating any failure to this item."""
     slug = item.tool_slug
@@ -133,7 +133,7 @@ async def handle_multi_execute_tools(
     arguments: dict[str, Any],
     executor: ToolExecutor,
     user_id: UUID,
-    session_id: str | None = None,
+    session_id: UUID | None = None,
 ) -> dict[str, Any]:
     """Execute MULTI_EXECUTE_TOOLS: validate the batch, fan out concurrently, isolate failures per item."""
     try:

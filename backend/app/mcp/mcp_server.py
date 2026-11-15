@@ -4,6 +4,7 @@ import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
+from uuid import UUID
 
 from mcp.server.auth.middleware.bearer_auth import AuthenticatedUser
 from mcp.server.context import ServerRequestContext
@@ -226,7 +227,7 @@ class MCPServer:
             user_agent = ctx.request.headers.get("user-agent") or None
         return ClientIdentity(name=name, version=version, protocol_version=ctx.protocol_version, user_agent=user_agent)
 
-    async def _track_session(self, ctx: ServerRequestContext, principal: Principal | None) -> str | None:
+    async def _track_session(self, ctx: ServerRequestContext, principal: Principal | None) -> UUID | None:
         """Attribute the request to a hub Session."""
         if principal is None:
             return None
@@ -287,7 +288,7 @@ class MCPServer:
         self,
         arguments: dict[str, Any] | None,
         principal: Principal,
-        session_id: str | None = None,
+        session_id: UUID | None = None,
     ) -> CallToolResult:
         """Handle execution of Multi-Execute based on mcp_servers and discovered_tools."""
         try:

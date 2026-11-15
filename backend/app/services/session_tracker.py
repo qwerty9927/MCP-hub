@@ -13,7 +13,7 @@ import hashlib
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from app.core.constants.session_constants import ACTIVITY_REFRESH_SECONDS, MAX_USER_AGENT_LENGTH, SESSION_SOURCE_DERIVED
 from app.core.enums.session_enum import SessionStatus
@@ -50,7 +50,7 @@ class SessionTrackerService:
         self._sessions = session_repository
         self._locks: dict[str, asyncio.Lock] = {}
 
-    async def resolve(self, principal: Principal, client: ClientIdentity) -> str | None:
+    async def resolve(self, principal: Principal, client: ClientIdentity) -> UUID | None:
         """Return the Session ID for this request, opening a Session if needed; None if none can be attributed.
 
         Never raises: losing Session attribution must not fail the agent's request.
@@ -61,7 +61,7 @@ class SessionTrackerService:
             logger.warning(f"Could not attribute MCP request to a session: {exc}")
             return None
 
-    async def _derived_session(self, principal: Principal, client: ClientIdentity) -> str:
+    async def _derived_session(self, principal: Principal, client: ClientIdentity) -> UUID:
         fingerprint = client_fingerprint(principal, client)
         # Serialise per client so concurrent first requests do not each open a Session.
         lock = self._locks.setdefault(fingerprint, asyncio.Lock())
@@ -76,11 +76,11 @@ class SessionTrackerService:
                     return current.id
                 await self._sessions.update_status(current.id, SessionStatus.COMPLETED, user_id=principal.user_id)
 
-            session_id = str(uuid4())
-            await self._sessions.create(
+            session_id = uuid4()
+            new_session = await self._sessions.create(
                 SessionEntity(
                     id=session_id,
-                    title=f"{client.label or 'MCP client'} ({session_id[:8]})",
+                    title=f"{client.label or 'MCP client'} ({str(session_id)[:8]})",
                     status=SessionStatus.ACTIVE,
                     metadata=_metadata(client),
                     created_at=now,
@@ -91,8 +91,8 @@ class SessionTrackerService:
                     idle_timeout_seconds=effective_idle_seconds(principal.session_idle_seconds),
                 )
             )
-            logger.info(f"Opened derived session {session_id[:8]} for account {principal.user_id}")
-            return session_id
+            logger.info(f"Opened derived session {str(new_session.id)[:8]} for account {principal.user_id}")
+            return new_session.id
 
 
 def client_fingerprint(principal: Principal, client: ClientIdentity) -> str:

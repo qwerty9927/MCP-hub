@@ -73,13 +73,13 @@ class SessionExplorerService:
             total_pages=total_pages,
         )
 
-    async def get_session(self, session_id: str, *, user_id: UUID) -> SessionDetailResponse:
+    async def get_session(self, session_id: UUID, *, user_id: UUID) -> SessionDetailResponse:
         """Retrieve detailed session view by ID including aggregated metrics."""
         detail = await self.session_repo.get_by_id(session_id, user_id=user_id)
         if not detail:
             raise NotFoundError(
                 f"Session with id '{session_id}' not found",
-                details={"session_id": session_id},
+                details={"session_id": str(session_id)},
             )
 
         return SessionDetailResponse(
@@ -97,7 +97,7 @@ class SessionExplorerService:
 
     async def list_session_tool_calls(
         self,
-        session_id: str,
+        session_id: UUID,
         page: int = 1,
         page_size: int = 20,
         sort_by: str = "created_at",
@@ -114,7 +114,7 @@ class SessionExplorerService:
         if not session:
             raise NotFoundError(
                 f"Session with id '{session_id}' not found",
-                details={"session_id": session_id},
+                details={"session_id": str(session_id)},
             )
 
         # 2. Query execution records
@@ -156,14 +156,14 @@ class SessionExplorerService:
             total_pages=total_pages,
         )
 
-    async def get_session_tool_call(self, session_id: str, call_id: UUID, *, user_id: UUID) -> ToolCallResponse:
+    async def get_session_tool_call(self, session_id: UUID, call_id: UUID, *, user_id: UUID) -> ToolCallResponse:
         """Retrieve a specific tool call within a session."""
         # 1. Verify session exists
         session = await self.session_repo.get_by_id(session_id, user_id=user_id)
         if not session:
             raise NotFoundError(
                 f"Session with id '{session_id}' not found",
-                details={"session_id": session_id},
+                details={"session_id": str(session_id)},
             )
 
         # 2. Query tool call
@@ -171,7 +171,7 @@ class SessionExplorerService:
         if not call:
             raise NotFoundError(
                 f"Tool call with id '{call_id}' not found in session '{session_id}'",
-                details={"session_id": session_id, "call_id": str(call_id)},
+                details={"session_id": str(session_id), "call_id": str(call_id)},
             )
 
         return ToolCallResponse(

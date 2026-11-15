@@ -27,7 +27,7 @@ class SessionRepositoryAbstract(ABC):
     @abstractmethod
     async def get_or_create(
         self,
-        session_id: str,
+        session_id: UUID,
         user_id: UUID,
         api_key_id: UUID | None = None,
         title: str | None = None,
@@ -42,7 +42,7 @@ class SessionRepositoryAbstract(ABC):
         pass
 
     @abstractmethod
-    async def get_by_id(self, session_id: str, *, user_id: UUID) -> SessionDetailEntity | None:
+    async def get_by_id(self, session_id: UUID, *, user_id: UUID) -> SessionDetailEntity | None:
         """Retrieve detailed session view by ID including aggregated metrics."""
         pass
 
@@ -60,12 +60,12 @@ class SessionRepositoryAbstract(ABC):
         pass
 
     @abstractmethod
-    async def update_status(self, session_id: str, status: SessionStatus | str, *, user_id: UUID) -> bool:
+    async def update_status(self, session_id: UUID, status: SessionStatus | str, *, user_id: UUID) -> bool:
         """Update session lifecycle status (only the owner's session when `user_id` is given)."""
         pass
 
     @abstractmethod
-    async def update_activity(self, session_id: str, timestamp: datetime | None = None) -> None:
+    async def update_activity(self, session_id: UUID, timestamp: datetime | None = None) -> None:
         """Update session last activity timestamp."""
         pass
 
@@ -91,14 +91,14 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
 
     async def get_or_create(
         self,
-        session_id: str,
+        session_id: UUID,
         user_id: UUID,
         api_key_id: UUID | None = None,
         title: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> SessionEntity | None:
         async with db_module.async_session_factory() as db_session:
-            stmt = select(SessionModel).where(SessionModel.id == session_id)
+            stmt = select(SessionModel).where(SessionModel.id == str(session_id))
             result = await db_session.execute(stmt)
             model = result.scalar_one_or_none()
             if model:
@@ -120,8 +120,8 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
             # Create new session
             now = datetime.now(UTC)
             new_session = SessionModel(
-                id=session_id,
-                title=title or f"Session {session_id[:8]}",
+                id=str(session_id),
+                title=title or f"Session {str(session_id)[:8]}",
                 status="active",
                 user_id=str(user_id),
                 api_key_id=str(api_key_id) if api_key_id else None,
@@ -149,7 +149,7 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
             model = (await db_session.execute(stmt)).scalars().first()
             return model.to_domain() if model else None
 
-    async def get_by_id(self, session_id: str, *, user_id: UUID) -> SessionDetailEntity | None:
+    async def get_by_id(self, session_id: UUID, *, user_id: UUID) -> SessionDetailEntity | None:
         async with db_module.async_session_factory() as db_session:
             owner_clause = SessionModel.user_id == str(user_id)
             stmt = (
@@ -185,7 +185,7 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
                     func.count(case((ExecutionModel.status == "rejected", 1), else_=None)).label("rejected_tool_calls"),
                 )
                 .outerjoin(ExecutionModel, ExecutionModel.session_id == SessionModel.id)
-                .where(SessionModel.id == session_id, owner_clause)
+                .where(SessionModel.id == str(session_id), owner_clause)
                 .group_by(SessionModel.id)
             )
             result = await db_session.execute(stmt)
@@ -196,7 +196,7 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
             model, total, successful, failed, rejected = row
             status_val = SessionStatus(model.status) if model.status in SessionStatus._value2member_map_ else SessionStatus.ACTIVE
             return SessionDetailEntity(
-                id=model.id,
+                id=UUID(model.id),
                 status=status_val,
                 title=model.title,
                 metadata=model.metadata_json,
@@ -255,20 +255,20 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
             entities = [model.to_domain(total_tool_calls=count) for model, count in rows]
             return entities, total
 
-    async def update_status(self, session_id: str, status: SessionStatus | str, *, user_id: UUID) -> bool:
+    async def update_status(self, session_id: UUID, status: SessionStatus | str, *, user_id: UUID) -> bool:
         status_val = status.value if hasattr(status, "value") else str(status)
         async with db_module.async_session_factory() as db_session:
-            stmt = update(SessionModel).where(SessionModel.id == session_id)
+            stmt = update(SessionModel).where(SessionModel.id == str(session_id))
             stmt = stmt.where(SessionModel.user_id == str(user_id))
             stmt = stmt.values(status=status_val, last_activity_at=datetime.now(UTC))
             result = await db_session.execute(stmt)
             await db_session.commit()
             return result.rowcount > 0
 
-    async def update_activity(self, session_id: str, timestamp: datetime | None = None) -> None:
+    async def update_activity(self, session_id: UUID, timestamp: datetime | None = None) -> None:
         now = timestamp or datetime.now(UTC)
         async with db_module.async_session_factory() as db_session:
-            stmt = update(SessionModel).where(SessionModel.id == session_id).values(last_activity_at=now)
+            stmt = update(SessionModel).where(SessionModel.id == str(session_id)).values(last_activity_at=now)
             await db_session.execute(stmt)
             await db_session.commit()
 

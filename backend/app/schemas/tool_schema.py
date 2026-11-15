@@ -35,7 +35,7 @@ class ToolExecuteRequest(BaseModel):
     """Payload for executing a tool."""
 
     arguments: dict[str, Any] = Field(default_factory=dict, description="Key-value arguments matching tool inputSchema")
-    session_id: str | None = Field(default=None, description="Optional session ID to associate with this tool execution")
+    session_id: UUID | None = Field(default=None, description="Optional session ID to associate with this tool execution")
 
 
 class ToolContentItem(BaseModel):

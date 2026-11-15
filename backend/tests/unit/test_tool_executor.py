@@ -232,7 +232,7 @@ async def test_unavailable_tool_rejected_and_recorded(executor, catalog, executi
 
 
 async def test_unknown_tool_is_rejected_without_execution_record(executor, execution_repo, session_repo, connected_server, account_id):
-    session = await session_repo.get_or_create(session_id=str(uuid4()), user_id=account_id)
+    session = await session_repo.get_or_create(session_id=uuid4(), user_id=account_id)
     before = session.last_activity_at
 
     outcome = await executor.execute("math_server__does_not_exist", {}, user_id=account_id, session_id=session.id)
@@ -259,7 +259,7 @@ async def test_unregistered_server_is_unknown_tool(executor, account_id):
 
 
 async def test_execution_is_linked_to_session_and_bumps_activity(executor, execution_repo, session_repo, connected_server, account_id):
-    session = await session_repo.get_or_create(session_id=str(uuid4()), user_id=account_id)
+    session = await session_repo.get_or_create(session_id=uuid4(), user_id=account_id)
 
     outcome = await executor.execute("math_server__add", {"a": 1, "b": 2}, user_id=account_id, session_id=session.id)
 
