@@ -1,0 +1,124 @@
+"""Session tracking for upstream MCP clients.
+
+`/mcp` is stateless (ADR-0004): no request carries a transport session, so the hub derives every Session.
+A Session opens on the first tool call. Requests from the same account, API key and client belong to one
+Session until it has been idle for longer than its idle timeout: the API key's, copied onto the Session when
+it opens, else DEFAULT_SESSION_IDLE_SECONDS (ADR-0005). The background job in app/background_service/
+completes Sessions that go idle and never send another request. The client is its name + version when the
+request says (2026-07-28 `_meta`), else its User-Agent. See docs/adr/0003-session-identity-without-transport-sessions.md.
+"""
+
+import asyncio
+import hashlib
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+from typing import Any
+from uuid import uuid4
+
+from app.core.constants.session_constants import ACTIVITY_REFRESH_SECONDS, MAX_USER_AGENT_LENGTH, SESSION_SOURCE_DERIVED
+from app.core.enums.session_enum import SessionStatus
+from app.core.logging import logger
+from app.domain.principal_entity import Principal
+from app.domain.session_entity import SessionEntity
+from app.helpers.session_idle import effective_idle_seconds, is_idle
+from app.infrastructure.repositories.session_repository import SessionRepositoryAbstract
+
+
+@dataclass(frozen=True)
+class ClientIdentity:
+    """What a request says about the client that sent it."""
+
+    name: str | None = None
+    version: str | None = None
+    protocol_version: str | None = None
+    user_agent: str | None = None
+
+    @property
+    def label(self) -> str | None:
+        """A short human-readable name: the client's own name, else the product part of its User-Agent."""
+        if self.name:
+            return self.name
+        if self.user_agent:
+            return self.user_agent.split(" ", 1)[0][:100]
+        return None
+
+
+class SessionTrackerService:
+    """Maps each upstream MCP request to the hub Session it belongs to."""
+
+    def __init__(self, session_repository: SessionRepositoryAbstract) -> None:
+        self._sessions = session_repository
+        self._locks: dict[str, asyncio.Lock] = {}
+
+    async def resolve(self, principal: Principal, client: ClientIdentity) -> str | None:
+        """Return the Session ID for this request, opening a Session if needed; None if none can be attributed.
+
+        Never raises: losing Session attribution must not fail the agent's request.
+        """
+        try:
+            return await self._derived_session(principal, client)
+        except Exception as exc:
+            logger.warning(f"Could not attribute MCP request to a session: {exc}")
+            return None
+
+    async def _derived_session(self, principal: Principal, client: ClientIdentity) -> str:
+        fingerprint = client_fingerprint(principal, client)
+        # Serialise per client so concurrent first requests do not each open a Session.
+        lock = self._locks.setdefault(fingerprint, asyncio.Lock())
+        async with lock:
+            now = datetime.now(UTC)
+            current = await self._sessions.find_active_by_fingerprint(principal.user_id, fingerprint)
+            if current is not None:
+                # Each Session keeps the timeout it opened with, so changing the key's value only affects later Sessions.
+                if not is_idle(current.last_activity_at, effective_idle_seconds(current.idle_timeout_seconds), now):
+                    if now - current.last_activity_at > timedelta(seconds=ACTIVITY_REFRESH_SECONDS):
+                        await self._sessions.update_activity(current.id, now)
+                    return current.id
+                await self._sessions.update_status(current.id, SessionStatus.COMPLETED, user_id=principal.user_id)
+
+            session_id = str(uuid4())
+            await self._sessions.create(
+                SessionEntity(
+                    id=session_id,
+                    title=f"{client.label or 'MCP client'} ({session_id[:8]})",
+                    status=SessionStatus.ACTIVE,
+                    metadata=_metadata(client),
+                    created_at=now,
+                    last_activity_at=now,
+                    user_id=principal.user_id,
+                    api_key_id=principal.api_key_id,
+                    client_fingerprint=fingerprint,
+                    idle_timeout_seconds=effective_idle_seconds(principal.session_idle_seconds),
+                )
+            )
+            logger.info(f"Opened derived session {session_id[:8]} for account {principal.user_id}")
+            return session_id
+
+
+def client_fingerprint(principal: Principal, client: ClientIdentity) -> str:
+    """Stable key for "the same client of the same account, on the same API key".
+
+    A client that names itself is keyed on name + version (unchanged from ADR-0003); one that does not
+    (a handshake-era client, whose `initialize` a stateless server forgets) is keyed on its User-Agent.
+    """
+    if client.name:
+        client_key = (client.name, client.version or "unknown")
+    elif client.user_agent:
+        client_key = ("ua", client.user_agent)
+    else:
+        client_key = ("unknown", "unknown")
+    parts = (str(principal.user_id), str(principal.api_key_id or ""), *client_key)
+    return hashlib.sha256("\x1f".join(parts).encode("utf-8")).hexdigest()
+
+
+def _metadata(client: ClientIdentity) -> dict[str, Any]:
+    metadata: dict[str, Any] = {"session_source": SESSION_SOURCE_DERIVED}
+    if client.name:
+        metadata["client_name"] = client.name
+    if client.version:
+        metadata["client_version"] = client.version
+    if client.protocol_version:
+        metadata["protocol_version"] = client.protocol_version
+    if client.user_agent:
+        metadata["user_agent"] = client.user_agent[:MAX_USER_AGENT_LENGTH]
+    return metadata

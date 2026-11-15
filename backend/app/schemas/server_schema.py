@@ -39,10 +39,6 @@ class ServerCreateRequest(ServerBase):
         return self
 
 
-# Backward-compatible alias
-ServerCreate = ServerCreateRequest
-
-
 class ServerUpdateRequest(BaseModel):
     """Schema for updating an existing MCP Server configuration."""
 
@@ -64,10 +60,6 @@ class ServerUpdateRequest(BaseModel):
         elif self.http_config:
             validate_http_url(self.http_config.url)
         return self
-
-
-# Backward-compatible alias
-ServerUpdate = ServerUpdateRequest
 
 
 class ServerResponse(BaseModel):
@@ -149,3 +141,10 @@ class ServerTestResponse(BaseModel):
     message: str
     tools_count: int = 0
     latency_ms: float = 0.0
+
+
+# Backward-compatible alias
+ServerCreate = ServerCreateRequest
+
+# Backward-compatible alias
+ServerUpdate = ServerUpdateRequest

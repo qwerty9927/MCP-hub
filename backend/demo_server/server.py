@@ -28,27 +28,6 @@ SAFE_OPERATORS = {
 }
 
 
-def _safe_eval(node: ast.AST) -> float | int:
-    if isinstance(node, ast.Expression):
-        return _safe_eval(node.body)
-    elif isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
-        return node.value
-    elif isinstance(node, ast.BinOp):
-        op_type = type(node.op)
-        if op_type not in SAFE_OPERATORS:
-            raise ValueError(f"Unsupported operator: {op_type.__name__}")
-        left = _safe_eval(node.left)
-        right = _safe_eval(node.right)
-        return SAFE_OPERATORS[op_type](left, right)
-    elif isinstance(node, ast.UnaryOp):
-        op_type = type(node.op)
-        if op_type not in SAFE_OPERATORS:
-            raise ValueError(f"Unsupported unary operator: {op_type.__name__}")
-        operand = _safe_eval(node.operand)
-        return SAFE_OPERATORS[op_type](operand)
-    raise ValueError(f"Unsupported expression node: {type(node).__name__}")
-
-
 @mcp.tool()
 def calculate(expression: str) -> str:
     """Safely calculate a mathematical expression (e.g., '12 + 4 * 2')."""
@@ -80,6 +59,27 @@ def system_ping() -> dict[str, Any]:
         "timestamp": datetime.now(UTC).isoformat(),
         "python_version": sys.version,
     }
+
+
+def _safe_eval(node: ast.AST) -> float | int:
+    if isinstance(node, ast.Expression):
+        return _safe_eval(node.body)
+    elif isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+        return node.value
+    elif isinstance(node, ast.BinOp):
+        op_type = type(node.op)
+        if op_type not in SAFE_OPERATORS:
+            raise ValueError(f"Unsupported operator: {op_type.__name__}")
+        left = _safe_eval(node.left)
+        right = _safe_eval(node.right)
+        return SAFE_OPERATORS[op_type](left, right)
+    elif isinstance(node, ast.UnaryOp):
+        op_type = type(node.op)
+        if op_type not in SAFE_OPERATORS:
+            raise ValueError(f"Unsupported unary operator: {op_type.__name__}")
+        operand = _safe_eval(node.operand)
+        return SAFE_OPERATORS[op_type](operand)
+    raise ValueError(f"Unsupported expression node: {type(node).__name__}")
 
 
 if __name__ == "__main__":

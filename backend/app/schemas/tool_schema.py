@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 class ToolResponse(BaseModel):
     """Discovered tool metadata schema."""
 
-    id: str = Field(..., description="Unique server-qualified identifier: '{server_id}:{tool_name}'")
+    id: UUID = Field(..., description="Tool ID (UUID); a new one each time the server's tools are re-discovered")
     name: str = Field(..., description="Tool name exposed by the MCP server")
     description: str | None = Field(default=None, description="Tool description provided by server")
     input_schema: dict[str, Any] = Field(default_factory=dict, description="JSON schema defining input arguments")
@@ -20,23 +20,15 @@ class ToolResponse(BaseModel):
     last_discovered_at: datetime = Field(..., description="Timestamp of when tool was last discovered/refreshed")
 
 
-# Backward-compatible alias
-ToolRead = ToolResponse
-
-
 class ToolSummaryResponse(BaseModel):
     """Compact summary of a discovered tool."""
 
-    id: str = Field(..., description="Unique server-qualified identifier: '{server_id}:{tool_name}'")
+    id: UUID = Field(..., description="Tool ID (UUID); a new one each time the server's tools are re-discovered")
     name: str = Field(..., description="Tool name")
     server_id: UUID = Field(..., description="Parent server UUID")
     server_name: str = Field(..., description="Parent server name")
     description: str | None = None
     availability_status: str = "AVAILABLE"
-
-
-# Backward-compatible alias
-ToolSummaryRead = ToolSummaryResponse
 
 
 class ToolExecuteRequest(BaseModel):
@@ -66,3 +58,10 @@ class ToolExecuteResponse(BaseModel):
     duration_ms: float
     executed_at: datetime
     correlation_id: str | None = Field(default=None, description="Request correlation ID for execution tracing")
+
+
+# Backward-compatible alias
+ToolRead = ToolResponse
+
+# Backward-compatible alias
+ToolSummaryRead = ToolSummaryResponse

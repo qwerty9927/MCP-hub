@@ -1,11 +1,12 @@
 from abc import ABC, abstractmethod
+from dataclasses import replace
 from uuid import UUID
 
 from sqlalchemy import delete, func, select
-from sqlalchemy.ext.asyncio import async_sessionmaker
 
 import app.infrastructure.database as db_module
 from app.domain.tool_entity import ToolEntity
+from app.helpers.validation import is_uuid
 from app.models.tool_model import ToolModel
 
 
@@ -13,13 +14,13 @@ class ToolRepositoryAbstract(ABC):
     """Abstract repository for discovered tool metadata persistence."""
 
     @abstractmethod
-    async def save_server_tools(
+    async def replace_server_tools(
         self,
         server_id: UUID,
         server_name: str,
         tools: list[ToolEntity],
     ) -> list[ToolEntity]:
-        """Atomically persist or replace tools discovered for a server."""
+        """Replace the tools stored for a server with the newly discovered ones."""
         pass
 
     @abstractmethod
@@ -32,8 +33,10 @@ class ToolRepositoryAbstract(ABC):
         self,
         tool_id_or_name: str,
         server_id: UUID | None = None,
+        *,
+        user_id: UUID,
     ) -> ToolEntity | None:
-        """Retrieve a tool by qualified ID or tool name."""
+        """Retrieve a tool by its id, or by name (on `server_id` only, when given)."""
         pass
 
     @abstractmethod
@@ -45,60 +48,37 @@ class ToolRepositoryAbstract(ABC):
         search: str | None = None,
         page: int = 1,
         page_size: int = 20,
+        *,
+        user_id: UUID,
     ) -> tuple[list[ToolEntity], int]:
         """List and search tools across servers with pagination."""
-        pass
-
-    @abstractmethod
-    async def load_all_tools(self) -> list[ToolEntity]:
-        """Load all discovered tools from persistent storage."""
         pass
 
 
 class PostgresToolRepository(ToolRepositoryAbstract):
     """PostgreSQL implementation of ToolRepositoryAbstract using SQLAlchemy."""
 
-    def __init__(self, session_factory: async_sessionmaker | None = None) -> None:
-        self._session_factory = session_factory
-
-    @property
-    def session_factory(self) -> async_sessionmaker:
-        return self._session_factory or db_module.async_session_factory
-
-    @session_factory.setter
-    def session_factory(self, factory: async_sessionmaker | None) -> None:
-        self._session_factory = factory
-
-    async def save_server_tools(
+    async def replace_server_tools(
         self,
         server_id: UUID,
         server_name: str,
         tools: list[ToolEntity],
     ) -> list[ToolEntity]:
-        async with self.session_factory() as session:
-            # Delete existing tools for this server
+        async with db_module.async_session_factory() as session:
+            # Replace the server's tools with the newly discovered ones (each new Tool has a new id).
             await session.execute(delete(ToolModel).where(ToolModel.server_id == str(server_id)))
 
             saved_entities: list[ToolEntity] = []
             for tool in tools:
-                model = ToolModel(
-                    id=tool.id,
-                    server_id=str(server_id),
-                    server_name=server_name,
-                    name=tool.name,
-                    description=tool.description,
-                    input_schema=tool.input_schema or {},
-                    availability_status=tool.availability_status,
-                    last_discovered_at=tool.last_discovered_at,
-                )
-                session.add(model)
-                saved_entities.append(tool)
+                saved = replace(tool, server_id=server_id, server_name=server_name)
+                session.add(ToolModel.from_domain(saved))
+                saved_entities.append(saved)
 
             await session.commit()
             return saved_entities
 
     async def delete_server_tools(self, server_id: UUID) -> None:
-        async with self.session_factory() as session:
+        async with db_module.async_session_factory() as session:
             await session.execute(delete(ToolModel).where(ToolModel.server_id == str(server_id)))
             await session.commit()
 
@@ -106,30 +86,29 @@ class PostgresToolRepository(ToolRepositoryAbstract):
         self,
         tool_id_or_name: str,
         server_id: UUID | None = None,
+        *,
+        user_id: UUID,
     ) -> ToolEntity | None:
-        async with self.session_factory() as session:
-            # 1. Look up by exact qualified ID
-            stmt = select(ToolModel).where(ToolModel.id == tool_id_or_name)
-            res = await session.execute(stmt)
-            model = res.scalar_one_or_none()
-            if model:
-                return model.to_domain()
+        async with db_module.async_session_factory() as session:
+            owned = ToolModel.user_id == str(user_id)
 
-            # 2. Look up by name and server_id if given
-            if server_id is not None:
-                stmt = select(ToolModel).where(
-                    ToolModel.server_id == str(server_id),
-                    func.lower(ToolModel.name) == tool_id_or_name.lower(),
-                )
-                res = await session.execute(stmt)
-                model = res.scalar_one_or_none()
+            # 1. Look up by Tool ID
+            if is_uuid(tool_id_or_name):
+                stmt = select(ToolModel).where(ToolModel.id == str(UUID(tool_id_or_name)), owned)
+                model = (await session.execute(stmt)).scalar_one_or_none()
                 if model:
                     return model.to_domain()
 
-            # 3. Look up by name across all servers
-            stmt = select(ToolModel).where(func.lower(ToolModel.name) == tool_id_or_name.lower())
-            res = await session.execute(stmt)
-            model = res.scalar_one_or_none()
+            name_match = func.lower(ToolModel.name) == tool_id_or_name.lower()
+            # 2. Look up by name on the given server; a named server never falls through to other servers
+            if server_id is not None:
+                stmt = select(ToolModel).where(ToolModel.server_id == str(server_id), name_match, owned)
+                model = (await session.execute(stmt)).scalar_one_or_none()
+                return model.to_domain() if model else None
+
+            # 3. Look up by name across the owner's servers (several servers may share a tool name)
+            stmt = select(ToolModel).where(name_match, owned).order_by(ToolModel.server_name.asc(), ToolModel.id.asc()).limit(1)
+            model = (await session.execute(stmt)).scalars().first()
             return model.to_domain() if model else None
 
     async def list_tools(
@@ -140,10 +119,13 @@ class PostgresToolRepository(ToolRepositoryAbstract):
         search: str | None = None,
         page: int = 1,
         page_size: int = 20,
+        *,
+        user_id: UUID,
     ) -> tuple[list[ToolEntity], int]:
-        async with self.session_factory() as session:
+        async with db_module.async_session_factory() as session:
             stmt = select(ToolModel)
 
+            stmt = stmt.where(ToolModel.user_id == str(user_id))
             if server_id is not None:
                 stmt = stmt.where(ToolModel.server_id == str(server_id))
             if tool_name:
@@ -171,10 +153,3 @@ class PostgresToolRepository(ToolRepositoryAbstract):
             result = await session.execute(stmt)
             models = result.scalars().all()
             return [m.to_domain() for m in models], total
-
-    async def load_all_tools(self) -> list[ToolEntity]:
-        async with self.session_factory() as session:
-            stmt = select(ToolModel)
-            result = await session.execute(stmt)
-            models = result.scalars().all()
-            return [m.to_domain() for m in models]

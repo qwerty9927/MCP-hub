@@ -17,6 +17,8 @@ from app.mcp.search_tools import (
     score_tool_match,
 )
 
+USER_ID = uuid4()  # owner for entities in these mock-only tests
+
 
 def test_search_tool_definition_and_schema():
     tool = get_search_tool_definition()
@@ -95,7 +97,7 @@ def test_handle_search_tools_ranking_and_deduplication():
 
     tool_list = [
         ToolEntity(
-            id=f"{srv1_id}:calculate",
+            id=uuid4(),
             server_id=srv1_id,
             server_name="math_server",
             name="calculate",
@@ -111,9 +113,10 @@ def test_handle_search_tools_ranking_and_deduplication():
             },
             description="Evaluate mathematical expressions",
             availability_status="AVAILABLE",
+            user_id=USER_ID,
         ),
         ToolEntity(
-            id=f"{srv2_id}:transform",
+            id=uuid4(),
             server_id=srv2_id,
             server_name="text_server",
             name="transform",
@@ -127,15 +130,17 @@ def test_handle_search_tools_ranking_and_deduplication():
             },
             description="Transforms text case",
             availability_status="AVAILABLE",
+            user_id=USER_ID,
         ),
         ToolEntity(
-            id=f"{srv2_id}:echo",
+            id=uuid4(),
             server_id=srv2_id,
             server_name="text_server",
             name="echo",
             input_schema={"type": "object", "properties": {"message": {"type": "string"}}},
             description="Echo message",
             availability_status="AVAILABLE",
+            user_id=USER_ID,
         ),
     ]
 
@@ -169,31 +174,34 @@ def test_handle_search_tools_ranking_and_deduplication():
 def test_handle_search_tools_filters_meta_tools():
     tool_list = [
         ToolEntity(
-            id="hub:SEARCH_TOOLS",
+            id=uuid4(),
             server_id=uuid4(),
             server_name="hub",
             name=SEARCH_TOOLS_NAME,
             input_schema={},
             description="Meta tool",
             availability_status="AVAILABLE",
+            user_id=USER_ID,
         ),
         ToolEntity(
-            id="hub:MULTI_EXECUTE_TOOLS",
+            id=uuid4(),
             server_id=uuid4(),
             server_name="hub",
             name=MULTI_EXECUTE_TOOLS_NAME,
             input_schema={},
             description="Meta tool",
             availability_status="AVAILABLE",
+            user_id=USER_ID,
         ),
         ToolEntity(
-            id="srv:real_tool",
+            id=uuid4(),
             server_id=uuid4(),
             server_name="srv",
             name="real_tool",
             input_schema={},
             description="Real tool",
             availability_status="AVAILABLE",
+            user_id=USER_ID,
         ),
     ]
 

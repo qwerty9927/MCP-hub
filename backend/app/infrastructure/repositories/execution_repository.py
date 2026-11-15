@@ -5,13 +5,13 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from uuid import UUID
 
-from sqlalchemy import and_, asc, desc, func, or_, select
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy import Select, and_, asc, desc, func, or_, select
 
 import app.infrastructure.database as db_module
 from app.domain.execution_entity import ExecutionEntity
 from app.domain.session_entity import ToolCallEntity
 from app.models.execution_model import ExecutionModel
+from app.models.server_model import ServerModel
 
 
 class ExecutionRepositoryAbstract(ABC):
@@ -23,7 +23,7 @@ class ExecutionRepositoryAbstract(ABC):
         pass
 
     @abstractmethod
-    async def get_by_id(self, execution_id: UUID) -> ExecutionEntity | None:
+    async def get_by_id(self, execution_id: UUID, *, user_id: UUID) -> ExecutionEntity | None:
         """Retrieve an execution record by ID."""
         pass
 
@@ -36,6 +36,8 @@ class ExecutionRepositoryAbstract(ABC):
         status: str | None = None,
         page: int = 1,
         page_size: int = 20,
+        *,
+        user_id: UUID,
     ) -> tuple[list[ExecutionEntity], int]:
         """List executions with pagination and filtering."""
         pass
@@ -64,28 +66,17 @@ class ExecutionRepositoryAbstract(ABC):
 class PostgresExecutionRepository(ExecutionRepositoryAbstract):
     """PostgreSQL implementation of ExecutionRepositoryAbstract using SQLAlchemy."""
 
-    def __init__(self, session_factory: async_sessionmaker | None = None) -> None:
-        self._session_factory = session_factory
-
-    @property
-    def session_factory(self) -> async_sessionmaker:
-        return self._session_factory or db_module.async_session_factory
-
-    @session_factory.setter
-    def session_factory(self, factory: async_sessionmaker | None) -> None:
-        self._session_factory = factory
-
     async def create(self, execution: ExecutionEntity) -> ExecutionEntity:
-        async with self.session_factory() as session:
+        async with db_module.async_session_factory() as session:
             model = ExecutionModel.from_domain(execution)
             session.add(model)
             await session.commit()
             await session.refresh(model)
             return model.to_domain()
 
-    async def get_by_id(self, execution_id: UUID) -> ExecutionEntity | None:
-        async with self.session_factory() as session:
-            stmt = select(ExecutionModel).where(ExecutionModel.id == str(execution_id))
+    async def get_by_id(self, execution_id: UUID, *, user_id: UUID) -> ExecutionEntity | None:
+        async with db_module.async_session_factory() as session:
+            stmt = _owned(select(ExecutionModel).where(ExecutionModel.id == str(execution_id)), user_id)
             result = await session.execute(stmt)
             model = result.scalar_one_or_none()
             return model.to_domain() if model else None
@@ -98,9 +89,11 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
         status: str | None = None,
         page: int = 1,
         page_size: int = 20,
+        *,
+        user_id: UUID,
     ) -> tuple[list[ExecutionEntity], int]:
-        async with self.session_factory() as session:
-            stmt = select(ExecutionModel)
+        async with db_module.async_session_factory() as session:
+            stmt = _owned(select(ExecutionModel), user_id)
 
             if server_id is not None:
                 stmt = stmt.where(ExecutionModel.server_id == str(server_id))
@@ -136,7 +129,7 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
         server_name: str | None = None,
         tool_name: str | None = None,
     ) -> tuple[list[ToolCallEntity], int]:
-        async with self.session_factory() as session:
+        async with db_module.async_session_factory() as session:
             conditions = [ExecutionModel.session_id == session_id]
 
             if status:
@@ -206,7 +199,7 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
             return [m.to_tool_call_domain() for m in models], total
 
     async def get_tool_call(self, session_id: str, call_id: UUID) -> ToolCallEntity | None:
-        async with self.session_factory() as session:
+        async with db_module.async_session_factory() as session:
             stmt = select(ExecutionModel).where(
                 and_(
                     ExecutionModel.id == str(call_id),
@@ -216,3 +209,8 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
             result = await session.execute(stmt)
             model = result.scalar_one_or_none()
             return model.to_tool_call_domain() if model else None
+
+
+def _owned(stmt: Select, user_id: UUID) -> Select:
+    """Limit an Execution query to Servers owned by `user_id`."""
+    return stmt.join(ServerModel, ServerModel.id == ExecutionModel.server_id).where(ServerModel.user_id == str(user_id))

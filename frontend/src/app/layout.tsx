@@ -17,7 +17,8 @@ export default function RootLayout({
 }>) {
     return (
         <html lang="en" suppressHydrationWarning>
-            <body className={inter.className}>
+            {/* Browser extensions (e.g. Grammarly) add attributes to <body> before hydration */}
+            <body className={inter.className} suppressHydrationWarning>
                 <Providers>{children}</Providers>
             </body>
         </html>

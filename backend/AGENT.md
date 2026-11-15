@@ -71,10 +71,13 @@ backend/
 ├── docker-compose.yml                   # Local container orchestration
 ├── .env.example                         # Reference environment variables
 ├── app/
-│   │   ├── main.py                      # FastAPI factory, ASGI middlewares, lifespan hooks
+│   │   ├── main.py                      # FastAPI factory, ASGI middlewares, lifespan hooks (starts the scheduler)
+│   │   ├── background_service/          # Scheduled background jobs (APScheduler, ADR-0005)
+│   │   │   ├── scheduler.py             # create_scheduler(): AsyncIOScheduler + job registration
+│   │   │   └── session_sweeper.py       # SessionSweeperService: completes idle Sessions (cron job complete-idle-sessions)
 │   │   ├── api/
 │   │   │   ├── dependencies.py          # Centralized dependency injection providers
-│   │   │   └── v1/                      # API Routers (/servers, /tools, /executions, /system, /sessions)
+│   │   │   └── v1/                      # API Routers (/auth, /servers, /tools, /executions, /system, /sessions)
 │   │   │       ├── executions_router.py # Execution audit log endpoints
 │   │   │       ├── servers_router.py    # MCP Server registration & lifecycle
 │   │   │       ├── sessions_router.py   # MCP Client session management endpoints
@@ -83,7 +86,8 @@ backend/
 │   │   ├── core/
 │   │   │   ├── config.py                # Settings loaded strictly from .env (no in-code defaults)
 │   │   │   ├── constants/               # Application constants partitioned by domain
-│   │   │   │   └── meta_tools.py        # Meta-tool identifiers (SEARCH_TOOLS, MULTI_EXECUTE_TOOLS)
+│   │   │   │   ├── meta_tools.py        # Meta-tool identifiers (SEARCH_TOOLS, MULTI_EXECUTE_TOOLS)
+│   │   │   │   └── session_constants.py # Session idle defaults/bounds, sweep job id and cron schedule
 │   │   │   ├── enums/                   # Core enumerations partitioned by domain (no __init__.py)
 │   │   │   │   ├── execution_enum.py    # ExecutionOutcomeKind, RejectionReason
 │   │   │   │   ├── server_enum.py       # TransportType, ServerHealthStatus
@@ -98,6 +102,7 @@ backend/
 │   │   ├── helpers/                     # Reusable utilities partitioned by responsibility
 │   │   │   ├── errors.py                # MCP error & ExceptionGroup unwrapping (format_mcp_error)
 │   │   │   ├── security.py              # Shell injection, SSRF, env sanitization, header masking
+│   │   │   ├── session_idle.py          # Session idle-timeout arithmetic (effective timeout, is_idle)
 │   │   │   ├── text.py                  # Slugification & string manipulation (slugify)
 │   │   │   └── validation.py            # Tool arguments JSON-schema validation
 │   │   ├── infrastructure/
@@ -109,7 +114,7 @@ backend/
 │   │   │       └── tool_repository.py      # ToolRepositoryAbstract, PostgresToolRepository
 │   │   ├── mcp/                         # Upstream MCP protocol extensions & meta-tools
 │   │   │   ├── mcp_proxy_asgi.py        # Streamable HTTP ASGI proxy application
-│   │   │   ├── mcp_server.py            # MCPServer exposing the hub over Streamable HTTP (/mcp)
+│   │   │   ├── mcp_server.py            # MCPServer exposing the hub over stateless Streamable HTTP (/mcp)
 │   │   │   ├── multi_execute_tools.py   # MULTI_EXECUTE_TOOLS parallel dispatcher & failure isolator
 │   │   │   └── search_tools.py          # SEARCH_TOOLS discovery handler & relevance scoring
 │   │   ├── middlewares/                 # ASGI middleware components
@@ -131,8 +136,10 @@ backend/
 │   │   └── services/                    # Business logic & orchestrators
 │   │       ├── connection_manager.py    # Downstream MCP client session lifecycle (SessionWorker)
 │   │       ├── server_registry.py       # Server CRUD, uniqueness validation, status management
+│   │       ├── auth_service.py          # Accounts, console JWT login, API keys, bearer token -> Principal
 │   │       ├── session_explorer.py      # Session discovery and execution history
-│   │       ├── tool_catalog.py          # Unified tool aggregation cache & collision handler
+│   │       ├── session_tracker.py       # Maps each /mcp request to a derived hub Session (ADR-0003, ADR-0004)
+│   │       ├── tool_catalog.py          # Tool index over discovered_tools (no in-memory cache), Tool Reference resolution
 │   │       └── tool_executor.py         # Execution module: resolve Tool Reference, check, validate, call, audit (ADR-0002)
 ├── demo_server/                         # Standalone downstream demo MCP servers for E2E tests
 ├── migrations/                          # Alembic schema revision scripts
@@ -167,6 +174,24 @@ Strict unidirectional dependency flow:
 
 ### Streamable HTTP Header Forwarding
 - When connecting to remote `streamable-http` servers with authentication headers (e.g. GitHub Copilot, OAuth), pass an `http_client` created via `create_mcp_http_client(headers=server.http_config.headers)` into `streamable_http_client(url, http_client=http_client)`.
+
+### Accounts, Authentication & Ownership
+- **Every router depends on the caller**: each endpoint in `app/api/v1/` (except `/auth/register`, `/auth/login`, `/health`, `/ready`) takes `principal: Annotated[Principal, Depends(get_current_principal)]` and passes `user_id=principal.user_id` down. Repository and service methods that read or change owned data take a keyword-only `user_id: UUID` with no default and no `None` (unscoped) mode, so a forgotten owner is a TypeError, not a data leak.
+- Another account's resource is a `NotFoundError` (404), never 403, so its existence is not revealed.
+- REST accepts only console JWTs (`AuthService.authenticate_console`). `/mcp` accepts only API keys, sent in the `x-api-key` header (`AuthService.authenticate_api_key`), checked in `MCPProxyASGI`, which also sets the SDK's `scope["user"]` so transport sessions are bound to the credential that opened them.
+- `user_id` is NOT NULL on `mcp_servers`, `discovered_tools` and `mcp_sessions` (foreign key to `users`, cascade delete), and required on their domain entities. `discovered_tools.user_id` is a copy of the server's owner so catalog lookups can be scoped without a join. The only cross-account code is the idle-session sweeper.
+- **Ids**: every table's `id` is a UUID stored as `str(UUID)` in `varchar(36)`. The app generates it (`uuid4()` in the entity or service) and `gen_random_uuid()::text` is the database default for inserts made outside the app. `replace_server_tools` replaces a server's Tools on every re-discovery, so Tool ids change then; `(server_id, name)` is unique. There is no `{server_id}:{tool_name}` id; REST names a tool by name plus `server_id`, agents by Tool Slug.
+- Settings: `JWT_SECRET` (32+ chars), `ACCESS_TOKEN_EXPIRE_MINUTES`, `ALLOW_SELF_SIGNUP`. Keep `ALLOW_SELF_SIGNUP=false` on any network-exposed deployment: a registered user can add stdio servers.
+
+### Stateless `/mcp` and derived Sessions (ADR-0003, ADR-0004)
+- `/mcp` runs the SDK stateless with JSON responses: no transport sessions, no `Mcp-Session-Id` (a client-sent one is ignored), `GET`/`DELETE` answer 405. Do not add features that need a server-to-client channel (sampling, elicitation, notification streams) without revisiting ADR-0004.
+- `SessionTracker` derives every Session from account + API key + client name/version (from `_meta`), or the `User-Agent` when the client does not name itself (handshake-era clients). A Session opens on the first `tools/call` (not `tools/list`) and snapshots its API key's `session_idle_minutes` (default `DEFAULT_SESSION_IDLE_SECONDS`) as `idle_timeout_seconds`; it rotates once idle past that (ADR-0005).
+
+### Background jobs (`app/background_service/`, ADR-0005)
+- One APScheduler `AsyncIOScheduler` per process, built by `create_scheduler()` and started/shut down in `main.py` `lifespan`; a fresh one per lifespan, since a scheduler cannot restart after shutdown. In-memory job store: jobs are defined in code.
+- `complete-idle-sessions` (cron, every minute, `max_instances=1`, `coalesce=True`) runs `SessionSweeperService.complete_idle_sessions`: one idempotent `UPDATE` completing active Sessions idle past their own timeout. It never raises and never touches `last_activity_at`.
+- Every job must be safe to run on several hub instances at once. Do not use FastAPI `BackgroundTasks` for periodic work: it only runs after a request.
+- Job IDs and schedules live in `app/core/constants/session_constants.py`; shared idle arithmetic in `app/helpers/session_idle.py`.
 
 ### Configuration Policy (Strict .env Compliance)
 - **Invariant**: Do NOT add hardcoded fallback default values for application configuration in `app/core/config.py`. All settings in `Settings` must be explicitly declared and loaded from `.env` or environment variables.
@@ -241,9 +266,10 @@ Strict unidirectional dependency flow:
 - **Test Isolation**: Every test automatically runs the `cleanup_dependencies` fixture in `tests/conftest.py`, which:
   1. Initializes the database schema (`init_db()`).
   2. Shuts down active connections in `_connection_manager`.
+   The suite deletes every row in the database it targets: always export `TEST_DATABASE_URL` (conftest no longer falls back to `DATABASE_URL`).
   3. Purges all rows from `discovered_tools`, `tool_executions`, and `mcp_servers`.
-  4. Clears in-memory caches and MCP gateway mappings.
-- **Test Client**: Use the `async_client` fixture (`httpx.AsyncClient` with `ASGITransport(app=app)`) for API testing.
+  4. Clears MCP gateway session mappings.
+- **Test Client**: `async_client` is signed in as a default account (`user_id` fixture gives its ID; `account_id` creates a bare account for repository-level tests); `other_user_client` is a second account; `anon_client` has no credentials.
 - **Test Categories**:
   - `tests/unit/`: Test individual services, repositories (`test_repository.py`), and helpers.
   - `tests/integration/`: Test multi-server orchestration, gateway lifecycle, and real database persistence.

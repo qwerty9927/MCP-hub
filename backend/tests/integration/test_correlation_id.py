@@ -8,11 +8,12 @@ from unittest.mock import MagicMock
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.api.dependencies import get_tool_executor
+from app.api.dependencies import get_tool_executor_service
 from app.core.config import get_settings
 from app.core.enums.execution_enum import ExecutionOutcomeKind
 from app.main import app
 from app.services.tool_executor import ExecutionOutcome
+from tests.conftest import login_headers
 
 
 @pytest.fixture
@@ -20,6 +21,7 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
     """Test client bound to app ASGI transport."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as c:
+        c.headers.update(await login_headers(c, "corr@test.local"))
         yield c
 
 
@@ -153,7 +155,7 @@ async def test_correlation_id_exposed_on_tool_execute_success(client: AsyncClien
 
     stub_executor = MagicMock()
 
-    async def stub_execute(tool_reference, arguments, session_id=None, timeout=None):
+    async def stub_execute(tool_reference, arguments, *, user_id=None, server_id=None, session_id=None, timeout=None):
         return ExecutionOutcome(
             kind=ExecutionOutcomeKind.SUCCEEDED,
             tool_reference=tool_reference,
@@ -167,7 +169,7 @@ async def test_correlation_id_exposed_on_tool_execute_success(client: AsyncClien
         )
 
     stub_executor.execute = stub_execute
-    app.dependency_overrides[get_tool_executor] = lambda: stub_executor
+    app.dependency_overrides[get_tool_executor_service] = lambda: stub_executor
     try:
         response = await client.post(
             f"/api/v1/servers/{server_uuid}/tools/test_tool/execute",
@@ -180,7 +182,7 @@ async def test_correlation_id_exposed_on_tool_execute_success(client: AsyncClien
         assert body["correlation_id"] == corr_id
         assert body["execution_id"] == str(exec_uuid)
     finally:
-        app.dependency_overrides.pop(get_tool_executor, None)
+        app.dependency_overrides.pop(get_tool_executor_service, None)
 
 
 # --- 2. ERROR API CALLS (404, 422, APP EXCEPTION) ---

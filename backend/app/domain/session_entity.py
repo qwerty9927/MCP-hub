@@ -13,12 +13,18 @@ class SessionEntity:
     """Core domain entity representing an MCP session."""
 
     id: str
+    user_id: UUID  # the owning account
     status: SessionStatus = SessionStatus.ACTIVE
     title: str | None = None
     metadata: dict[str, Any] | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     last_activity_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     total_tool_calls: int = 0
+    api_key_id: UUID | None = None  # API key the session's requests came with, if any
+    client_fingerprint: str | None = None  # set on sessions the hub derived for sessionless clients
+    # Seconds without a tool call after which the Session is completed, copied from its API key when it opened.
+    # None (older rows) means DEFAULT_SESSION_IDLE_SECONDS.
+    idle_timeout_seconds: int | None = None
 
 
 @dataclass

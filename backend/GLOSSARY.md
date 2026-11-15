@@ -11,9 +11,9 @@ A target external or local Model Context Protocol server connected to the hub vi
 
 ### Tool (Discovered MCP Tool)
 A callable capability discovered dynamically from an active downstream MCP server.
-- **Qualified Tool ID**: Unique identifier formatted as `{server_id}:{tool_name}` used in REST routing.
+- **Tool ID**: a UUID (stored as `str(UUID)`). Re-discovering a Server replaces its Tools, so they get new ids. Used by the console and `GET /tools/{tool_id}`.
 - **Tool Slug**: Namespaced collision-resistant identifier formatted as `{server_slug}__{tool_name}` exposed to upstream agents on `/mcp`.
-- **Tool Catalog**: In-memory cache backed by persistent storage indexing all discovered tools across connected servers.
+- **Tool Catalog**: The stored index of all discovered tools across connected servers. Read from the database on every lookup; there is no in-memory cache.
 
 ### Execution
 A discrete, audited attempt to invoke a resolved Tool on a registered Server, recording input arguments, duration in milliseconds, outcome status, structured output, and correlation metadata.
@@ -27,16 +27,23 @@ A discrete, audited attempt to invoke a resolved Tool on a registered Server, re
 - **Duration** measures only the downstream call; a Rejected attempt has zero duration.
 
 ### Tool Reference
-What a caller uses to name the Tool it wants to execute: either a Tool Slug (upstream agents) or a Qualified Tool ID (REST). Resolving a Tool Reference yields exactly one Tool or none.
+What a caller uses to name the Tool it wants to execute: a Tool Slug (upstream agents), a Tool ID, or a tool name together with its Server's id (REST, `/servers/{server_id}/tools/{tool_name}/execute`). Resolving a Tool Reference yields exactly one Tool or none.
+
+### Account
+A person signed up to the hub. Every Server, Tool, Execution and Session belongs to exactly one Account, and an Account can see and act on only its own.
+
+### API Key
+A revocable credential an upstream MCP client uses to call `/mcp` on behalf of an Account. Shown once when generated; the hub stores only its hash. API keys open `/mcp` only, never the REST API. A key may carry a **Session Idle Timeout** (minutes, default 30): how long a Session opened with it may go without a tool call before it is completed. This is not the key's expiry.
+
+### Principal
+The authenticated caller of a request: an Account, plus the API Key it presented (none for a console login token).
 
 ### Session
-A tracked client connection established by an upstream agent (e.g., Claude, Cursor, or MCP SDK client) interacting with the hub.
-- Tracks active duration, total tool calls, and execution metrics.
+A run of requests from one upstream agent (e.g., Claude, Cursor, or an MCP SDK client), as tracked by the hub. It belongs to one Account and tracks activity, tool calls and their outcomes. Every Session is a **Derived Session** (ADR-0003, ADR-0004): requests with the same Account, API Key and client (its name and version, or its User-Agent when it does not name itself). It opens on the first tool call and is completed once it has been idle longer than its Session Idle Timeout, copied from its API Key when it opened (ADR-0005); a background job completes Sessions whose client never returns. `/mcp` is stateless, so there are no Transport Sessions (`Mcp-Session-Id`); older Session rows may still be labelled `transport`.
 
 ### MCP Gateway (Hub Server)
 The hub acting as an upstream MCP Server exposing the aggregated tool catalog over Streamable HTTP at `POST /mcp`.
 - Exposes native meta-tools to upstream LLM planners.
-- Handles tool list change notifications (`tools/list_changed`) across connected sessions.
 
 ### Meta-Tool
 Native high-leverage tools provided directly by the MCP Gateway to upstream agents:

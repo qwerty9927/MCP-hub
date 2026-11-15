@@ -33,7 +33,7 @@ flowchart TD
         
         subgraph Services Layer
             ServerRegistry["Server Registry Service"]
-            ToolCatalog["Unified Tool Catalog (Cache & Qualified IDs)"]
+            ToolCatalog["Unified Tool Catalog (Tool IDs & Slugs)"]
             ToolExecutor["Execution Module (Resolve, Validate, Call & Audit)"]
             ConnManager["Connection Manager (SessionWorker per server)"]
             MCPGateway
@@ -72,7 +72,7 @@ flowchart TD
 1. **MCP Gateway (Hub as Server)**: The hub acts as both an MCP client (connecting downstream) and an MCP server exposing aggregated tools through a single Streamable HTTP endpoint (`/mcp`). Downstream tools are dynamically discovered, namespaced (`{server_slug}__{tool_name}`), collision-proofed, and forwarded with full fidelity.
 2. **SessionWorker Isolation**: MCP client sessions use AnyIO cancel scopes internally. To prevent cross-task cancel scope errors in asynchronous web servers, each active MCP connection runs inside a dedicated `SessionWorker` task. The worker enters and exits its `AsyncExitStack` within the same task while concurrently processing requests via asyncio queues and synchronization primitives.
 3. **Multi-Transport Support**: First-class support for both `stdio` (subprocess pipelines) and `streamable-http` (HTTP streaming endpoints) using the official `mcp` 2.x SDK.
-4. **Unified Tool Catalog**: Tools discovered from heterogeneous MCP servers are indexed into a consolidated catalog with persistent PostgreSQL storage and caching. Cross-server naming collisions are resolved using server-qualified identifiers (`{server_id}:{tool_name}`) in REST and namespaced slugs in MCP Gateway.
+4. **Unified Tool Catalog**: Tools discovered from heterogeneous MCP servers are indexed into a consolidated catalog with persistent PostgreSQL storage and caching. Every tool has a stable UUID id; cross-server naming collisions are resolved by the server in the REST path (`/servers/{server_id}/tools/{tool_name}`) and by namespaced slugs (`{server_slug}__{tool_name}`) in the MCP Gateway.
 5. **Defense-in-Depth Security**:
    - Stdio commands restricted to an approved executable allowlist (`python`, `uv`, `node`, `npx`, `docker`).
    - Command injection defense and argument validation.

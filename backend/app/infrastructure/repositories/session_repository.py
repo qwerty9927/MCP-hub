@@ -5,9 +5,9 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime
 from typing import Any
+from uuid import UUID
 
-from sqlalchemy import and_, case, distinct, func, or_, select, update
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy import Interval, and_, case, distinct, func, or_, select, update
 
 import app.infrastructure.database as db_module
 from app.core.enums.session_enum import SessionStatus
@@ -28,14 +28,21 @@ class SessionRepositoryAbstract(ABC):
     async def get_or_create(
         self,
         session_id: str,
+        user_id: UUID,
+        api_key_id: UUID | None = None,
         title: str | None = None,
         metadata: dict[str, Any] | None = None,
-    ) -> SessionEntity:
-        """Get an existing session by ID or create a new one."""
+    ) -> SessionEntity | None:
+        """Get the owner's session by ID or create it; None when the ID belongs to another owner."""
         pass
 
     @abstractmethod
-    async def get_by_id(self, session_id: str) -> SessionDetailEntity | None:
+    async def find_active_by_fingerprint(self, user_id: UUID, fingerprint: str) -> SessionEntity | None:
+        """Return the owner's most recently active `active` session with this client fingerprint."""
+        pass
+
+    @abstractmethod
+    async def get_by_id(self, session_id: str, *, user_id: UUID) -> SessionDetailEntity | None:
         """Retrieve detailed session view by ID including aggregated metrics."""
         pass
 
@@ -46,13 +53,15 @@ class SessionRepositoryAbstract(ABC):
         page_size: int = 20,
         search: str | None = None,
         status: str | None = None,
+        *,
+        user_id: UUID,
     ) -> tuple[list[SessionEntity], int]:
         """List sessions with pagination, search, and status filtering."""
         pass
 
     @abstractmethod
-    async def update_status(self, session_id: str, status: SessionStatus | str) -> bool:
-        """Update session lifecycle status."""
+    async def update_status(self, session_id: str, status: SessionStatus | str, *, user_id: UUID) -> bool:
+        """Update session lifecycle status (only the owner's session when `user_id` is given)."""
         pass
 
     @abstractmethod
@@ -60,23 +69,20 @@ class SessionRepositoryAbstract(ABC):
         """Update session last activity timestamp."""
         pass
 
+    @abstractmethod
+    async def complete_idle_sessions(self, now: datetime, default_idle_seconds: int) -> int:
+        """Mark `completed` every active Session idle longer than its own timeout (else the default); returns how many.
+
+        Leaves `last_activity_at` as it was, so it still says when the agent last acted.
+        """
+        pass
+
 
 class PostgresSessionRepository(SessionRepositoryAbstract):
     """PostgreSQL implementation of SessionRepositoryAbstract."""
 
-    def __init__(self, session_factory: async_sessionmaker | None = None) -> None:
-        self._session_factory = session_factory
-
-    @property
-    def session_factory(self) -> async_sessionmaker:
-        return self._session_factory or db_module.async_session_factory
-
-    @session_factory.setter
-    def session_factory(self, factory: async_sessionmaker | None) -> None:
-        self._session_factory = factory
-
     async def create(self, session: SessionEntity) -> SessionEntity:
-        async with self.session_factory() as db_session:
+        async with db_module.async_session_factory() as db_session:
             model = SessionModel.from_domain(session)
             db_session.add(model)
             await db_session.commit()
@@ -86,14 +92,18 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
     async def get_or_create(
         self,
         session_id: str,
+        user_id: UUID,
+        api_key_id: UUID | None = None,
         title: str | None = None,
         metadata: dict[str, Any] | None = None,
-    ) -> SessionEntity:
-        async with self.session_factory() as db_session:
+    ) -> SessionEntity | None:
+        async with db_module.async_session_factory() as db_session:
             stmt = select(SessionModel).where(SessionModel.id == session_id)
             result = await db_session.execute(stmt)
             model = result.scalar_one_or_none()
             if model:
+                if model.user_id != str(user_id):
+                    return None
                 # Update title/metadata if provided and not set
                 updated = False
                 if title and not model.title:
@@ -113,6 +123,8 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
                 id=session_id,
                 title=title or f"Session {session_id[:8]}",
                 status="active",
+                user_id=str(user_id),
+                api_key_id=str(api_key_id) if api_key_id else None,
                 metadata_json=metadata,
                 created_at=now,
                 last_activity_at=now,
@@ -122,8 +134,24 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
             await db_session.refresh(new_session)
             return new_session.to_domain()
 
-    async def get_by_id(self, session_id: str) -> SessionDetailEntity | None:
-        async with self.session_factory() as db_session:
+    async def find_active_by_fingerprint(self, user_id: UUID, fingerprint: str) -> SessionEntity | None:
+        async with db_module.async_session_factory() as db_session:
+            stmt = (
+                select(SessionModel)
+                .where(
+                    SessionModel.user_id == str(user_id),
+                    SessionModel.client_fingerprint == fingerprint,
+                    SessionModel.status == SessionStatus.ACTIVE.value,
+                )
+                .order_by(SessionModel.last_activity_at.desc())
+                .limit(1)
+            )
+            model = (await db_session.execute(stmt)).scalars().first()
+            return model.to_domain() if model else None
+
+    async def get_by_id(self, session_id: str, *, user_id: UUID) -> SessionDetailEntity | None:
+        async with db_module.async_session_factory() as db_session:
+            owner_clause = SessionModel.user_id == str(user_id)
             stmt = (
                 select(
                     SessionModel,
@@ -157,7 +185,7 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
                     func.count(case((ExecutionModel.status == "rejected", 1), else_=None)).label("rejected_tool_calls"),
                 )
                 .outerjoin(ExecutionModel, ExecutionModel.session_id == SessionModel.id)
-                .where(SessionModel.id == session_id)
+                .where(SessionModel.id == session_id, owner_clause)
                 .group_by(SessionModel.id)
             )
             result = await db_session.execute(stmt)
@@ -186,9 +214,11 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
         page_size: int = 20,
         search: str | None = None,
         status: str | None = None,
+        *,
+        user_id: UUID,
     ) -> tuple[list[SessionEntity], int]:
-        async with self.session_factory() as db_session:
-            conditions = []
+        async with db_module.async_session_factory() as db_session:
+            conditions = [SessionModel.user_id == str(user_id)]
             if search:
                 search_term = f"%{search}%"
                 conditions.append(
@@ -225,17 +255,40 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
             entities = [model.to_domain(total_tool_calls=count) for model, count in rows]
             return entities, total
 
-    async def update_status(self, session_id: str, status: SessionStatus | str) -> bool:
+    async def update_status(self, session_id: str, status: SessionStatus | str, *, user_id: UUID) -> bool:
         status_val = status.value if hasattr(status, "value") else str(status)
-        async with self.session_factory() as db_session:
-            stmt = update(SessionModel).where(SessionModel.id == session_id).values(status=status_val, last_activity_at=datetime.now(UTC))
+        async with db_module.async_session_factory() as db_session:
+            stmt = update(SessionModel).where(SessionModel.id == session_id)
+            stmt = stmt.where(SessionModel.user_id == str(user_id))
+            stmt = stmt.values(status=status_val, last_activity_at=datetime.now(UTC))
             result = await db_session.execute(stmt)
             await db_session.commit()
             return result.rowcount > 0
 
     async def update_activity(self, session_id: str, timestamp: datetime | None = None) -> None:
         now = timestamp or datetime.now(UTC)
-        async with self.session_factory() as db_session:
+        async with db_module.async_session_factory() as db_session:
             stmt = update(SessionModel).where(SessionModel.id == session_id).values(last_activity_at=now)
             await db_session.execute(stmt)
             await db_session.commit()
+
+    async def complete_idle_sessions(self, now: datetime, default_idle_seconds: int) -> int:
+        # One idempotent statement, so several hub instances can each run the job without a lock.
+        idle_timeout = func.make_interval(
+            0, 0, 0, 0, 0, 0, func.coalesce(SessionModel.idle_timeout_seconds, default_idle_seconds), type_=Interval
+        )
+        async with db_module.async_session_factory() as db_session:
+            stmt = (
+                update(SessionModel)
+                .where(
+                    SessionModel.status == SessionStatus.ACTIVE.value,
+                    SessionModel.last_activity_at + idle_timeout < now,
+                )
+                .values(status=SessionStatus.COMPLETED.value)
+                .execution_options(synchronize_session=False)
+            )
+
+            result = await db_session.execute(stmt)
+            await db_session.commit()
+
+            return result.rowcount

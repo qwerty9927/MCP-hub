@@ -14,7 +14,6 @@ from app.domain.session_entity import SessionEntity
 from app.infrastructure.repositories.execution_repository import PostgresExecutionRepository
 from app.infrastructure.repositories.server_repository import PostgresServerRepository
 from app.infrastructure.repositories.session_repository import PostgresSessionRepository
-from app.schemas.session_schema import SessionCreate
 from app.services.session_explorer import SessionExplorerService, mask_sensitive_data
 
 
@@ -44,7 +43,7 @@ def test_mask_sensitive_data():
 
 
 @pytest.mark.asyncio
-async def test_session_repository_crud_and_metrics():
+async def test_session_repository_crud_and_metrics(account_id):
     """Verify session repository creation, metrics aggregation, search, and activity updates."""
     session_repo = PostgresSessionRepository()
     exec_repo = PostgresExecutionRepository()
@@ -58,11 +57,12 @@ async def test_session_repository_crud_and_metrics():
             name="demo-math",
             transport=TransportType.STDIO,
             health_status=ServerHealthStatus.HEALTHY,
+            user_id=account_id,
         )
     )
 
     # 2. Create session
-    session_id = uuid4().hex
+    session_id = str(uuid4())
     now = datetime.now(UTC)
     session = SessionEntity(
         id=session_id,
@@ -71,6 +71,7 @@ async def test_session_repository_crud_and_metrics():
         metadata={"client": "test_client"},
         created_at=now,
         last_activity_at=now,
+        user_id=account_id,
     )
     created = await session_repo.create(session)
     assert created.id == session_id
@@ -144,7 +145,7 @@ async def test_session_repository_crud_and_metrics():
     )
 
     # 4. Get by ID and verify aggregated metrics (rejected is its own bucket, ADR-0002)
-    detail = await session_repo.get_by_id(session_id)
+    detail = await session_repo.get_by_id(session_id, user_id=account_id)
     assert detail is not None
     assert detail.id == session_id
     assert detail.total_tool_calls == 4
@@ -153,21 +154,21 @@ async def test_session_repository_crud_and_metrics():
     assert detail.rejected_tool_calls == 1
 
     # 5. List sessions
-    items, total = await session_repo.list(search="Interactive", status="active")
+    items, total = await session_repo.list(search="Interactive", status="active", user_id=account_id)
     assert total >= 1
     matched = [s for s in items if s.id == session_id]
     assert len(matched) == 1
     assert matched[0].total_tool_calls == 4
 
     # 6. Update status
-    updated = await session_repo.update_status(session_id, "completed")
+    updated = await session_repo.update_status(session_id, "completed", user_id=account_id)
     assert updated is True
-    detail_after = await session_repo.get_by_id(session_id)
+    detail_after = await session_repo.get_by_id(session_id, user_id=account_id)
     assert detail_after.status == SessionStatus.COMPLETED
 
 
 @pytest.mark.asyncio
-async def test_execution_repo_list_by_session_sorting_and_filtering():
+async def test_execution_repo_list_by_session_sorting_and_filtering(account_id):
     """Verify tool call chronological sorting, direction, and filtering."""
     session_repo = PostgresSessionRepository()
     exec_repo = PostgresExecutionRepository()
@@ -180,11 +181,12 @@ async def test_execution_repo_list_by_session_sorting_and_filtering():
             name="sorting-server",
             transport=TransportType.STDIO,
             health_status=ServerHealthStatus.HEALTHY,
+            user_id=account_id,
         )
     )
 
-    session_id = uuid4().hex
-    await session_repo.get_or_create(session_id, title="Sorting Test")
+    session_id = str(uuid4())
+    await session_repo.get_or_create(session_id, user_id=account_id, title="Sorting Test")
 
     # Add 3 tool calls at sequential timestamps
     t1 = datetime(2026, 11, 8, 10, 0, 0, tzinfo=UTC)
@@ -268,22 +270,22 @@ async def test_execution_repo_list_by_session_sorting_and_filtering():
 
 
 @pytest.mark.asyncio
-async def test_session_explorer_service_errors():
+async def test_session_explorer_service_errors(account_id):
     """Verify service raises NotFoundError when querying nonexistent session or tool call."""
     session_repo = PostgresSessionRepository()
     exec_repo = PostgresExecutionRepository()
     service = SessionExplorerService(session_repo, exec_repo)
 
     # Missing session
-    fake_session_id = uuid4().hex
+    fake_session_id = str(uuid4())
     with pytest.raises(NotFoundError):
-        await service.get_session(fake_session_id)
+        await service.get_session(fake_session_id, user_id=account_id)
 
     with pytest.raises(NotFoundError):
-        await service.list_session_tool_calls(fake_session_id)
+        await service.list_session_tool_calls(fake_session_id, user_id=account_id)
 
     # Create session, but query missing tool call
-    session_resp = await service.create_session(SessionCreate(title="Empty Session"))
+    empty_session = await session_repo.create(SessionEntity(id=str(uuid4()), title="Empty Session", user_id=account_id))
     fake_call_id = uuid4()
     with pytest.raises(NotFoundError):
-        await service.get_session_tool_call(session_resp.id, fake_call_id)
+        await service.get_session_tool_call(empty_session.id, fake_call_id, user_id=account_id)

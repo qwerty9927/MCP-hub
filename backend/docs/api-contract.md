@@ -19,8 +19,9 @@ This document forms the binding interface contract between the MCP Hub Backend a
 | `201 Created` | Created | Successfully registered a new MCP server. |
 | `204 No Content` | No Content | Successful deletion of an entity. |
 | `400 Bad Request` | Client Error | Attempting operations on disabled servers or invalid states. |
-| `403 Forbidden` | Security Violation | Disallowed executable, command injection, or SSRF attempt. |
-| `404 Not Found` | Not Found | Target server, tool, or execution record not found. |
+| `401 Unauthorized` | Unauthenticated | Missing, invalid or expired token. Response carries `WWW-Authenticate: Bearer`. |
+| `403 Forbidden` | Security Violation | Disallowed executable, command injection, SSRF attempt, or sign-up disabled. |
+| `404 Not Found` | Not Found | Target server, tool, execution or session not found, **or owned by another account**. |
 | `409 Conflict` | Conflict | Server with duplicate name already registered. |
 | `422 Unprocessable`| Validation Error | Payload structure or JSON schema validation failure. |
 | `502 Bad Gateway` | Upstream Failure | MCP Server process failure or upstream connectivity breakdown. |
@@ -55,6 +56,31 @@ All listing endpoints return records wrapped in this envelope:
   "total_pages": 3
 }
 ```
+
+### 1.5 Authentication & Ownership
+
+- Every endpoint under `/api/v1` except `POST /auth/register` and `POST /auth/login` requires `Authorization: Bearer <console token>`. API keys are not accepted here.
+- `/health` and `/ready` (and their `/api/v1/system/...` aliases) are open; `/metrics` requires a token.
+- Servers, tools, executions and sessions belong to the account that created them. Another account's resource answers `404`, as if it did not exist, and is absent from lists.
+- Server names are unique per account, not globally.
+
+### 1.6 Account & API Key Endpoints
+
+| Method | Path | Auth | Body | Response |
+| :--- | :--- | :--- | :--- | :--- |
+| `POST` | `/auth/register` | none | `{"email", "password"}` (8-128 chars) | `201` `{"id", "email", "created_at"}`; `409` email taken; `403` sign-up disabled |
+| `POST` | `/auth/login` | none | `{"email", "password"}` | `200` `{"access_token", "token_type": "bearer", "expires_in"}`; `401` bad credentials |
+| `GET` | `/auth/me` | token | | `200` the account |
+| `GET` | `/auth/api-keys` | token | | `200` list of `{"id", "name", "key_prefix", "created_at", "last_used_at", "revoked_at", "session_idle_minutes"}` |
+| `POST` | `/auth/api-keys` | token | `{"name", "session_idle_minutes"?}` | `201` same fields plus `"key"`, the full key, **returned only here**; `422` when `session_idle_minutes` is outside 1–1440 |
+| `PATCH` | `/auth/api-keys/{id}` | token | `{"session_idle_minutes"}` (`null` = default) | `200` the key; `404` unknown, revoked, or another account's; `422` out of range |
+| `DELETE` | `/auth/api-keys/{id}` | token | | `204`; `404` unknown or already revoked |
+
+`session_idle_minutes` is **not** the key's expiry. A Session opened with the key (on its first tool call) is marked `completed` after that many minutes without a tool call; `null` means the default of 30. Each Session keeps the value it opened with, so a change applies to Sessions opened afterwards. A background job completes idle Sessions every minute (ADR-0005).
+
+The console token is a JWT that expires after `ACCESS_TOKEN_EXPIRE_MINUTES`. API keys start with `mhk_` and do not expire until revoked.
+
+Every server, tool and session belongs to exactly one account (`user_id`, never null); rows without an owner cannot exist.
 
 ---
 
@@ -243,7 +269,7 @@ Performs an ephemeral test connection and tool discovery to verify connectivity 
 ### 2.9 Refresh Server Tools
 `POST /api/v1/servers/{server_id}/refresh-tools`
 
-Refreshes discovered tools from the server and updates catalog cache.
+Refreshes discovered tools from the server and replaces its stored tools.
 
 #### Response (`200 OK`):
 Returns array of `ToolResponse` items.
@@ -255,7 +281,7 @@ Returns array of `ToolResponse` items.
 ### 3.1 Unified Tool Catalog
 `GET /api/v1/tools`
 
-Aggregates discovered tools across all enabled MCP servers. Handles duplicate tool names using server-qualified IDs (`{server_id}:{tool_name}`).
+Aggregates discovered tools across all enabled MCP servers. Each tool has its own UUID `id`, so duplicate tool names on different servers stay distinct.
 
 #### Query Parameters:
 - `page` *(int, default: 1)*
@@ -270,7 +296,7 @@ Aggregates discovered tools across all enabled MCP servers. Handles duplicate to
 {
   "items": [
     {
-      "id": "e427b3b6-733d-4c3e-862d-96116ca31614:calculate",
+      "id": "0b7f6c1e-5d2a-4c8e-9f31-2a6d4e8b7c90",
       "name": "calculate",
       "description": "Safely calculate a mathematical expression (e.g., '12 + 4 * 2')",
       "input_schema": {
@@ -308,7 +334,7 @@ Returns tools discovered strictly for the specified server.
 ### 3.3 Get Tool Details
 `GET /api/v1/tools/{tool_id}`
 
-Retrieves schema and metadata for a tool by its qualified ID (`{server_id}:{tool_name}`) or tool name.
+Retrieves schema and metadata for a tool by its `id` (UUID) or tool name.
 
 ---
 
@@ -471,11 +497,15 @@ Any MCP-compliant client (Claude Desktop, IDE extensions, autonomous agents, Pyt
 - **Protocol:** Model Context Protocol (MCP) JSON-RPC 2.0 over Streamable HTTP
 - **URL:** `http://<host>:<port>/mcp`
 - **Supported Methods:**
-  - `POST /mcp`: JSON-RPC messages (Handshake initialization, tool listing, tool invocation)
-  - `GET /mcp`: Server-Sent Events (SSE) stream for real-time notifications
-  - `DELETE /mcp`: Graceful session termination
+  - `POST /mcp`: JSON-RPC messages (tool listing, tool invocation; `initialize` is answered but optional). Responses are plain `application/json`.
+  - `GET /mcp` and `DELETE /mcp`: `405 Method Not Allowed`. There is no notification stream and no session to end.
+- **Stateless (ADR-0004):** every POST is served on its own. The hub issues no `mcp-session-id` and ignores one if a client sends it, so a backend restart or idle time never produces `404 Session not found`, and any instance behind a load balancer can answer any request.
 - **Headers:**
-  - `mcp-session-id`: Automatically managed session identifier assigned during `initialize`
+  - `x-api-key: <api key>`: **required**. Only API keys (`mhk_...`) are accepted; an `Authorization` header or a console token is ignored. Without a valid key the endpoint answers `401` with `WWW-Authenticate`.
+  - `Accept: application/json, text/event-stream`: as the Streamable HTTP spec requires.
+  - `mcp-protocol-version`: the client's protocol version, as the spec requires after negotiation.
+- **Protocol versions:** handshake-era versions (`2024-11-05` … `2025-11-25`) and `2026-07-28`. The hub groups requests into Sessions from account + API key + client name/version, or the `User-Agent` when the client does not name itself, which is the case for handshake-era clients on a stateless server (ADR-0003, ADR-0004). Give each client its own API key to keep their Sessions apart.
+- **Scope:** `SEARCH_TOOLS` and `MULTI_EXECUTE_TOOLS` see only the calling account's servers.
 
 ### 6.2 Tool Namespacing & Identity Mapping
 
@@ -502,10 +532,10 @@ The Hub maintains an explicit internal mapping between:
 
 When an MCP client requests the tool catalog:
 1. The gateway queries all currently enabled and available downstream servers.
-2. Discovered tool definitions are retrieved from the cache or refreshed.
+2. Discovered tool definitions are read from the database, or refreshed from the server named in the path when the tool is not catalogued yet.
 3. Descriptions and JSON input schemas are preserved.
 4. The client receives the aggregated, namespaced tool list.
-5. Connected clients receive `notifications/tools/list_changed` when servers are added, refreshed, or disabled.
+5. The tool list is fixed (`SEARCH_TOOLS` and `MULTI_EXECUTE_TOOLS`), so the hub sends no `notifications/tools/list_changed` and advertises `listChanged: false`.
 
 ### 6.4 Agent-Driven Meta-Tools (`SEARCH_TOOLS` & `MULTI_EXECUTE_TOOLS`)
 
@@ -577,14 +607,16 @@ To support LLM agents orchestrating tools across many servers without exhausting
 ```python
 import asyncio
 from mcp.client.session import ClientSession
-from mcp.client.streamable_http import streamable_http_client
+from mcp.client.streamable_http import create_mcp_http_client, streamable_http_client
 
 
 async def main():
     hub_mcp_url = "http://localhost:8000/mcp"
+    api_key = "mhk_..."  # Settings > API Keys in the console
 
     async with (
-        streamable_http_client(hub_mcp_url) as (read_stream, write_stream),
+        create_mcp_http_client(headers={"x-api-key": api_key}) as http_client,
+        streamable_http_client(hub_mcp_url, http_client=http_client) as (read_stream, write_stream),
         ClientSession(read_stream, write_stream) as session,
     ):
         # 1. Initialize MCP Session
@@ -754,32 +786,3 @@ Retrieve a specific tool call's detailed record within a session.
   }
 }
 ```
-
-### 7.5 Explicitly Create Session
-`POST /api/v1/sessions`
-
-Explicitly register a new session (e.g., from web frontend or external orchestrator).
-
-#### Request Body:
-```json
-{
-  "title": "Agent Debugging Session #1",
-  "metadata": {
-    "initiator": "user-portal",
-    "user_id": "usr_12345"
-  }
-}
-```
-
-#### Response Body (`201 Created`):
-```json
-{
-  "id": "a1b2c3d4e5f647d8a9b0c1d2e3f4a5b6",
-  "title": "Agent Debugging Session #1",
-  "status": "active",
-  "created_at": "2026-11-08T10:30:00.000Z",
-  "last_activity_at": "2026-11-08T10:30:00.000Z",
-  "total_tool_calls": 0
-}
-```
-

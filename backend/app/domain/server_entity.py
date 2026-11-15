@@ -14,6 +14,7 @@ class ServerEntity:
 
     name: str
     transport: TransportType
+    user_id: UUID  # the owning account
     id: UUID = field(default_factory=uuid4)
     description: str | None = None
     stdio_config: StdioConfig | None = None

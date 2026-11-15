@@ -25,6 +25,13 @@ class BadRequestError(AppError):
         super().__init__(message=message, status_code=400, details=details)
 
 
+class UnauthorizedError(AppError):
+    """Raised when credentials are missing, invalid or expired (HTTP 401)."""
+
+    def __init__(self, message: str = "Authentication required", details: Any = None):
+        super().__init__(message=message, status_code=401, details=details)
+
+
 class ForbiddenError(AppError):
     """Raised when an operation is forbidden or violates security policy (HTTP 403)."""
 

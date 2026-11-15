@@ -2,8 +2,9 @@
 
 from datetime import UTC, datetime
 from typing import Any
+from uuid import UUID
 
-from sqlalchemy import JSON, DateTime, String
+from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.enums.session_enum import SessionStatus
@@ -16,9 +17,13 @@ class SessionModel(Base):
 
     __tablename__ = "mcp_sessions"
 
-    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, server_default=text("gen_random_uuid()::text"))
     title: Mapped[str | None] = mapped_column(String(255), index=True, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="active", index=True, nullable=False)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    api_key_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("api_keys.id", ondelete="SET NULL"), nullable=True)
+    client_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    idle_timeout_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     metadata_json: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -30,6 +35,12 @@ class SessionModel(Base):
         default=lambda: datetime.now(UTC),
         index=True,
         nullable=False,
+    )
+
+    __table_args__ = (
+        Index("ix_mcp_sessions_user_fingerprint_activity", "user_id", "client_fingerprint", "last_activity_at"),
+        # The background job's lookup of active Sessions by idle time.
+        Index("ix_mcp_sessions_status_activity", "status", "last_activity_at"),
     )
 
     # Relationship to execution records
@@ -49,6 +60,10 @@ class SessionModel(Base):
             created_at=self.created_at,
             last_activity_at=self.last_activity_at,
             total_tool_calls=total_tool_calls,
+            user_id=UUID(self.user_id),
+            api_key_id=UUID(self.api_key_id) if self.api_key_id else None,
+            client_fingerprint=self.client_fingerprint,
+            idle_timeout_seconds=self.idle_timeout_seconds,
         )
 
     @classmethod
@@ -61,4 +76,8 @@ class SessionModel(Base):
             metadata_json=entity.metadata,
             created_at=entity.created_at,
             last_activity_at=entity.last_activity_at,
+            user_id=str(entity.user_id),
+            api_key_id=str(entity.api_key_id) if entity.api_key_id else None,
+            client_fingerprint=entity.client_fingerprint,
+            idle_timeout_seconds=entity.idle_timeout_seconds,
         )

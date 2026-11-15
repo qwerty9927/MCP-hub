@@ -94,13 +94,6 @@ def sanitize_environment(custom_env: dict[str, str] | None, inherit_base: bool =
     return sanitized
 
 
-def _is_forbidden_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
-    """Whether an address is off-limits when private network access is disallowed."""
-    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
-        ip = ip.ipv4_mapped
-    return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified
-
-
 def validate_http_url(url: str, allow_private: bool | None = None) -> str:
     """Validate remote URL for SSRF vulnerabilities."""
     if allow_private is None:
@@ -205,3 +198,10 @@ def mask_sensitive_headers(headers: dict[str, str] | None) -> dict[str, str]:
         else:
             masked[key] = val
     return masked
+
+
+def _is_forbidden_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    """Whether an address is off-limits when private network access is disallowed."""
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
+        ip = ip.ipv4_mapped
+    return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified

@@ -16,15 +16,20 @@ from app.core.constants.meta_tools import (
     MULTI_EXECUTE_TOOLS_NAME,
     SEARCH_TOOLS_NAME,
 )
+from app.core.constants.session_constants import DEFAULT_SESSION_IDLE_SECONDS
 from app.core.enums.execution_enum import ExecutionOutcomeKind
 from app.core.enums.server_enum import ServerHealthStatus, TransportType
-from app.mcp.mcp_proxy_asgi import MCPProxyASGI
+from app.core.exceptions import UnauthorizedError
+from app.domain.principal_entity import Principal
+from app.domain.session_entity import SessionEntity
+from app.mcp.mcp_proxy_asgi import MCPProxyASGI, authenticated_user
 from app.mcp.mcp_server import MCPServer
 from app.mcp.multi_execute_tools import MULTI_EXECUTE_TOOLS_SCHEMA
 from app.mcp.search_tools import SEARCH_TOOLS_SCHEMA
 from app.schemas.common_schema import PaginatedResponse
 from app.schemas.server_schema import ServerResponse
 from app.schemas.tool_schema import ToolResponse
+from app.services.session_tracker import SessionTrackerService
 from app.services.tool_executor import ExecutionOutcome
 
 
@@ -54,14 +59,23 @@ def mock_session_repo():
 
 
 @pytest.fixture
-def mcp_server(mock_registry, mock_tool_catalog, mock_connection_mgr, mock_tool_executor, mock_session_repo):
+def mock_auth_service():
+    return AsyncMock()
+
+
+@pytest.fixture
+def mcp_server(mock_registry, mock_tool_catalog, mock_connection_mgr, mock_tool_executor, mock_session_repo, mock_auth_service):
     return MCPServer(
         server_registry=mock_registry,
         tool_catalog=mock_tool_catalog,
         connection_manager=mock_connection_mgr,
         tool_executor=mock_tool_executor,
-        session_repository=mock_session_repo,
+        session_tracker=SessionTrackerService(mock_session_repo),
+        auth_service=mock_auth_service,
     )
+
+
+PRINCIPAL = Principal(user_id=uuid4(), api_key_id=uuid4())
 
 
 def _create_mock_context(
@@ -69,6 +83,7 @@ def _create_mock_context(
     request_headers: dict[str, str] | None = None,
     client_info_name: str | None = None,
     client_info_version: str | None = None,
+    principal: Principal | None = PRINCIPAL,
 ) -> ServerRequestContext:
     """Helper to create a typed ServerRequestContext for testing."""
     mock_session = MagicMock()
@@ -92,70 +107,95 @@ def _create_mock_context(
     ctx = MagicMock(spec=ServerRequestContext)
     ctx.session = mock_session
     ctx.protocol_version = "2024-11-05"
-    if request_headers is not None:
+    if request_headers is not None or principal is not None:
         mock_req = MagicMock()
-        mock_req.headers = request_headers
+        mock_req.headers = request_headers or {}
+        mock_req.scope = {"user": authenticated_user(principal, "mhk_test")} if principal else {}
         ctx.request = mock_req
     else:
         ctx.request = None
     return ctx
 
 
-def test_discover_session_id_from_headers(mcp_server):
-    """Verify session ID is discovered from HTTP request headers."""
-    ctx = _create_mock_context(session_id="fallback-conn-id", request_headers={"mcp-session-id": "header-session-456"})
-    discovered = mcp_server._discover_session_id(ctx)
-    assert discovered == "header-session-456"
-
-
-def test_discover_session_id_from_connection(mcp_server):
-    """Verify session ID falls back to connection session_id when request headers are absent."""
-    ctx = _create_mock_context(session_id="fallback-conn-id", request_headers=None)
-    discovered = mcp_server._discover_session_id(ctx)
-    assert discovered == "fallback-conn-id"
-
-
-def test_discover_session_id_none(mcp_server):
-    """Verify None is returned when neither header nor connection provides session_id."""
-    ctx = _create_mock_context(session_id=None, request_headers=None)
-    discovered = mcp_server._discover_session_id(ctx)
-    assert discovered is None
+_ANY_TOOL_CALL = CallToolRequestParams(name=SEARCH_TOOLS_NAME, arguments={"queries": ["anything"]})
 
 
 @pytest.mark.asyncio
-async def test_ensure_session_registered_discovers_client_params(mcp_server, mock_session_repo):
-    """Verify _ensure_session_registered discovers client metadata via ctx.session.client_params."""
+async def test_tool_call_opens_a_derived_session_for_the_caller(mcp_server, mock_session_repo):
+    """A tool call is attributed to a derived Session owned by the caller, with the client's identity and the key's timeout."""
+    mock_session_repo.find_active_by_fingerprint.return_value = None
+    principal = Principal(user_id=PRINCIPAL.user_id, api_key_id=PRINCIPAL.api_key_id, session_idle_seconds=300)
     ctx = _create_mock_context(
-        session_id="sess-registered",
+        request_headers={"user-agent": "TestClient-http/2.1"},
         client_info_name="TestClient",
         client_info_version="2.1.0",
+        principal=principal,
     )
-    await mcp_server._ensure_session_registered(ctx, "sess-registered")
 
-    mock_session_repo.get_or_create.assert_called_once_with(
-        session_id="sess-registered",
-        title="TestClient (sess-reg)",
-        metadata={
-            "client_name": "TestClient",
-            "client_version": "2.1.0",
-            "protocol_version": "2024-11-05",
-        },
-    )
+    await mcp_server.handle_call_tool(ctx, _ANY_TOOL_CALL)
+
+    mock_session_repo.get_or_create.assert_not_awaited()
+    created = mock_session_repo.create.await_args.args[0]
+    assert created.user_id == PRINCIPAL.user_id
+    assert created.api_key_id == PRINCIPAL.api_key_id
+    assert created.idle_timeout_seconds == 300
+    assert created.metadata == {
+        "session_source": "derived",
+        "client_name": "TestClient",
+        "client_version": "2.1.0",
+        "protocol_version": "2024-11-05",
+        "user_agent": "TestClient-http/2.1",
+    }
 
 
 @pytest.mark.asyncio
-async def test_handle_list_tools_returns_strictly_two_tools(mcp_server, mock_session_repo):
+async def test_client_supplied_session_header_is_ignored(mcp_server, mock_session_repo):
+    """A leftover Mcp-Session-Id never becomes the hub Session ID: the Session is always derived."""
+    mock_session_repo.find_active_by_fingerprint.return_value = None
+    ctx = _create_mock_context(request_headers={"mcp-session-id": "client-chosen-id", "user-agent": "old-client/1.0"})
+
+    await mcp_server.handle_call_tool(ctx, _ANY_TOOL_CALL)
+
+    created = mock_session_repo.create.await_args.args[0]
+    assert created.id != "client-chosen-id"
+    assert created.metadata["user_agent"] == "old-client/1.0"
+    assert created.idle_timeout_seconds == DEFAULT_SESSION_IDLE_SECONDS  # the key sets none
+
+
+@pytest.mark.asyncio
+async def test_listing_tools_opens_no_session(mcp_server, mock_session_repo):
+    """A Session opens on the first tool call; a client that only lists tools leaves none behind."""
+    ctx = _create_mock_context(request_headers={"user-agent": "lister/1.0"})
+
+    await mcp_server.handle_list_tools(ctx, params=PaginatedRequestParams())
+
+    mock_session_repo.find_active_by_fingerprint.assert_not_awaited()
+    mock_session_repo.create.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_handle_list_tools_returns_strictly_two_tools(mcp_server):
     """Verify handle_list_tools returns only Search and Multi-Execute without downstream tools."""
     ctx = _create_mock_context("sess-abc")
 
-    params = PaginatedRequestParams()
-    result = await mcp_server.handle_list_tools(ctx, params=params)
+    result = await mcp_server.handle_list_tools(ctx, params=PaginatedRequestParams())
     tool_names = [t.name for t in result.tools]
 
     assert len(tool_names) == 2
     assert SEARCH_TOOLS_NAME in tool_names
     assert MULTI_EXECUTE_TOOLS_NAME in tool_names
-    mock_session_repo.get_or_create.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_call_without_principal_is_refused(mcp_server, mock_tool_executor):
+    ctx = _create_mock_context("sess-anon", principal=None)
+    params = CallToolRequestParams(name=MULTI_EXECUTE_TOOLS_NAME, arguments={"executions": [{"tool_slug": "a__b", "arguments": {}}]})
+
+    res = await mcp_server.handle_call_tool(ctx, params)
+
+    assert res.is_error is True
+    assert "Authentication required" in res.content[0].text
+    mock_tool_executor.execute.assert_not_awaited()
 
 
 def test_get_tool_input_schema(mcp_server):
@@ -208,7 +248,7 @@ async def test_handle_call_tool_search(mcp_server, mock_registry, mock_tool_cata
     mock_tool_catalog.list_tools.return_value = PaginatedResponse[ToolResponse](
         items=[
             ToolResponse(
-                id=f"{srv_id}:calculate",
+                id=uuid4(),
                 name="calculate",
                 description="Evaluate math expressions",
                 input_schema={
@@ -239,14 +279,16 @@ async def test_handle_call_tool_search(mcp_server, mock_registry, mock_tool_cata
     assert data["matched_count"] == 1
     assert data["tools"][0]["tool_slug"] == "math_server__calculate"
     assert data["tools"][0]["server_id"] == str(srv_id)
+    assert mock_registry.list_servers.await_args.kwargs["user_id"] == PRINCIPAL.user_id
+    assert mock_tool_catalog.list_tools.await_args.kwargs["user_id"] == PRINCIPAL.user_id
 
 
 @pytest.mark.asyncio
-async def test_handle_call_tool_multi_execute(mcp_server, mock_tool_executor):
+async def test_handle_call_tool_multi_execute(mcp_server, mock_tool_executor, mock_session_repo):
     """Verify Multi-Execute dispatches each item to the Execution module with the discovered session."""
-    srv_id = uuid4()
     ctx = _create_mock_context("sess-multi")
-    slug = f"{srv_id}:add"
+    mock_session_repo.find_active_by_fingerprint.return_value = SessionEntity(id="sess-multi", user_id=PRINCIPAL.user_id)
+    slug = "math_server__add"
     mock_tool_executor.execute.return_value = ExecutionOutcome(
         kind=ExecutionOutcomeKind.SUCCEEDED,
         tool_reference=slug,
@@ -264,37 +306,66 @@ async def test_handle_call_tool_multi_execute(mcp_server, mock_tool_executor):
     assert res.is_error is False
     data = json.loads(res.content[0].text)
     assert data["results"] == [{"tool_slug": slug, "status": "success", "data": "42", "error": None}]
-    mock_tool_executor.execute.assert_awaited_once_with(slug, {"a": 20, "b": 22}, session_id="sess-multi")
+    mock_tool_executor.execute.assert_awaited_once_with(slug, {"a": 20, "b": 22}, user_id=PRINCIPAL.user_id, session_id="sess-multi")
 
 
 @pytest.mark.asyncio
-async def test_notify_tools_changed_broadcasts(mcp_server):
-    """Verify notify_tools_changed notifies active sessions."""
-    mock_session = AsyncMock()
-    mcp_server._active_sessions.add(mock_session)
-
-    await mcp_server.notify_tools_changed()
-    mock_session.send_tool_list_changed.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_mcp_proxy_asgi_delete_handling(mcp_server, mock_session_repo):
-    """Verify MCPProxyASGI intercepts DELETE requests and updates session status."""
+async def test_mcp_proxy_asgi_authenticates_api_key_and_forwards(mcp_server, mock_auth_service):
+    """Verify MCPProxyASGI authenticates the x-api-key header, attaches the caller, and forwards the request."""
+    mock_auth_service.authenticate_api_key.return_value = PRINCIPAL
     proxy = MCPProxyASGI(mcp_server)
-
-    # Mock scope for HTTP DELETE
     scope = {
         "type": "http",
-        "method": "DELETE",
-        "headers": [(b"mcp-session-id", b"delete-session-123")],
+        "method": "POST",
+        "headers": [(b"mcp-session-id", b"session-123"), (b"x-api-key", b"mhk_valid")],
     }
     receive = AsyncMock()
     send = AsyncMock()
-
-    # Mock session_manager.asgi_app
     mcp_server.session_manager.asgi_app = AsyncMock()
 
     await proxy(scope, receive, send)
 
-    mock_session_repo.update_status.assert_called_once_with("delete-session-123", "completed")
+    mock_auth_service.authenticate_api_key.assert_awaited_once_with("mhk_valid")
     mcp_server.session_manager.asgi_app.assert_called_once_with(scope, receive, send)
+    assert scope["user"].access_token.subject == str(PRINCIPAL.user_id)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "headers",
+    [
+        [],
+        [(b"x-api-key", b"mhk_revoked")],
+        [(b"authorization", b"Bearer mhk_valid")],
+        [(b"x-api-key", b"not-an-api-key")],
+    ],
+    ids=["no-credentials", "revoked-key", "bearer-header-not-accepted", "not-an-api-key"],
+)
+async def test_mcp_proxy_asgi_rejects_unauthenticated(mcp_server, mock_auth_service, headers):
+    mock_auth_service.authenticate_api_key.return_value = None
+    proxy = MCPProxyASGI(mcp_server)
+    scope = {"type": "http", "method": "POST", "headers": headers}
+    mcp_server.session_manager.asgi_app = AsyncMock()
+
+    with pytest.raises(UnauthorizedError):
+        await proxy(scope, AsyncMock(), AsyncMock())
+
+    mcp_server.session_manager.asgi_app.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", ["GET", "DELETE"])
+async def test_mcp_proxy_asgi_refuses_non_post_without_reaching_the_sdk(mcp_server, mock_auth_service, method):
+    """Stateless /mcp has no notification stream or session to end; a GET must not be held open as SSE."""
+    mock_auth_service.authenticate_api_key.return_value = PRINCIPAL
+    proxy = MCPProxyASGI(mcp_server)
+    scope = {"type": "http", "method": method, "headers": [(b"x-api-key", b"mhk_valid")]}
+    send = AsyncMock()
+    mcp_server.session_manager.asgi_app = AsyncMock()
+
+    await proxy(scope, AsyncMock(), send)
+
+    mcp_server.session_manager.asgi_app.assert_not_called()
+    start = send.await_args_list[0].args[0]
+    assert start["status"] == 405
+    assert (b"allow", b"POST") in start["headers"]

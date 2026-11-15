@@ -27,7 +27,7 @@ from app.infrastructure.repositories.execution_repository import ExecutionReposi
 from app.infrastructure.repositories.session_repository import SessionRepositoryAbstract
 from app.services.connection_manager import ConnectionManager
 from app.services.server_registry import ServerRegistryService
-from app.services.tool_catalog import ToolCatalogService, split_qualified_tool_id
+from app.services.tool_catalog import ToolCatalogService
 
 TOOL_ERROR_FALLBACK_MESSAGE = "Tool execution reported an error"
 
@@ -57,41 +57,6 @@ class ExecutionOutcome:
     duration_ms: float = 0.0
 
 
-class _Unresolved(Exception):
-    """Private control flow: the Tool Reference could not be resolved to a Tool, for a known reason."""
-
-    def __init__(self, kind: ExecutionOutcomeKind, message: str, reason: RejectionReason | None = None) -> None:
-        super().__init__(message)
-        self.kind = kind
-        self.message = message
-        self.reason = reason
-
-
-def _server_disabled_message(server: ServerEntity) -> str:
-    return f"Server '{server.name}' is disabled. Enable it before performing this operation."
-
-
-def _content_blocks(result: mcp_types.CallToolResult) -> list[dict[str, Any]]:
-    blocks: list[dict[str, Any]] = []
-    for block in result.content or []:
-        if hasattr(block, "model_dump"):
-            blocks.append(block.model_dump(exclude_none=True))
-        elif isinstance(block, dict):
-            blocks.append(block)
-        else:
-            blocks.append({"type": "text", "text": str(block)})
-    return blocks
-
-
-def _tool_error_message(blocks: list[dict[str, Any]]) -> str:
-    texts = [b["text"] for b in blocks if b.get("type") == "text" and b.get("text")]
-    return "\n".join(texts) if texts else TOOL_ERROR_FALLBACK_MESSAGE
-
-
-def _elapsed_ms(start: float) -> float:
-    return round((time.perf_counter() - start) * 1000, 2)
-
-
 class ToolExecutor:
     """Executes Tools on downstream Servers and records every resolved attempt as an Execution."""
 
@@ -113,19 +78,26 @@ class ToolExecutor:
         self,
         tool_reference: str,
         arguments: dict[str, Any],
+        *,
+        user_id: UUID,
+        server_id: UUID | None = None,
         session_id: str | None = None,
         timeout: float | None = None,
     ) -> ExecutionOutcome:
-        """Execute the Tool named by `tool_reference` and return its Outcome.
+        """Execute the owner's Tool named by `tool_reference` (on `server_id`, when given) and return its Outcome.
+
+        A Tool on a Server owned by another account does not resolve, so it is the same Outcome as an unknown Tool.
+        `session_id` must be one of the owner's Sessions; anything else raises NotFoundError before any work.
 
         Expected outcomes (unknown Tool, disabled Server, unavailable Tool, invalid arguments, downstream
         errors and faults) are returned, never raised. Only faults in the hub's own infrastructure raise,
         plus `asyncio.CancelledError`, which is recorded and then re-raised.
         """
         executed_at = datetime.now(UTC)
+        await self._check_session(session_id, user_id)
 
         try:
-            tool = await self._resolve(tool_reference)
+            tool = await self._resolve(tool_reference, user_id, server_id)
             server = await self._server_for(tool) if tool else None
             if tool is None or server is None:
                 raise _Unresolved(
@@ -175,17 +147,22 @@ class ToolExecutor:
         await self._record(outcome, arguments, session_id, started_at=executed_at)
         return outcome
 
-    async def _resolve(self, tool_reference: str) -> ToolEntity | None:
-        tool = await self._tool_catalog.resolve(tool_reference)
+    async def _check_session(self, session_id: str | None, user_id: UUID) -> None:
+        if not session_id or self._session_repository is None:
+            return
+        if await self._session_repository.get_by_id(session_id, user_id=user_id) is None:
+            raise NotFoundError(f"Session with id '{session_id}' not found", details={"session_id": session_id})
+
+    async def _resolve(self, tool_reference: str, user_id: UUID, server_id: UUID | None) -> ToolEntity | None:
+        tool = await self._tool_catalog.resolve(tool_reference, user_id=user_id, server_id=server_id)
         if tool is not None:
             return tool
 
-        # Refresh-on-miss is only possible when the reference names its Server (Qualified Tool ID).
-        server_id, _ = split_qualified_tool_id(tool_reference)
+        # Refresh-on-miss is only possible when the caller names the Server.
         if server_id is None:
             return None
         try:
-            server = await self._server_registry.get_server_entity(server_id)
+            server = await self._server_registry.get_server_entity(server_id, user_id=user_id)
         except NotFoundError:
             return None
         if not server.enabled:
@@ -196,12 +173,12 @@ class ToolExecutor:
         except Exception as exc:
             message = f"Could not refresh tools from server '{server.name}': {format_mcp_error(exc)}"
             raise _Unresolved(ExecutionOutcomeKind.FAILED, message) from exc
-        await self._server_registry.update_health(server.id, server.health_status, len(refreshed))
-        return await self._tool_catalog.resolve(tool_reference)
+        await self._server_registry.update_health(server.id, server.health_status, len(refreshed), user_id=server.user_id)
+        return await self._tool_catalog.resolve(tool_reference, user_id=user_id, server_id=server_id)
 
     async def _server_for(self, tool: ToolEntity) -> ServerEntity | None:
         try:
-            return await self._server_registry.get_server_entity(tool.server_id)
+            return await self._server_registry.get_server_entity(tool.server_id, user_id=tool.user_id)
         except NotFoundError:
             return None
 
@@ -306,3 +283,38 @@ class ToolExecutor:
             await self._session_repository.update_activity(session_id, timestamp or datetime.now(UTC))
         except Exception as exc:
             logger.error(f"Failed to update activity for session '{session_id}': {exc}")
+
+
+class _Unresolved(Exception):
+    """Private control flow: the Tool Reference could not be resolved to a Tool, for a known reason."""
+
+    def __init__(self, kind: ExecutionOutcomeKind, message: str, reason: RejectionReason | None = None) -> None:
+        super().__init__(message)
+        self.kind = kind
+        self.message = message
+        self.reason = reason
+
+
+def _server_disabled_message(server: ServerEntity) -> str:
+    return f"Server '{server.name}' is disabled. Enable it before performing this operation."
+
+
+def _content_blocks(result: mcp_types.CallToolResult) -> list[dict[str, Any]]:
+    blocks: list[dict[str, Any]] = []
+    for block in result.content or []:
+        if hasattr(block, "model_dump"):
+            blocks.append(block.model_dump(exclude_none=True))
+        elif isinstance(block, dict):
+            blocks.append(block)
+        else:
+            blocks.append({"type": "text", "text": str(block)})
+    return blocks
+
+
+def _tool_error_message(blocks: list[dict[str, Any]]) -> str:
+    texts = [b["text"] for b in blocks if b.get("type") == "text" and b.get("text")]
+    return "\n".join(texts) if texts else TOOL_ERROR_FALLBACK_MESSAGE
+
+
+def _elapsed_ms(start: float) -> float:
+    return round((time.perf_counter() - start) * 1000, 2)

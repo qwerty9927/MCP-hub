@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 from uuid import UUID
 
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import async_sessionmaker
 
 import app.infrastructure.database as db_module
 from app.core.enums.server_enum import ServerHealthStatus, TransportType
@@ -19,12 +18,12 @@ class ServerRepositoryAbstract(ABC):
         pass
 
     @abstractmethod
-    async def get_by_id(self, server_id: UUID) -> ServerEntity | None:
+    async def get_by_id(self, server_id: UUID, *, user_id: UUID) -> ServerEntity | None:
         """Retrieve server by ID."""
         pass
 
     @abstractmethod
-    async def get_by_name(self, name: str) -> ServerEntity | None:
+    async def get_by_name(self, name: str, *, user_id: UUID) -> ServerEntity | None:
         """Retrieve server by unique name."""
         pass
 
@@ -39,6 +38,8 @@ class ServerRepositoryAbstract(ABC):
         search: str | None = None,
         sort_by: str = "created_at",
         sort_order: str = "desc",
+        *,
+        user_id: UUID,
     ) -> tuple[list[ServerEntity], int]:
         """List servers with pagination, filtering, and sorting."""
         pass
@@ -57,35 +58,26 @@ class ServerRepositoryAbstract(ABC):
 class PostgresServerRepository(ServerRepositoryAbstract):
     """PostgreSQL implementation of ServerRepositoryAbstract using SQLAlchemy."""
 
-    def __init__(self, session_factory: async_sessionmaker | None = None) -> None:
-        self._session_factory = session_factory
-
-    @property
-    def session_factory(self) -> async_sessionmaker:
-        return self._session_factory or db_module.async_session_factory
-
-    @session_factory.setter
-    def session_factory(self, factory: async_sessionmaker | None) -> None:
-        self._session_factory = factory
-
     async def create(self, server: ServerEntity) -> ServerEntity:
-        async with self.session_factory() as session:
+        async with db_module.async_session_factory() as session:
             model = ServerModel.from_domain(server)
             session.add(model)
             await session.commit()
             await session.refresh(model)
             return model.to_domain()
 
-    async def get_by_id(self, server_id: UUID) -> ServerEntity | None:
-        async with self.session_factory() as session:
+    async def get_by_id(self, server_id: UUID, *, user_id: UUID) -> ServerEntity | None:
+        async with db_module.async_session_factory() as session:
             stmt = select(ServerModel).where(ServerModel.id == str(server_id))
+            stmt = stmt.where(ServerModel.user_id == str(user_id))
             result = await session.execute(stmt)
             model = result.scalar_one_or_none()
             return model.to_domain() if model else None
 
-    async def get_by_name(self, name: str) -> ServerEntity | None:
-        async with self.session_factory() as session:
-            stmt = select(ServerModel).where(func.lower(ServerModel.name) == name.lower())
+    async def get_by_name(self, name: str, *, user_id: UUID) -> ServerEntity | None:
+        async with db_module.async_session_factory() as session:
+            # Names are unique per account, so the lookup is scoped to that account.
+            stmt = select(ServerModel).where(func.lower(ServerModel.name) == name.lower(), ServerModel.user_id == str(user_id))
             result = await session.execute(stmt)
             model = result.scalar_one_or_none()
             return model.to_domain() if model else None
@@ -100,11 +92,14 @@ class PostgresServerRepository(ServerRepositoryAbstract):
         search: str | None = None,
         sort_by: str = "created_at",
         sort_order: str = "desc",
+        *,
+        user_id: UUID,
     ) -> tuple[list[ServerEntity], int]:
-        async with self.session_factory() as session:
+        async with db_module.async_session_factory() as session:
             stmt = select(ServerModel)
 
             # Filtering
+            stmt = stmt.where(ServerModel.user_id == str(user_id))
             if enabled is not None:
                 stmt = stmt.where(ServerModel.enabled == enabled)
             if transport is not None:
@@ -135,7 +130,7 @@ class PostgresServerRepository(ServerRepositoryAbstract):
             return [m.to_domain() for m in models], total
 
     async def update(self, server: ServerEntity) -> ServerEntity:
-        async with self.session_factory() as session:
+        async with db_module.async_session_factory() as session:
             stmt = select(ServerModel).where(ServerModel.id == str(server.id))
             result = await session.execute(stmt)
             model = result.scalar_one_or_none()
@@ -160,7 +155,7 @@ class PostgresServerRepository(ServerRepositoryAbstract):
             return model.to_domain()
 
     async def delete(self, server_id: UUID) -> bool:
-        async with self.session_factory() as session:
+        async with db_module.async_session_factory() as session:
             stmt = select(ServerModel).where(ServerModel.id == str(server_id))
             result = await session.execute(stmt)
             model = result.scalar_one_or_none()

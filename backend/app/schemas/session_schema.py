@@ -4,20 +4,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
-
-
-class SessionCreateRequest(BaseModel):
-    """Payload for creating a new session explicitly."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    title: str | None = Field(default=None, max_length=255, description="Human-readable title or label")
-    metadata: dict[str, Any] | None = Field(default=None, description="Optional metadata or client attributes")
-
-
-# Backward-compatible alias
-SessionCreate = SessionCreateRequest
+from pydantic import BaseModel, Field
 
 
 class SessionResponse(BaseModel):
@@ -29,10 +16,6 @@ class SessionResponse(BaseModel):
     created_at: datetime = Field(..., description="Timestamp when session was created")
     last_activity_at: datetime = Field(..., description="Timestamp of most recent activity in session")
     total_tool_calls: int = Field(default=0, description="Total count of tool calls belonging to this session")
-
-
-# Backward-compatible alias
-SessionRead = SessionResponse
 
 
 class SessionDetailResponse(BaseModel):
@@ -64,3 +47,7 @@ class ToolCallResponse(BaseModel):
     error_summary: str | None = Field(default=None, description="Summary error message if execution failed")
     arguments: dict[str, Any] = Field(default_factory=dict, description="Tool execution input arguments")
     response: Any | None = Field(default=None, description="Output payload returned by the tool")
+
+
+# Backward-compatible alias
+SessionRead = SessionResponse

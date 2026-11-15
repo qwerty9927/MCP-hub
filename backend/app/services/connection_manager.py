@@ -54,6 +54,53 @@ class SessionWorker:
         self.is_alive: bool = False
         self.last_verified_at: float = 0.0  # time.monotonic() of the last successful connect or ping
 
+    async def start(self, timeout: float | None = None) -> ClientSession:
+        """Launch the worker task and wait until session initialization completes."""
+        connect_timeout = timeout or self.settings.DEFAULT_CONNECTION_TIMEOUT
+        self.task = asyncio.create_task(self._run(timeout=connect_timeout))
+
+        try:
+            await asyncio.wait_for(self.ready_event.wait(), timeout=connect_timeout + 2.0)
+        except TimeoutError as exc:
+            await self.stop()
+            raise BadGatewayError(
+                f"Failed to connect to server '{self.server.id}': Connection timed out after {connect_timeout}s",
+                details={
+                    "server_id": str(self.server.id),
+                    "reason": f"Connection timed out after {connect_timeout}s",
+                },
+            ) from exc
+
+        if self.error:
+            await self.stop()
+            error_str = format_mcp_error(self.error)
+            raise BadGatewayError(
+                f"Failed to connect to server '{self.server.id}': {error_str}",
+                details={"server_id": str(self.server.id), "reason": error_str},
+            )
+
+        if not self.session:
+            await self.stop()
+            raise BadGatewayError(
+                f"Failed to connect to server '{self.server.id}': Session failed to initialize",
+                details={
+                    "server_id": str(self.server.id),
+                    "reason": "Session failed to initialize",
+                },
+            )
+
+        return self.session
+
+    async def stop(self) -> None:
+        """Signal worker to cleanly exit its context manager and wait for task completion."""
+        self.stop_event.set()
+        if self.task and not self.task.done():
+            try:
+                await asyncio.wait_for(asyncio.shield(self.task), timeout=5.0)
+            except Exception as exc:
+                logger.warning(f"Worker task cleanup warning for '{self.server.name}': {exc}")
+                self.task.cancel()
+
     async def _run(self, timeout: float) -> None:
         """Run the MCP client lifecycle within a persistent task."""
         try:
@@ -115,53 +162,6 @@ class SessionWorker:
             self.is_alive = False
             self.session = None
 
-    async def start(self, timeout: float | None = None) -> ClientSession:
-        """Launch the worker task and wait until session initialization completes."""
-        connect_timeout = timeout or self.settings.DEFAULT_CONNECTION_TIMEOUT
-        self.task = asyncio.create_task(self._run(timeout=connect_timeout))
-
-        try:
-            await asyncio.wait_for(self.ready_event.wait(), timeout=connect_timeout + 2.0)
-        except TimeoutError as exc:
-            await self.stop()
-            raise BadGatewayError(
-                f"Failed to connect to server '{self.server.id}': Connection timed out after {connect_timeout}s",
-                details={
-                    "server_id": str(self.server.id),
-                    "reason": f"Connection timed out after {connect_timeout}s",
-                },
-            ) from exc
-
-        if self.error:
-            await self.stop()
-            error_str = format_mcp_error(self.error)
-            raise BadGatewayError(
-                f"Failed to connect to server '{self.server.id}': {error_str}",
-                details={"server_id": str(self.server.id), "reason": error_str},
-            )
-
-        if not self.session:
-            await self.stop()
-            raise BadGatewayError(
-                f"Failed to connect to server '{self.server.id}': Session failed to initialize",
-                details={
-                    "server_id": str(self.server.id),
-                    "reason": "Session failed to initialize",
-                },
-            )
-
-        return self.session
-
-    async def stop(self) -> None:
-        """Signal worker to cleanly exit its context manager and wait for task completion."""
-        self.stop_event.set()
-        if self.task and not self.task.done():
-            try:
-                await asyncio.wait_for(asyncio.shield(self.task), timeout=5.0)
-            except Exception as exc:
-                logger.warning(f"Worker task cleanup warning for '{self.server.name}': {exc}")
-                self.task.cancel()
-
 
 class ConnectionManager:
     """Manages MCP client connections across stdio and streamable-http transports."""
@@ -171,9 +171,6 @@ class ConnectionManager:
         # One lock per Server, so a slow connect to one Server never blocks the others.
         self._locks: dict[UUID, asyncio.Lock] = {}
         self.settings = get_settings()
-
-    def _lock_for(self, server_id: UUID) -> asyncio.Lock:
-        return self._locks.setdefault(server_id, asyncio.Lock())
 
     async def get_or_create_session(
         self,
@@ -318,9 +315,9 @@ class ConnectionManager:
                     details={"tool_name": tool_name, "reason": str(exc)},
                 ) from exc
 
-    def get_active_session_count(self) -> int:
-        """Return the number of currently active sessions."""
-        return len([w for w in self._workers.values() if w.is_alive])
+    def get_active_session_count(self, user_id: UUID) -> int:
+        """Return the number of live downstream sessions (only those on `user_id`'s Servers when given)."""
+        return len([w for w in self._workers.values() if w.is_alive and w.server.user_id == user_id])
 
     async def shutdown(self) -> None:
         """Shutdown all active sessions and clean up resources."""
@@ -330,3 +327,6 @@ class ConnectionManager:
         self._locks.clear()
         await asyncio.gather(*(worker.stop() for worker in workers), return_exceptions=True)
         logger.info("ConnectionManager shutdown complete.")
+
+    def _lock_for(self, server_id: UUID) -> asyncio.Lock:
+        return self._locks.setdefault(server_id, asyncio.Lock())

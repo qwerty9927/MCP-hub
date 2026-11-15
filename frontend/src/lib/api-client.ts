@@ -1,4 +1,5 @@
-import axios, { AxiosInstance, AxiosRequestConfig } from "axios";
+import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from "axios";
+import { clearAuthToken, getAuthToken, loginPath } from "./auth-token";
 import { normalizeApiError } from "./errors";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
@@ -21,12 +22,10 @@ axiosInstance.interceptors.request.use(
                 typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `req-${Date.now()}`;
         }
 
-        // Auth hook: If an auth token is in memory or localStorage in the future, attach here
-        if (typeof window !== "undefined") {
-            const token = sessionStorage.getItem("mcp_auth_token");
-            if (token && !config.headers["Authorization"]) {
-                config.headers["Authorization"] = `Bearer ${token}`;
-            }
+        // Console login token from POST /auth/login
+        const token = getAuthToken();
+        if (token && !config.headers["Authorization"]) {
+            config.headers["Authorization"] = `Bearer ${token}`;
         }
 
         return config;
@@ -34,10 +33,26 @@ axiosInstance.interceptors.request.use(
     (error) => Promise.reject(normalizeApiError(error))
 );
 
+const PUBLIC_AUTH_PATHS = ["/auth/login", "/auth/register"];
+
+/** An expired or invalid token on any protected call signs the user out and sends them to the login page. */
+export function handleUnauthorized(error: unknown): void {
+    if (!(error instanceof AxiosError) || error.response?.status !== 401) return;
+    const url = error.config?.url ?? "";
+    if (PUBLIC_AUTH_PATHS.some((path) => url.endsWith(path))) return;
+    clearAuthToken();
+    if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+        window.location.assign(loginPath(window.location.pathname + window.location.search));
+    }
+}
+
 // Response Interceptor: Normalize all errors
 axiosInstance.interceptors.response.use(
     (response) => response,
-    (error) => Promise.reject(normalizeApiError(error))
+    (error) => {
+        handleUnauthorized(error);
+        return Promise.reject(normalizeApiError(error));
+    }
 );
 
 export async function apiClient<T>(config: AxiosRequestConfig): Promise<T> {

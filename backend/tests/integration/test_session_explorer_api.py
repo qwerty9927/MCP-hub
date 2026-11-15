@@ -9,28 +9,24 @@ import pytest
 from httpx import AsyncClient
 
 from app.domain.execution_entity import ExecutionEntity
+from app.domain.session_entity import SessionEntity
 from app.infrastructure.repositories.execution_repository import PostgresExecutionRepository
+from app.infrastructure.repositories.session_repository import PostgresSessionRepository
 
 DEMO_SERVER = str(Path(__file__).resolve().parent.parent.parent / "demo_server" / "server.py")
 
 
+async def _seed_session(user_id, title: str, metadata: dict | None = None) -> str:
+    """Create an active session owned by `user_id` and return its ID."""
+    created = await PostgresSessionRepository().create(SessionEntity(id=str(uuid4()), title=title, metadata=metadata, user_id=user_id))
+    return created.id
+
+
 @pytest.mark.asyncio
-async def test_session_explorer_api_lifecycle(async_client: AsyncClient):
+async def test_session_explorer_api_lifecycle(async_client: AsyncClient, user_id):
     """Verify complete HTTP API lifecycle for Session Explorer."""
-    # 1. Create a session explicitly
-    create_resp = await async_client.post(
-        "/api/v1/sessions",
-        json={
-            "title": "Interactive Claude Session",
-            "metadata": {"client": "claude-code", "env": "testing"},
-        },
-    )
-    assert create_resp.status_code == 201, create_resp.text
-    session_data = create_resp.json()
-    session_id = session_data["id"]
-    assert session_data["title"] == "Interactive Claude Session"
-    assert session_data["status"] == "active"
-    assert session_data["total_tool_calls"] == 0
+    # 1. Sessions are opened by the hub itself (ADR-0003); seed one for the signed-in account
+    session_id = await _seed_session(user_id, "Interactive Claude Session", {"client": "claude-code", "env": "testing"})
 
     # 2. List sessions
     list_resp = await async_client.get("/api/v1/sessions?page=1&page_size=10")
@@ -113,7 +109,7 @@ async def test_session_explorer_api_lifecycle(async_client: AsyncClient):
     assert single_json["tool_name"] == "calculate"
 
     # 9. Verify 404 on nonexistent session and call
-    fake_session = uuid4().hex
+    fake_session = str(uuid4())
     missing_session_resp = await async_client.get(f"/api/v1/sessions/{fake_session}")
     assert missing_session_resp.status_code == 404
 
@@ -122,17 +118,12 @@ async def test_session_explorer_api_lifecycle(async_client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_session_explorer_sensitive_masking(async_client: AsyncClient):
+async def test_session_explorer_sensitive_masking(async_client: AsyncClient, user_id):
     """Verify tool call arguments and responses mask sensitive keys."""
     exec_repo = PostgresExecutionRepository()
 
-    # 1. Create dummy session
-    session_res = await async_client.post(
-        "/api/v1/sessions",
-        json={"title": "Sensitive Session"},
-    )
-    assert session_res.status_code == 201
-    session_id = session_res.json()["id"]
+    # 1. Seed a session for the signed-in account
+    session_id = await _seed_session(user_id, "Sensitive Session")
 
     # 2. Register a server to satisfy foreign key
     server_res = await async_client.post(

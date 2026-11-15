@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { useTheme } from "next-themes";
-import { Settings as SettingsIcon, Server, Shield, Palette, CheckCircle2, XCircle, RefreshCw, Info } from "lucide-react";
+import { Server, Palette, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { systemApi } from "@/lib/api";
 import { toast } from "sonner";
+import { ApiKeysCard } from "@/features/auth/components/ApiKeysCard";
 
 export default function SettingsPage() {
     const { theme, setTheme } = useTheme();
@@ -38,25 +39,6 @@ export default function SettingsPage() {
         queryFn: ({ signal }) => systemApi.health(signal),
     });
 
-    const [authToken, setAuthToken] = useState<string>(() => {
-        if (typeof window !== "undefined") {
-            return sessionStorage.getItem("mcp_auth_token") || "";
-        }
-        return "";
-    });
-
-    const handleSaveToken = () => {
-        if (typeof window !== "undefined") {
-            if (authToken.trim()) {
-                sessionStorage.setItem("mcp_auth_token", authToken.trim());
-                toast.success("Authentication token saved for active browser session");
-            } else {
-                sessionStorage.removeItem("mcp_auth_token");
-                toast.info("Session authentication token removed");
-            }
-        }
-    };
-
     const handleTestProbes = () => {
         refetchReady();
         refetchHealth();
@@ -65,10 +47,7 @@ export default function SettingsPage() {
 
     return (
         <div className="max-w-4xl space-y-6">
-            <PageHeader
-                title="Settings & Telemetry"
-                description="Configure backend connection endpoints, authentication credentials, and view system probes."
-            />
+            <PageHeader title="Settings & Telemetry" description="Backend connection, API keys for MCP clients, and system probes." />
 
             {/* Backend API Configuration */}
             <Card>
@@ -142,38 +121,8 @@ export default function SettingsPage() {
                 </CardContent>
             </Card>
 
-            {/* Security & Authentication */}
-            <Card>
-                <CardHeader>
-                    <CardTitle className="text-base flex items-center gap-2">
-                        <Shield className="h-4 w-4 text-emerald-500" />
-                        Authentication Integration
-                    </CardTitle>
-                    <CardDescription>Optional session token attached as a Bearer token in request headers.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="token">Session Authorization Token</Label>
-                        <Input
-                            id="token"
-                            type="password"
-                            placeholder="e.g. Bearer token for protected gateway"
-                            value={authToken}
-                            onChange={(e) => setAuthToken(e.target.value)}
-                            className="font-mono text-xs"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                            Stored only in volatile session storage for the current browser session. Never written to disk or logs.
-                        </p>
-                    </div>
-
-                    <div className="flex justify-end">
-                        <Button size="sm" onClick={handleSaveToken}>
-                            Save Token
-                        </Button>
-                    </div>
-                </CardContent>
-            </Card>
+            {/* MCP client credentials */}
+            <ApiKeysCard />
 
             {/* Interface Theme */}
             <Card>

@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import JSON, Boolean, DateTime, Integer, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.enums.server_enum import ServerHealthStatus, TransportType
@@ -18,8 +18,9 @@ class ServerModel(Base):
 
     __tablename__ = "mcp_servers"
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    name: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, server_default=text("gen_random_uuid()::text"))
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     transport: Mapped[str] = mapped_column(String(20), nullable=False)
     stdio_config: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
@@ -41,6 +42,8 @@ class ServerModel(Base):
         nullable=False,
     )
 
+    __table_args__ = (UniqueConstraint("user_id", "name", name="uq_mcp_servers_user_name"),)
+
     # Relationships to tools and executions
     tools = relationship("ToolModel", back_populates="server", cascade="all, delete-orphan")
     executions = relationship("ExecutionModel", back_populates="server", cascade="all, delete-orphan")
@@ -55,6 +58,7 @@ class ServerModel(Base):
             stdio_config=StdioConfig(**self.stdio_config) if self.stdio_config else None,
             http_config=HttpConfig(**self.http_config) if self.http_config else None,
             enabled=self.enabled,
+            user_id=UUID(self.user_id),
             health_status=ServerHealthStatus(self.health_status),
             last_connected_at=self.last_connected_at,
             last_health_check_at=self.last_health_check_at,
@@ -74,6 +78,7 @@ class ServerModel(Base):
             stdio_config=entity.stdio_config.model_dump() if entity.stdio_config else None,
             http_config=entity.http_config.model_dump() if entity.http_config else None,
             enabled=entity.enabled,
+            user_id=str(entity.user_id),
             health_status=entity.health_status.value if hasattr(entity.health_status, "value") else str(entity.health_status),
             last_connected_at=entity.last_connected_at,
             last_health_check_at=entity.last_health_check_at,

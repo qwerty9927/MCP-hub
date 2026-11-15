@@ -5,7 +5,7 @@
 - **Core Stack:** Next.js 15.2.1 (App Router), React 19.0.0, TypeScript 5.8.2.
 - **UI & Styling:** Tailwind CSS 3.4.19 with `tailwindcss-animate`, shadcn/ui (`slate` palette, CSS variables), Radix UI primitives, Lucide Icons (`lucide-react`), `next-themes` (Dark/Light), Sonner toasts.
 - **Data & State:** TanStack React Query v5 (`@tanstack/react-query`) for client-side caching/polling/mutations, Axios (`axios`) API client with correlation tracking, decoupled from backend. No Server Actions or Route Handlers; all data routes to FastAPI backend at `NEXT_PUBLIC_API_BASE_URL` (`http://localhost:8000/api/v1`).
-- **Auth:** Client-side token authentication hook stubbed in Axios interceptor (`sessionStorage.getItem("mcp_auth_token")` injected into `Authorization: Bearer <token>`). No local database or Next.js middleware.
+- **Auth:** Login and register pages under `src/app/(auth)/`. The console JWT lives in `sessionStorage["mcp_auth_token"]` (`src/lib/auth-token.ts`) and the Axios interceptor attaches it; any 401 outside `/auth/login|register` clears it and redirects to `/login?next=...`. `AuthGuard` (inside `DashboardShell`) shows the dashboard only after `/auth/me` succeeds. MCP clients use API keys managed in Settings, not this token.
 - **Package Manager:** `pnpm` (version `10.23.0`).
 
 ---
@@ -197,5 +197,4 @@ frontend/
 
 ## 9. Open Questions & Roadmap
 
-- **Authentication Strategy:** The frontend currently stubs JWT attachment via `sessionStorage.getItem("mcp_auth_token")`. Once the backend enables OAuth/JWT login endpoints, integrate authentication session management and login redirect gates.
-- **Unified MCP Gateway Live SSE:** Backend exposes SSE streams at `/mcp`. Live client notification handling (e.g. `notifications/tools/list_changed`) will be connected in future telemetry milestones.
+- **Authentication Strategy:** Console tokens expire with no refresh token; an expired token sends the user back to the login page. A refresh flow would avoid that.

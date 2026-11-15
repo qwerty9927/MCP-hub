@@ -6,31 +6,15 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 
-from app.api.dependencies import get_execution_repository
+from app.api.dependencies import get_current_principal, get_execution_repository
 from app.core.exceptions import NotFoundError
 from app.domain.execution_entity import ExecutionEntity
+from app.domain.principal_entity import Principal
 from app.infrastructure.repositories.execution_repository import ExecutionRepositoryAbstract
 from app.schemas.common_schema import PaginatedResponse
 from app.schemas.execution_schema import ExecutionResponse
 
 router = APIRouter(prefix="/executions", tags=["Executions"])
-
-
-def _to_response(execution: ExecutionEntity) -> ExecutionResponse:
-    """Map an Execution entity to its API response."""
-    return ExecutionResponse(
-        id=execution.id,
-        server_id=execution.server_id,
-        server_name=execution.server_name,
-        tool_name=execution.tool_name,
-        arguments=execution.arguments,
-        is_error=execution.is_error,
-        status=execution.status or ("failed" if execution.is_error else "completed"),
-        error_message=execution.error_message,
-        duration_ms=execution.duration_ms,
-        executed_at=execution.executed_at,
-        response=execution.response,
-    )
 
 
 @router.get(
@@ -39,6 +23,7 @@ def _to_response(execution: ExecutionEntity) -> ExecutionResponse:
     summary="List tool execution history",
 )
 async def list_executions(
+    principal: Annotated[Principal, Depends(get_current_principal)],
     repo: Annotated[ExecutionRepositoryAbstract, Depends(get_execution_repository)],
     server_id: UUID | None = Query(default=None, description="Filter by server UUID"),
     tool_name: str | None = Query(default=None, description="Filter by tool name"),
@@ -55,6 +40,7 @@ async def list_executions(
         status=status,
         page=page,
         page_size=page_size,
+        user_id=principal.user_id,
     )
 
     total_pages = math.ceil(total / page_size) if total > 0 else 0
@@ -75,13 +61,31 @@ async def list_executions(
 )
 async def get_execution(
     execution_id: UUID,
+    principal: Annotated[Principal, Depends(get_current_principal)],
     repo: Annotated[ExecutionRepositoryAbstract, Depends(get_execution_repository)],
 ) -> ExecutionResponse:
     """Retrieve a specific tool execution log entry by its UUID."""
-    record = await repo.get_by_id(execution_id)
+    record = await repo.get_by_id(execution_id, user_id=principal.user_id)
     if not record:
         raise NotFoundError(
             f"Execution with id '{execution_id}' not found",
             details={"execution_id": str(execution_id)},
         )
     return _to_response(record)
+
+
+def _to_response(execution: ExecutionEntity) -> ExecutionResponse:
+    """Map an Execution entity to its API response."""
+    return ExecutionResponse(
+        id=execution.id,
+        server_id=execution.server_id,
+        server_name=execution.server_name,
+        tool_name=execution.tool_name,
+        arguments=execution.arguments,
+        is_error=execution.is_error,
+        status=execution.status or ("failed" if execution.is_error else "completed"),
+        error_message=execution.error_message,
+        duration_ms=execution.duration_ms,
+        executed_at=execution.executed_at,
+        response=execution.response,
+    )

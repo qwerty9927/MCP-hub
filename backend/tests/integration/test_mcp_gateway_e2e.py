@@ -21,13 +21,14 @@ import httpx
 import pytest
 import uvicorn
 from mcp.client.session import ClientSession
-from mcp.client.streamable_http import streamable_http_client
+from mcp.client.streamable_http import create_mcp_http_client, streamable_http_client
 
 from app.core.constants.meta_tools import (
     MULTI_EXECUTE_TOOLS_NAME,
     SEARCH_TOOLS_NAME,
 )
 from app.main import app
+from tests.conftest import login_headers
 
 DEMO_SERVER_A = str(Path(__file__).resolve().parent.parent.parent / "demo_server" / "server.py")
 DEMO_SERVER_B = str(Path(__file__).resolve().parent.parent.parent / "demo_server" / "server_b.py")
@@ -69,6 +70,16 @@ async def test_mcp_gateway_e2e_two_servers_and_dynamic_lifecycle(
     server_mcp_url = f"{base_url}/mcp"
 
     async with httpx.AsyncClient(base_url=base_url, timeout=30.0) as rest_client:
+        # 0. Sign in, and give each MCP client its own API key
+        rest_client.headers.update(await login_headers(rest_client, "agent-owner@test.local"))
+        handshake_key = (await rest_client.post("/api/v1/auth/api-keys", json={"name": "handshake client"})).json()["key"]
+        sessionless_key = (await rest_client.post("/api/v1/auth/api-keys", json={"name": "sessionless client"})).json()["key"]
+
+        unauthenticated = await rest_client.post(
+            "/mcp", headers={"Authorization": ""}, json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
+        )
+        assert unauthenticated.status_code == 401
+
         # 1. Register Downstream Server A (math_server)
         resp_a = await rest_client.post(
             "/api/v1/servers",
@@ -114,13 +125,15 @@ async def test_mcp_gateway_e2e_two_servers_and_dynamic_lifecycle(
 
         # 4. Connect MCP Client to the Hub's /mcp Streamable HTTP endpoint
         async with (
-            streamable_http_client(server_mcp_url) as (read_stream, write_stream),
+            create_mcp_http_client(headers={"x-api-key": handshake_key}) as handshake_http,
+            streamable_http_client(server_mcp_url, http_client=handshake_http) as (read_stream, write_stream),
             ClientSession(read_stream, write_stream) as session,
         ):
             init_res = await session.initialize()
             assert init_res.server_info.name == "mcp-hub-server"
             assert init_res.capabilities.tools is not None
-            assert init_res.capabilities.tools.list_changed is True
+            # The tool list is fixed, so the hub advertises no list-change notifications.
+            assert init_res.capabilities.tools.list_changed is False
 
             # 5. List tools: strictly SEARCH_TOOLS and MULTI_EXECUTE_TOOLS
             tools_res = await session.list_tools()
@@ -217,7 +230,52 @@ async def test_mcp_gateway_e2e_two_servers_and_dynamic_lifecycle(
             slugs_re_enabled = [t["tool_slug"] for t in data_re_enabled["tools"]]
             assert "text_server__text_transform" in slugs_re_enabled
 
-        # 10. Verify execution audit logs in Hub database
+        # 10. A 2026-07-28 client: no initialize, no Mcp-Session-Id. The hub derives its session.
+        async with (
+            create_mcp_http_client(headers={"x-api-key": sessionless_key}) as sessionless_http,
+            streamable_http_client(server_mcp_url, http_client=sessionless_http) as (read_stream, write_stream),
+            ClientSession(read_stream, write_stream) as modern,
+        ):
+            await modern.discover()
+            assert len((await modern.list_tools()).tools) == 2
+            for expression in ("1 + 1", "2 * 3"):
+                call = await modern.call_tool(
+                    MULTI_EXECUTE_TOOLS_NAME,
+                    arguments={"executions": [{"tool_slug": "math_server__calculate", "arguments": {"expression": expression}}]},
+                )
+                assert json.loads(call.content[0].text)["results"][0]["status"] == "success"
+
+        # 11. Stateless /mcp (ADR-0004): a leftover Mcp-Session-Id is ignored rather than answered with
+        # 404 "Session not found", no initialize is needed, and there is no GET stream to open.
+        mcp_headers = {
+            "x-api-key": handshake_key,
+            "accept": "application/json, text/event-stream",
+            "mcp-protocol-version": "2025-11-25",
+        }
+        stale = await rest_client.post(
+            "/mcp",
+            headers={**mcp_headers, "mcp-session-id": "expired-session-from-before-a-restart"},
+            json={"jsonrpc": "2.0", "id": 7, "method": "tools/list"},
+        )
+        assert stale.status_code == 200, stale.text
+        assert "mcp-session-id" not in stale.headers
+        assert len(stale.json()["result"]["tools"]) == 2
+        assert (await rest_client.get("/mcp", headers=mcp_headers)).status_code == 405
+
+        sessions = (await rest_client.get("/api/v1/sessions")).json()["items"]
+        details = [(await rest_client.get(f"/api/v1/sessions/{s['id']}")).json() for s in sessions]
+        assert {d["metadata"]["session_source"] for d in details} == {"derived"}
+        # The modern client names itself in `_meta`; the handshake client's name died with its initialize,
+        # so its User-Agent identifies it. The raw request in step 11 only lists tools, and a Session opens on
+        # the first tool call (ADR-0005), so it leaves no Session.
+        named = [d for d in details if d["metadata"].get("client_name")]
+        unnamed = [d for d in details if not d["metadata"].get("client_name")]
+        assert len(named) == 1 and named[0]["total_tool_calls"] == 2
+        assert len(unnamed) == 1
+        assert unnamed[0]["total_tool_calls"] >= 2
+        assert unnamed[0]["metadata"]["user_agent"]
+
+        # 11. Verify execution audit logs in Hub database
         audit_res = await rest_client.get("/api/v1/executions")
         assert audit_res.status_code == 200
         audit_items = audit_res.json()["items"]

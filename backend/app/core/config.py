@@ -4,6 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Base directory for the backend package
@@ -50,8 +51,27 @@ class Settings(BaseSettings):
     # Database (PostgreSQL with asyncpg)
     DATABASE_URL: str
 
+    # Authentication
+    JWT_SECRET: str
+    ACCESS_TOKEN_EXPIRE_MINUTES: int
+    ALLOW_SELF_SIGNUP: bool
+
     # Observability
     LOG_LEVEL: str
+
+    @field_validator("JWT_SECRET")
+    @classmethod
+    def _jwt_secret_is_long_enough(cls, value: str) -> str:
+        if len(value) < 32:
+            raise ValueError("JWT_SECRET must be at least 32 characters")
+        return value
+
+    @field_validator("ACCESS_TOKEN_EXPIRE_MINUTES")
+    @classmethod
+    def _expiry_is_positive(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("ACCESS_TOKEN_EXPIRE_MINUTES must be positive")
+        return value
 
 
 @lru_cache

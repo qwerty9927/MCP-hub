@@ -4,6 +4,7 @@ import asyncio
 import inspect
 import json
 from typing import Annotated, Any
+from uuid import UUID
 
 from mcp.types import Tool
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
@@ -60,6 +61,23 @@ MULTI_EXECUTE_TOOLS_SCHEMA: dict[str, Any] = {
 }
 
 
+class ToolExecutionItem(BaseModel):
+    """Single tool execution specification for MULTI_EXECUTE_TOOLS."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    tool_slug: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    arguments: dict[str, Any] = Field(default_factory=dict)
+
+
+class MultiExecuteToolsInput(BaseModel):
+    """Pydantic validation schema for MULTI_EXECUTE_TOOLS arguments."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    executions: list[ToolExecutionItem] = Field(..., min_length=1)
+
+
 def get_multi_execute_tool_definition() -> Tool:
     """Return MCP Tool definition for MULTI_EXECUTE_TOOLS."""
     return Tool(
@@ -86,21 +104,48 @@ def get_multi_execute_tool_definition() -> Tool:
     )
 
 
-class ToolExecutionItem(BaseModel):
-    """Single tool execution specification for MULTI_EXECUTE_TOOLS."""
+async def execute_single_tool(
+    item: ToolExecutionItem,
+    executor: ToolExecutor,
+    user_id: UUID,
+    session_id: str | None = None,
+) -> dict[str, Any]:
+    """Execute one batch item through the Execution module, isolating any failure to this item."""
+    slug = item.tool_slug
 
-    model_config = ConfigDict(extra="forbid")
+    if slug in META_TOOL_NAMES or slug in ("Search", "Multi-Execute"):
+        return {
+            "tool_slug": slug,
+            "status": "error",
+            "data": None,
+            "error": f"Executing meta-tool '{slug}' via {MULTI_EXECUTE_TOOLS_NAME} is not permitted.",
+        }
 
-    tool_slug: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
-    arguments: dict[str, Any] = Field(default_factory=dict)
+    try:
+        outcome = await executor.execute(slug, item.arguments, user_id=user_id, session_id=session_id)
+    except Exception as exc:
+        logger.error(f"Unexpected error in multi-execute item '{slug}': {exc}")
+        return {"tool_slug": slug, "status": "error", "data": None, "error": format_mcp_error(exc)}
+    return _agent_result(outcome)
 
 
-class MultiExecuteToolsInput(BaseModel):
-    """Pydantic validation schema for MULTI_EXECUTE_TOOLS arguments."""
+async def handle_multi_execute_tools(
+    arguments: dict[str, Any],
+    executor: ToolExecutor,
+    user_id: UUID,
+    session_id: str | None = None,
+) -> dict[str, Any]:
+    """Execute MULTI_EXECUTE_TOOLS: validate the batch, fan out concurrently, isolate failures per item."""
+    try:
+        validated = MultiExecuteToolsInput.model_validate(arguments)
+    except PydanticValidationError as err:
+        raise ValidationError(
+            f"Invalid arguments for {MULTI_EXECUTE_TOOLS_NAME}: {err}",
+            details={"errors": err.errors()},
+        ) from err
 
-    model_config = ConfigDict(extra="forbid")
-
-    executions: list[ToolExecutionItem] = Field(..., min_length=1)
+    results = await asyncio.gather(*(execute_single_tool(item, executor, user_id, session_id) for item in validated.executions))
+    return {"results": list(results)}
 
 
 def _agent_data(content: list[dict[str, Any]]) -> Any:
@@ -130,45 +175,3 @@ def _agent_result(outcome: ExecutionOutcome) -> dict[str, Any]:
             "error": f"Argument validation failed: {outcome.error_message}",
         }
     return {"tool_slug": slug, "status": "error", "data": None, "error": outcome.error_message}
-
-
-async def execute_single_tool(
-    item: ToolExecutionItem,
-    executor: ToolExecutor,
-    session_id: str | None = None,
-) -> dict[str, Any]:
-    """Execute one batch item through the Execution module, isolating any failure to this item."""
-    slug = item.tool_slug
-
-    if slug in META_TOOL_NAMES or slug in ("Search", "Multi-Execute"):
-        return {
-            "tool_slug": slug,
-            "status": "error",
-            "data": None,
-            "error": f"Executing meta-tool '{slug}' via {MULTI_EXECUTE_TOOLS_NAME} is not permitted.",
-        }
-
-    try:
-        outcome = await executor.execute(slug, item.arguments, session_id=session_id)
-    except Exception as exc:
-        logger.error(f"Unexpected error in multi-execute item '{slug}': {exc}")
-        return {"tool_slug": slug, "status": "error", "data": None, "error": format_mcp_error(exc)}
-    return _agent_result(outcome)
-
-
-async def handle_multi_execute_tools(
-    arguments: dict[str, Any],
-    executor: ToolExecutor,
-    session_id: str | None = None,
-) -> dict[str, Any]:
-    """Execute MULTI_EXECUTE_TOOLS: validate the batch, fan out concurrently, isolate failures per item."""
-    try:
-        validated = MultiExecuteToolsInput.model_validate(arguments)
-    except PydanticValidationError as err:
-        raise ValidationError(
-            f"Invalid arguments for {MULTI_EXECUTE_TOOLS_NAME}: {err}",
-            details={"errors": err.errors()},
-        ) from err
-
-    results = await asyncio.gather(*(execute_single_tool(item, executor, session_id) for item in validated.executions))
-    return {"results": list(results)}

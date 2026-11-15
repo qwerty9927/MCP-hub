@@ -20,12 +20,12 @@ from app.schemas.server_schema import (
 class ServerRegistryService:
     """Manages MCP server registrations, updates, and persistence."""
 
-    def __init__(self, repository: ServerRepositoryAbstract) -> None:
-        self.repository = repository
+    def __init__(self, server_repository: ServerRepositoryAbstract) -> None:
+        self.server_repository = server_repository
 
-    async def create_server(self, data: ServerCreateRequest) -> ServerResponse:
-        """Register a new MCP server configuration."""
-        existing = await self.repository.get_by_name(data.name)
+    async def create_server(self, data: ServerCreateRequest, *, user_id: UUID) -> ServerResponse:
+        """Register a new MCP server configuration owned by `user_id`."""
+        existing = await self.server_repository.get_by_name(data.name, user_id=user_id)
         if existing:
             raise ConflictError(
                 f"A server with name '{data.name}' already exists",
@@ -39,21 +39,22 @@ class ServerRegistryService:
             stdio_config=data.stdio_config,
             http_config=data.http_config,
             enabled=data.enabled,
+            user_id=user_id,
             health_status=ServerHealthStatus.UNKNOWN,
         )
 
-        saved = await self.repository.create(server)
+        saved = await self.server_repository.create(server)
         logger.info(f"Registered MCP server '{saved.name}' (id: {saved.id}, transport: {saved.transport})")
         return ServerResponse.from_domain(saved)
 
-    async def get_server(self, server_id: UUID) -> ServerResponse:
-        """Retrieve server by ID or raise NotFoundError."""
-        entity = await self.get_server_entity(server_id)
+    async def get_server(self, server_id: UUID, *, user_id: UUID) -> ServerResponse:
+        """Retrieve the owner's server by ID or raise NotFoundError."""
+        entity = await self.get_server_entity(server_id, user_id=user_id)
         return ServerResponse.from_domain(entity)
 
-    async def get_server_entity(self, server_id: UUID) -> ServerEntity:
-        """Internal helper to get raw domain entity."""
-        server = await self.repository.get_by_id(server_id)
+    async def get_server_entity(self, server_id: UUID, *, user_id: UUID) -> ServerEntity:
+        """Get the raw entity; with `user_id`, a server owned by anyone else is NotFound (no existence leak)."""
+        server = await self.server_repository.get_by_id(server_id, user_id=user_id)
         if not server:
             raise NotFoundError(
                 f"Server with id '{server_id}' not found",
@@ -71,9 +72,11 @@ class ServerRegistryService:
         search: str | None = None,
         sort_by: str = "created_at",
         sort_order: str = "desc",
+        *,
+        user_id: UUID,
     ) -> PaginatedResponse[ServerResponse]:
         """List servers with pagination, filtering, and sorting."""
-        items, total = await self.repository.list(
+        items, total = await self.server_repository.list(
             page=page,
             page_size=page_size,
             enabled=enabled,
@@ -82,6 +85,7 @@ class ServerRegistryService:
             search=search,
             sort_by=sort_by,
             sort_order=sort_order,
+            user_id=user_id,
         )
 
         read_items = [ServerResponse.from_domain(s) for s in items]
@@ -95,13 +99,13 @@ class ServerRegistryService:
             total_pages=total_pages,
         )
 
-    async def update_server(self, server_id: UUID, data: ServerUpdateRequest) -> ServerResponse:
+    async def update_server(self, server_id: UUID, data: ServerUpdateRequest, *, user_id: UUID) -> ServerResponse:
         """Update an existing server's configuration."""
-        server = await self.get_server_entity(server_id)
+        server = await self.get_server_entity(server_id, user_id=user_id)
 
         # Check name uniqueness if changed
         if data.name and data.name.lower() != server.name.lower():
-            existing = await self.repository.get_by_name(data.name)
+            existing = await self.server_repository.get_by_name(data.name, user_id=server.user_id)
             if existing and existing.id != server_id:
                 raise ConflictError(
                     f"A server with name '{data.name}' already exists",
@@ -121,14 +125,14 @@ class ServerRegistryService:
             server.enabled = data.enabled
 
         server.updated_at = datetime.now(UTC)
-        updated = await self.repository.update(server)
+        updated = await self.server_repository.update(server)
         logger.info(f"Updated MCP server '{updated.name}' (id: {updated.id})")
         return ServerResponse.from_domain(updated)
 
-    async def delete_server(self, server_id: UUID) -> bool:
-        """Delete an MCP server from the registry."""
-        server = await self.get_server_entity(server_id)
-        deleted = await self.repository.delete(server_id)
+    async def delete_server(self, server_id: UUID, *, user_id: UUID) -> bool:
+        """Delete the owner's MCP server from the registry."""
+        server = await self.get_server_entity(server_id, user_id=user_id)
+        deleted = await self.server_repository.delete(server_id)
         if deleted:
             logger.info(f"Deleted MCP server '{server.name}' (id: {server_id})")
         return deleted
@@ -138,16 +142,18 @@ class ServerRegistryService:
         server_id: UUID,
         status: ServerHealthStatus,
         discovered_tool_count: int | None = None,
+        *,
+        user_id: UUID,
     ) -> None:
-        """Update server health and check timestamp."""
+        """Update the owner's server health and check timestamp."""
         try:
-            server = await self.get_server_entity(server_id)
+            server = await self.get_server_entity(server_id, user_id=user_id)
             server.health_status = status
             server.last_health_check_at = datetime.now(UTC)
             if status == ServerHealthStatus.HEALTHY:
                 server.last_connected_at = datetime.now(UTC)
             if discovered_tool_count is not None:
                 server.discovered_tool_count = discovered_tool_count
-            await self.repository.update(server)
+            await self.server_repository.update(server)
         except NotFoundError:
             pass
