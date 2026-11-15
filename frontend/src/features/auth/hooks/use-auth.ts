@@ -60,12 +60,28 @@ export function useApiKeys() {
 export function useCreateApiKey() {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: (name: string) => authApi.createApiKey(name),
+        mutationFn: ({ name, sessionIdleMinutes = null }: { name: string; sessionIdleMinutes?: number | null }) =>
+            authApi.createApiKey(name, sessionIdleMinutes),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: API_KEYS_QUERY_KEY });
         },
         onError: (err: AppApiError) => {
             toast.error(err.message || "Failed to create API key");
+        },
+    });
+}
+
+export function useUpdateApiKey() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ keyId, sessionIdleMinutes }: { keyId: string; sessionIdleMinutes: number | null }) =>
+            authApi.updateApiKey(keyId, sessionIdleMinutes),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: API_KEYS_QUERY_KEY });
+            toast.success("Session idle timeout updated");
+        },
+        onError: (err: AppApiError) => {
+            toast.error(err.message || "Failed to update API key");
         },
     });
 }

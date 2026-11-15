@@ -272,6 +272,8 @@ export interface ApiKeyRead {
     created_at: string;
     last_used_at?: string | null;
     revoked_at?: string | null;
+    /** Minutes without a tool call before a Session opened with this key is completed; null = the 30-minute default. Not key expiry. */
+    session_idle_minutes?: number | null;
 }
 
 /** Returned once, on creation: the only time the full key is available. */

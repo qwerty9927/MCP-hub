@@ -14,8 +14,20 @@ export const authApi = {
     listApiKeys: async (signal?: AbortSignal): Promise<ApiKeyRead[]> => {
         return apiClient<ApiKeyRead[]>({ url: "/auth/api-keys", method: "GET", signal });
     },
-    createApiKey: async (name: string): Promise<ApiKeyCreated> => {
-        return apiClient<ApiKeyCreated>({ url: "/auth/api-keys", method: "POST", data: { name } });
+    createApiKey: async (name: string, sessionIdleMinutes: number | null = null): Promise<ApiKeyCreated> => {
+        return apiClient<ApiKeyCreated>({
+            url: "/auth/api-keys",
+            method: "POST",
+            data: { name, session_idle_minutes: sessionIdleMinutes },
+        });
+    },
+    /** Change how long a Session opened with this key may sit idle (null = default). Applies to Sessions opened afterwards. */
+    updateApiKey: async (keyId: string, sessionIdleMinutes: number | null): Promise<ApiKeyRead> => {
+        return apiClient<ApiKeyRead>({
+            url: `/auth/api-keys/${keyId}`,
+            method: "PATCH",
+            data: { session_idle_minutes: sessionIdleMinutes },
+        });
     },
     revokeApiKey: async (keyId: string): Promise<void> => {
         return apiClient<void>({ url: `/auth/api-keys/${keyId}`, method: "DELETE" });

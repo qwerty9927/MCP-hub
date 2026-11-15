@@ -26,6 +26,7 @@ vi.mock("@/lib/api", () => ({
         me: vi.fn(),
         listApiKeys: vi.fn(),
         createApiKey: vi.fn(),
+        updateApiKey: vi.fn(),
         revokeApiKey: vi.fn(),
     },
 }));
@@ -204,9 +205,63 @@ describe("ApiKeysCard", () => {
             fireEvent.click(screen.getByRole("button", { name: /Generate key/ }));
         });
 
-        expect(authApi.createApiKey).toHaveBeenCalledWith("cursor");
+        expect(authApi.createApiKey).toHaveBeenCalledWith("cursor", null);
         expect(await screen.findByLabelText("New API key")).toHaveValue("mhk_new1-full-secret");
         expect(screen.getByText(/only time it is shown/)).toBeInTheDocument();
         expect(JSON.parse(mcpClientConfig("mhk_x")).mcpServers["mcp-hub"].headers).toEqual({ "x-api-key": "mhk_x" });
+    });
+
+    it("sends the session idle timeout chosen at creation and rejects an out-of-range one", async () => {
+        vi.mocked(authApi.listApiKeys).mockResolvedValue([]);
+        vi.mocked(authApi.createApiKey).mockResolvedValue({
+            id: "k4",
+            name: "script",
+            key_prefix: "mhk_new2",
+            key: "mhk_new2-full-secret",
+            created_at: "2026-11-12T00:00:00Z",
+            session_idle_minutes: 5,
+        });
+        renderWithClient(<ApiKeysCard />);
+        await screen.findByText("No API keys yet.");
+
+        fireEvent.change(screen.getByLabelText("Key name"), { target: { value: "script" } });
+        fireEvent.change(screen.getByLabelText("Session idle timeout (minutes)"), { target: { value: "2000" } });
+        await act(async () => {
+            fireEvent.click(screen.getByRole("button", { name: /Generate key/ }));
+        });
+        expect(await screen.findByText(/Whole minutes from 1 to 1440/)).toBeInTheDocument();
+        expect(authApi.createApiKey).not.toHaveBeenCalled();
+
+        fireEvent.change(screen.getByLabelText("Session idle timeout (minutes)"), { target: { value: "5" } });
+        await act(async () => {
+            fireEvent.click(screen.getByRole("button", { name: /Generate key/ }));
+        });
+        expect(authApi.createApiKey).toHaveBeenCalledWith("script", 5);
+    });
+
+    it("shows each key's session idle timeout and edits it inline", async () => {
+        vi.mocked(authApi.listApiKeys).mockResolvedValue([
+            { id: "k1", name: "laptop Claude", key_prefix: "mhk_abcd", created_at: "2026-11-10T00:00:00Z", session_idle_minutes: null },
+            { id: "k2", name: "ci", key_prefix: "mhk_efgh", created_at: "2026-11-11T00:00:00Z", session_idle_minutes: 15 },
+        ]);
+        vi.mocked(authApi.updateApiKey).mockResolvedValue({
+            id: "k1",
+            name: "laptop Claude",
+            key_prefix: "mhk_abcd",
+            created_at: "2026-11-10T00:00:00Z",
+            session_idle_minutes: 45,
+        });
+        renderWithClient(<ApiKeysCard />);
+
+        expect(await screen.findByText("30 min (default)")).toBeInTheDocument();
+        expect(screen.getByText("15 min")).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: "Edit session idle timeout of laptop Claude" }));
+        fireEvent.change(screen.getByLabelText("Session idle timeout of laptop Claude (minutes)"), { target: { value: "45" } });
+        await act(async () => {
+            fireEvent.click(screen.getByRole("button", { name: "Save" }));
+        });
+
+        await waitFor(() => expect(authApi.updateApiKey).toHaveBeenCalledWith("k1", 45));
     });
 });

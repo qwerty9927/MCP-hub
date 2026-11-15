@@ -13,10 +13,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useApiKeys, useCreateApiKey, useRevokeApiKey } from "@/features/auth/hooks/use-auth";
+import { useApiKeys, useCreateApiKey, useRevokeApiKey, useUpdateApiKey } from "@/features/auth/hooks/use-auth";
 import { formatDate } from "@/lib/utils";
-import { ApiKeyFormValues, apiKeySchema } from "@/schemas/auth.schema";
-import { ApiKeyCreated } from "@/types";
+import {
+    ApiKeyFormValues,
+    apiKeySchema,
+    DEFAULT_SESSION_IDLE_MINUTES,
+    parseIdleMinutes,
+    sessionIdleMinutesField,
+} from "@/schemas/auth.schema";
+import { ApiKeyCreated, ApiKeyRead } from "@/types";
 
 function mcpEndpoint(): string {
     const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
@@ -25,6 +31,77 @@ function mcpEndpoint(): string {
 
 export function mcpClientConfig(key: string): string {
     return JSON.stringify({ mcpServers: { "mcp-hub": { type: "http", url: mcpEndpoint(), headers: { "x-api-key": key } } } }, null, 2);
+}
+
+export function sessionIdleLabel(minutes: number | null | undefined): string {
+    return minutes ? `${minutes} min` : `${DEFAULT_SESSION_IDLE_MINUTES} min (default)`;
+}
+
+/** Shows a key's Session idle timeout; active keys can change it inline (applies to Sessions opened afterwards). */
+function SessionIdleCell({ apiKey }: { apiKey: ApiKeyRead }) {
+    const updateKey = useUpdateApiKey();
+    const [editing, setEditing] = useState(false);
+    const [value, setValue] = useState("");
+    const [error, setError] = useState<string | null>(null);
+
+    if (!editing || apiKey.revoked_at) {
+        return (
+            <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">{sessionIdleLabel(apiKey.session_idle_minutes)}</span>
+                {!apiKey.revoked_at && (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        aria-label={`Edit session idle timeout of ${apiKey.name}`}
+                        onClick={() => {
+                            setValue(apiKey.session_idle_minutes ? String(apiKey.session_idle_minutes) : "");
+                            setError(null);
+                            setEditing(true);
+                        }}
+                    >
+                        Edit
+                    </Button>
+                )}
+            </div>
+        );
+    }
+
+    const save = async () => {
+        const parsed = sessionIdleMinutesField.safeParse(value);
+        if (!parsed.success) {
+            setError(parsed.error.issues[0]?.message ?? "Invalid value");
+            return;
+        }
+        try {
+            await updateKey.mutateAsync({ keyId: apiKey.id, sessionIdleMinutes: parseIdleMinutes(parsed.data) });
+            setEditing(false);
+        } catch {
+            // Toast from the hook
+        }
+    };
+
+    return (
+        <div className="space-y-1">
+            <div className="flex items-center gap-1">
+                <Input
+                    value={value}
+                    onChange={(e) => setValue(e.target.value)}
+                    inputMode="numeric"
+                    placeholder={`${DEFAULT_SESSION_IDLE_MINUTES} (default)`}
+                    className="h-7 w-24 text-xs"
+                    aria-label={`Session idle timeout of ${apiKey.name} (minutes)`}
+                />
+                <Button size="sm" className="h-7 px-2 text-xs" onClick={save} disabled={updateKey.isPending}>
+                    Save
+                </Button>
+                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setEditing(false)}>
+                    Cancel
+                </Button>
+            </div>
+            {error && <p className="text-xs text-destructive">{error}</p>}
+        </div>
+    );
 }
 
 function CopyButton({ value, label }: { value: string; label: string }) {
@@ -57,11 +134,11 @@ export function ApiKeysCard() {
         handleSubmit,
         reset,
         formState: { errors },
-    } = useForm<ApiKeyFormValues>({ resolver: zodResolver(apiKeySchema), defaultValues: { name: "" } });
+    } = useForm<ApiKeyFormValues>({ resolver: zodResolver(apiKeySchema), defaultValues: { name: "", sessionIdleMinutes: "" } });
 
-    const onCreate = handleSubmit(async ({ name }) => {
+    const onCreate = handleSubmit(async ({ name, sessionIdleMinutes }) => {
         try {
-            setCreated(await createKey.mutateAsync(name));
+            setCreated(await createKey.mutateAsync({ name, sessionIdleMinutes: parseIdleMinutes(sessionIdleMinutes) }));
             reset();
         } catch {
             // Toast from the hook
@@ -89,11 +166,28 @@ export function ApiKeysCard() {
                         <Input id="api-key-name" placeholder="e.g. laptop Claude" {...register("name")} />
                         {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
                     </div>
+                    <div className="space-y-1 sm:w-56">
+                        <Label htmlFor="api-key-idle" className="sr-only">
+                            Session idle timeout (minutes)
+                        </Label>
+                        <Input
+                            id="api-key-idle"
+                            inputMode="numeric"
+                            placeholder={`Session idle, min (default ${DEFAULT_SESSION_IDLE_MINUTES})`}
+                            aria-describedby="api-key-idle-help"
+                            {...register("sessionIdleMinutes")}
+                        />
+                        {errors.sessionIdleMinutes && <p className="text-xs text-destructive">{errors.sessionIdleMinutes.message}</p>}
+                    </div>
                     <Button type="submit" size="sm" className="h-9 gap-1.5" disabled={createKey.isPending}>
                         {createKey.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
                         Generate key
                     </Button>
                 </form>
+                <p id="api-key-idle-help" className="text-xs text-muted-foreground">
+                    Session idle timeout is not the key&apos;s expiry: a session opened with this key is marked completed after this many
+                    minutes without a tool call. Leave empty for {DEFAULT_SESSION_IDLE_MINUTES} minutes.
+                </p>
 
                 {isLoading ? (
                     <Skeleton className="h-20 w-full" />
@@ -108,6 +202,7 @@ export function ApiKeysCard() {
                                     <TableHead>Key</TableHead>
                                     <TableHead>Created</TableHead>
                                     <TableHead>Last used</TableHead>
+                                    <TableHead>Session idle</TableHead>
                                     <TableHead className="text-right">Action</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -118,6 +213,9 @@ export function ApiKeysCard() {
                                         <TableCell className="font-mono text-xs text-muted-foreground">{key.key_prefix}…</TableCell>
                                         <TableCell className="text-xs text-muted-foreground">{formatDate(key.created_at)}</TableCell>
                                         <TableCell className="text-xs text-muted-foreground">{formatDate(key.last_used_at)}</TableCell>
+                                        <TableCell className="text-xs">
+                                            <SessionIdleCell apiKey={key} />
+                                        </TableCell>
                                         <TableCell className="text-right">
                                             {key.revoked_at ? (
                                                 <Badge variant="outline">Revoked</Badge>
