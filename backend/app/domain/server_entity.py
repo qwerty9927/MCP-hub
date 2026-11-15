@@ -14,12 +14,12 @@ class ServerEntity:
 
     name: str
     transport: TransportType
+    user_id: UUID  # the owning account
     id: UUID = field(default_factory=uuid4)
     description: str | None = None
     stdio_config: StdioConfig | None = None
     http_config: HttpConfig | None = None
     enabled: bool = True
-    owner_id: UUID | None = None
     health_status: ServerHealthStatus = ServerHealthStatus.UNKNOWN
     last_connected_at: datetime | None = None
     last_health_check_at: datetime | None = None

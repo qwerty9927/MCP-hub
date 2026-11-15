@@ -13,7 +13,6 @@ from app.infrastructure.repositories.execution_repository import (
     ExecutionRepositoryAbstract,
     PostgresExecutionRepository,
 )
-from app.infrastructure.repositories.ownership_repository import OwnershipRepositoryAbstract, PostgresOwnershipRepository
 from app.infrastructure.repositories.server_repository import (
     PostgresServerRepository,
     ServerRepositoryAbstract,
@@ -43,7 +42,6 @@ _execution_repo: ExecutionRepositoryAbstract = PostgresExecutionRepository()
 _session_repo: SessionRepositoryAbstract = PostgresSessionRepository()
 _user_repo: UserRepositoryAbstract = PostgresUserRepository()
 _api_key_repo: ApiKeyRepositoryAbstract = PostgresApiKeyRepository()
-_ownership_repo: OwnershipRepositoryAbstract = PostgresOwnershipRepository()
 _connection_manager = ConnectionManager()
 _mcp_server: MCPServer | None = None
 
@@ -72,7 +70,7 @@ def get_session_repository() -> SessionRepositoryAbstract:
 
 def get_auth_service() -> AuthService:
     """Return the account and API key service."""
-    return AuthService(user_repository=_user_repo, api_key_repository=_api_key_repo, ownership_repository=_ownership_repo)
+    return AuthService(user_repository=_user_repo, api_key_repository=_api_key_repo)
 
 
 async def get_current_principal(

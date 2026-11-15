@@ -25,7 +25,7 @@ class ToolModel(Base):
         nullable=False,
     )
     server_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    owner_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
     name: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     input_schema: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
@@ -45,7 +45,7 @@ class ToolModel(Base):
             id=self.id,
             server_id=UUID(self.server_id),
             server_name=self.server_name,
-            owner_id=UUID(self.owner_id) if self.owner_id else None,
+            user_id=UUID(self.user_id),
             name=self.name,
             description=self.description,
             input_schema=self.input_schema or {},
@@ -60,7 +60,7 @@ class ToolModel(Base):
             id=entity.id,
             server_id=str(entity.server_id),
             server_name=entity.server_name,
-            owner_id=str(entity.owner_id) if entity.owner_id else None,
+            user_id=str(entity.user_id),
             name=entity.name,
             description=entity.description,
             input_schema=entity.input_schema or {},

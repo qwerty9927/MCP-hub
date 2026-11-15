@@ -240,11 +240,11 @@ class MCPServer:
         """Handle execution of Search based on mcp_servers and discovered_tools."""
         try:
             # Fetch enabled servers from mcp_servers table
-            servers_res = await self.server_registry.list_servers(page=1, page_size=1000, enabled=True, owner_id=principal.user_id)
+            servers_res = await self.server_registry.list_servers(page=1, page_size=1000, enabled=True, user_id=principal.user_id)
             enabled_server_ids = {s.id for s in servers_res.items}
 
             # Fetch discovered tools from discovered_tools table
-            all_tools_res = await self.tool_catalog.list_tools(page=1, page_size=1000, owner_id=principal.user_id)
+            all_tools_res = await self.tool_catalog.list_tools(page=1, page_size=1000, user_id=principal.user_id)
             candidate_tools = [t for t in all_tools_res.items if t.server_id in enabled_server_ids and t.availability_status == "AVAILABLE"]
 
             result_dict = handle_search_tools(
@@ -294,7 +294,7 @@ class MCPServer:
             result_dict = await handle_multi_execute_tools(
                 arguments=arguments or {},
                 executor=self.tool_executor,
-                owner_id=principal.user_id,
+                user_id=principal.user_id,
                 session_id=session_id,
             )
             return CallToolResult(

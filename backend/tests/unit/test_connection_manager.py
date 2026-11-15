@@ -10,6 +10,8 @@ from app.core.enums.server_enum import TransportType
 from app.domain.server_entity import ServerEntity
 from app.services.connection_manager import ConnectionManager
 
+USER_ID = uuid4()  # owner for entities in these mock-only tests
+
 
 class FakeSession:
     def __init__(self) -> None:
@@ -60,7 +62,7 @@ def manager(monkeypatch: pytest.MonkeyPatch) -> ConnectionManager:
 
 
 def make_server(name: str) -> ServerEntity:
-    return ServerEntity(id=uuid4(), name=name, transport=TransportType.STDIO)
+    return ServerEntity(id=uuid4(), name=name, transport=TransportType.STDIO, user_id=USER_ID)
 
 
 async def test_slow_connect_does_not_block_other_servers(manager: ConnectionManager):

@@ -74,7 +74,7 @@ class SessionTrackerService:
                     if now - current.last_activity_at > timedelta(seconds=ACTIVITY_REFRESH_SECONDS):
                         await self._sessions.update_activity(current.id, now)
                     return current.id
-                await self._sessions.update_status(current.id, SessionStatus.COMPLETED, owner_id=principal.user_id)
+                await self._sessions.update_status(current.id, SessionStatus.COMPLETED, user_id=principal.user_id)
 
             session_id = uuid4().hex
             await self._sessions.create(
@@ -85,7 +85,7 @@ class SessionTrackerService:
                     metadata=_metadata(client),
                     created_at=now,
                     last_activity_at=now,
-                    owner_id=principal.user_id,
+                    user_id=principal.user_id,
                     api_key_id=principal.api_key_id,
                     client_fingerprint=fingerprint,
                     idle_timeout_seconds=effective_idle_seconds(principal.session_idle_seconds),

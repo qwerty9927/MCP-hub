@@ -15,16 +15,16 @@ SERVER = {"name": "math", "transport": "stdio", "stdio_config": {"command": "pyt
 
 
 @pytest.fixture
-async def owned(async_client, owner_id):
+async def owned(async_client, user_id):
     """A server with one tool, one execution and one session, all belonging to the default account."""
     from datetime import UTC, datetime
     from uuid import uuid4
 
     server = (await async_client.post("/api/v1/servers", json=SERVER)).json()
     server_id = UUID(server["id"])
-    tool = ToolEntity(id=f"{server_id}:add", server_id=server_id, server_name="math", name="add", input_schema={}, owner_id=owner_id)
+    tool = ToolEntity(id=f"{server_id}:add", server_id=server_id, server_name="math", name="add", input_schema={}, user_id=user_id)
     await PostgresToolRepository().save_server_tools(server_id, "math", [tool])
-    session = await PostgresSessionRepository().create(SessionEntity(id=uuid4().hex, title="mine", owner_id=owner_id))
+    session = await PostgresSessionRepository().create(SessionEntity(id=uuid4().hex, title="mine", user_id=user_id))
     execution = await PostgresExecutionRepository().create(
         ExecutionEntity(
             id=uuid4(),
@@ -112,21 +112,3 @@ async def test_probes_stay_open(anon_client):
     assert (await anon_client.get("/health")).status_code == 200
     assert (await anon_client.get("/api/v1/system/health")).status_code == 200
     assert (await anon_client.get("/ready")).status_code == 200
-
-
-async def test_first_account_claims_pre_existing_servers(anon_client):
-    from app.core.enums.server_enum import TransportType
-    from app.domain.server_entity import ServerEntity
-    from app.infrastructure.repositories.server_repository import PostgresServerRepository
-    from app.schemas.connection_schema import StdioConfig
-    from tests.conftest import login_headers
-
-    legacy = await PostgresServerRepository().create(
-        ServerEntity(name="legacy", transport=TransportType.STDIO, stdio_config=StdioConfig(command="python3"))
-    )
-
-    first = await login_headers(anon_client, "first@test.local")
-    second = await login_headers(anon_client, "second@test.local")
-
-    assert (await anon_client.get(f"/api/v1/servers/{legacy.id}", headers=first)).status_code == 200
-    assert (await anon_client.get(f"/api/v1/servers/{legacy.id}", headers=second)).status_code == 404

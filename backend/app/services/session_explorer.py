@@ -36,7 +36,7 @@ class SessionExplorerService:
         self.session_repo = session_repository
         self.execution_repo = execution_repository
 
-    async def create_session(self, payload: SessionCreateRequest, *, owner_id: UUID | None) -> SessionResponse:
+    async def create_session(self, payload: SessionCreateRequest, *, user_id: UUID) -> SessionResponse:
         """Explicitly create a new session."""
         session_id = uuid4().hex
         entity = SessionEntity(
@@ -44,7 +44,7 @@ class SessionExplorerService:
             title=payload.title or f"Session {session_id[:8]}",
             status=SessionStatus.ACTIVE,
             metadata=payload.metadata,
-            owner_id=owner_id,
+            user_id=user_id,
         )
         created = await self.session_repo.create(entity)
         return SessionResponse(
@@ -63,7 +63,7 @@ class SessionExplorerService:
         search: str | None = None,
         status: str | None = None,
         *,
-        owner_id: UUID | None,
+        user_id: UUID,
     ) -> PaginatedResponse[SessionResponse]:
         """Retrieve paginated sessions with optional search and status filtering."""
         items, total = await self.session_repo.list(
@@ -71,7 +71,7 @@ class SessionExplorerService:
             page_size=page_size,
             search=search,
             status=status,
-            owner_id=owner_id,
+            user_id=user_id,
         )
 
         records = [
@@ -96,9 +96,9 @@ class SessionExplorerService:
             total_pages=total_pages,
         )
 
-    async def get_session(self, session_id: str, *, owner_id: UUID | None) -> SessionDetailResponse:
+    async def get_session(self, session_id: str, *, user_id: UUID) -> SessionDetailResponse:
         """Retrieve detailed session view by ID including aggregated metrics."""
-        detail = await self.session_repo.get_by_id(session_id, owner_id=owner_id)
+        detail = await self.session_repo.get_by_id(session_id, user_id=user_id)
         if not detail:
             raise NotFoundError(
                 f"Session with id '{session_id}' not found",
@@ -129,11 +129,11 @@ class SessionExplorerService:
         server_name: str | None = None,
         tool_name: str | None = None,
         *,
-        owner_id: UUID | None,
+        user_id: UUID,
     ) -> PaginatedResponse[ToolCallResponse]:
         """Retrieve all tool calls belonging to a session in chronological order."""
         # 1. Verify session exists
-        session = await self.session_repo.get_by_id(session_id, owner_id=owner_id)
+        session = await self.session_repo.get_by_id(session_id, user_id=user_id)
         if not session:
             raise NotFoundError(
                 f"Session with id '{session_id}' not found",
@@ -179,10 +179,10 @@ class SessionExplorerService:
             total_pages=total_pages,
         )
 
-    async def get_session_tool_call(self, session_id: str, call_id: UUID, *, owner_id: UUID | None) -> ToolCallResponse:
+    async def get_session_tool_call(self, session_id: str, call_id: UUID, *, user_id: UUID) -> ToolCallResponse:
         """Retrieve a specific tool call within a session."""
         # 1. Verify session exists
-        session = await self.session_repo.get_by_id(session_id, owner_id=owner_id)
+        session = await self.session_repo.get_by_id(session_id, user_id=user_id)
         if not session:
             raise NotFoundError(
                 f"Session with id '{session_id}' not found",

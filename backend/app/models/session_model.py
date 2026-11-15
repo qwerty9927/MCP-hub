@@ -20,7 +20,7 @@ class SessionModel(Base):
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     title: Mapped[str | None] = mapped_column(String(255), index=True, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="active", index=True, nullable=False)
-    owner_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=True)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
     api_key_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("api_keys.id", ondelete="SET NULL"), nullable=True)
     client_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
     idle_timeout_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -38,7 +38,7 @@ class SessionModel(Base):
     )
 
     __table_args__ = (
-        Index("ix_mcp_sessions_owner_fingerprint_activity", "owner_id", "client_fingerprint", "last_activity_at"),
+        Index("ix_mcp_sessions_user_fingerprint_activity", "user_id", "client_fingerprint", "last_activity_at"),
         # The background job's lookup of active Sessions by idle time.
         Index("ix_mcp_sessions_status_activity", "status", "last_activity_at"),
     )
@@ -60,7 +60,7 @@ class SessionModel(Base):
             created_at=self.created_at,
             last_activity_at=self.last_activity_at,
             total_tool_calls=total_tool_calls,
-            owner_id=UUID(self.owner_id) if self.owner_id else None,
+            user_id=UUID(self.user_id),
             api_key_id=UUID(self.api_key_id) if self.api_key_id else None,
             client_fingerprint=self.client_fingerprint,
             idle_timeout_seconds=self.idle_timeout_seconds,
@@ -76,7 +76,7 @@ class SessionModel(Base):
             metadata_json=entity.metadata,
             created_at=entity.created_at,
             last_activity_at=entity.last_activity_at,
-            owner_id=str(entity.owner_id) if entity.owner_id else None,
+            user_id=str(entity.user_id),
             api_key_id=str(entity.api_key_id) if entity.api_key_id else None,
             client_fingerprint=entity.client_fingerprint,
             idle_timeout_seconds=entity.idle_timeout_seconds,

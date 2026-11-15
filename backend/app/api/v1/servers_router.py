@@ -40,7 +40,7 @@ async def create_server(
     registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
 ) -> ServerResponse:
     """Register an MCP server with stdio or streamable-http transport."""
-    return await registry.create_server(payload, owner_id=principal.user_id)
+    return await registry.create_server(payload, user_id=principal.user_id)
 
 
 @router.get(
@@ -70,7 +70,7 @@ async def list_servers(
         search=search,
         sort_by=sort_by,
         sort_order=sort_order,
-        owner_id=principal.user_id,
+        user_id=principal.user_id,
     )
 
 
@@ -85,7 +85,7 @@ async def get_server(
     registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
 ) -> ServerResponse:
     """Get complete configuration and status of an MCP server by ID."""
-    return await registry.get_server(server_id, owner_id=principal.user_id)
+    return await registry.get_server(server_id, user_id=principal.user_id)
 
 
 @router.patch(
@@ -100,7 +100,7 @@ async def update_server(
     registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
 ) -> ServerResponse:
     """Update configuration attributes of an existing MCP server."""
-    result = await registry.update_server(server_id, payload, owner_id=principal.user_id)
+    result = await registry.update_server(server_id, payload, user_id=principal.user_id)
     return result
 
 
@@ -117,10 +117,10 @@ async def delete_server(
     tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog_service)],
 ) -> None:
     """Remove server registration, close active connections, and delete its stored tools."""
-    await registry.get_server_entity(server_id, owner_id=principal.user_id)
+    await registry.get_server_entity(server_id, user_id=principal.user_id)
     await connection_mgr.disconnect(server_id)
     await tool_cat.remove_server_tools(server_id)
-    await registry.delete_server(server_id, owner_id=principal.user_id)
+    await registry.delete_server(server_id, user_id=principal.user_id)
 
 
 @router.post(
@@ -136,16 +136,16 @@ async def connect_server(
     tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog_service)],
 ) -> ServerResponse:
     """Establish active session to the server and discover available tools."""
-    server = await registry.get_server_entity(server_id, owner_id=principal.user_id)
+    server = await registry.get_server_entity(server_id, user_id=principal.user_id)
     try:
         await connection_mgr.get_or_create_session(server)
         tools = await tool_cat.refresh_server_tools(server, connection_mgr)
-        await registry.update_health(server_id, ServerHealthStatus.HEALTHY, len(tools))
+        await registry.update_health(server_id, ServerHealthStatus.HEALTHY, len(tools), user_id=principal.user_id)
     except Exception:
-        await registry.update_health(server_id, ServerHealthStatus.UNHEALTHY)
+        await registry.update_health(server_id, ServerHealthStatus.UNHEALTHY, user_id=principal.user_id)
         raise
 
-    return await registry.get_server(server_id, owner_id=principal.user_id)
+    return await registry.get_server(server_id, user_id=principal.user_id)
 
 
 @router.post(
@@ -160,10 +160,10 @@ async def disconnect_server(
     connection_mgr: Annotated[ConnectionManager, Depends(get_connection_manager)],
 ) -> ServerResponse:
     """Disconnect active session for the given server."""
-    await registry.get_server_entity(server_id, owner_id=principal.user_id)
+    await registry.get_server_entity(server_id, user_id=principal.user_id)
     await connection_mgr.disconnect(server_id)
-    await registry.update_health(server_id, ServerHealthStatus.DISCONNECTED)
-    return await registry.get_server(server_id, owner_id=principal.user_id)
+    await registry.update_health(server_id, ServerHealthStatus.DISCONNECTED, user_id=principal.user_id)
+    return await registry.get_server(server_id, user_id=principal.user_id)
 
 
 @router.post(
@@ -178,10 +178,10 @@ async def test_server_connection(
     connection_mgr: Annotated[ConnectionManager, Depends(get_connection_manager)],
 ) -> ServerTestResponse:
     """Perform a ping and tool listing check without persisting permanent session."""
-    server = await registry.get_server_entity(server_id, owner_id=principal.user_id)
+    server = await registry.get_server_entity(server_id, user_id=principal.user_id)
     success, message, count, latency = await connection_mgr.test_connection(server)
     new_status = ServerHealthStatus.HEALTHY if success else ServerHealthStatus.UNHEALTHY
-    await registry.update_health(server_id, new_status, count if success else None)
+    await registry.update_health(server_id, new_status, count if success else None, user_id=principal.user_id)
 
     return ServerTestResponse(
         success=success,
@@ -204,9 +204,9 @@ async def refresh_server_tools(
     tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog_service)],
 ) -> list[ToolResponse]:
     """Query the MCP server for tools and replace its entries in the tool catalog."""
-    server = await registry.get_server_entity(server_id, owner_id=principal.user_id)
+    server = await registry.get_server_entity(server_id, user_id=principal.user_id)
     tools = await tool_cat.refresh_server_tools(server, connection_mgr)
-    await registry.update_health(server_id, ServerHealthStatus.HEALTHY, len(tools))
+    await registry.update_health(server_id, ServerHealthStatus.HEALTHY, len(tools), user_id=principal.user_id)
 
     return [
         ToolResponse(

@@ -32,7 +32,8 @@ class ToolRepositoryAbstract(ABC):
         self,
         tool_id_or_name: str,
         server_id: UUID | None = None,
-        owner_id: UUID | None = None,
+        *,
+        user_id: UUID,
     ) -> ToolEntity | None:
         """Retrieve a tool by qualified ID or tool name."""
         pass
@@ -46,7 +47,8 @@ class ToolRepositoryAbstract(ABC):
         search: str | None = None,
         page: int = 1,
         page_size: int = 20,
-        owner_id: UUID | None = None,
+        *,
+        user_id: UUID,
     ) -> tuple[list[ToolEntity], int]:
         """List and search tools across servers with pagination."""
         pass
@@ -82,7 +84,7 @@ class PostgresToolRepository(ToolRepositoryAbstract):
                     id=tool.id,
                     server_id=str(server_id),
                     server_name=server_name,
-                    owner_id=str(tool.owner_id) if tool.owner_id else None,
+                    user_id=str(tool.user_id),
                     name=tool.name,
                     description=tool.description,
                     input_schema=tool.input_schema or {},
@@ -104,10 +106,11 @@ class PostgresToolRepository(ToolRepositoryAbstract):
         self,
         tool_id_or_name: str,
         server_id: UUID | None = None,
-        owner_id: UUID | None = None,
+        *,
+        user_id: UUID,
     ) -> ToolEntity | None:
         async with self.session_factory() as session:
-            owned = ToolModel.owner_id == str(owner_id) if owner_id is not None else True
+            owned = ToolModel.user_id == str(user_id)
 
             # 1. Look up by exact qualified ID
             stmt = select(ToolModel).where(ToolModel.id == tool_id_or_name, owned)
@@ -135,13 +138,13 @@ class PostgresToolRepository(ToolRepositoryAbstract):
         search: str | None = None,
         page: int = 1,
         page_size: int = 20,
-        owner_id: UUID | None = None,
+        *,
+        user_id: UUID,
     ) -> tuple[list[ToolEntity], int]:
         async with self.session_factory() as session:
             stmt = select(ToolModel)
 
-            if owner_id is not None:
-                stmt = stmt.where(ToolModel.owner_id == str(owner_id))
+            stmt = stmt.where(ToolModel.user_id == str(user_id))
             if server_id is not None:
                 stmt = stmt.where(ToolModel.server_id == str(server_id))
             if tool_name:

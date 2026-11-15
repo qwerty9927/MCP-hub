@@ -31,7 +31,7 @@ async def create_session(
     service: Annotated[SessionExplorerService, Depends(get_session_explorer_service)],
 ) -> SessionResponse:
     """Explicitly create a new session."""
-    return await service.create_session(payload, owner_id=principal.user_id)
+    return await service.create_session(payload, user_id=principal.user_id)
 
 
 @router.get(
@@ -53,7 +53,7 @@ async def list_sessions(
         page_size=page_size,
         search=search,
         status=status,
-        owner_id=principal.user_id,
+        user_id=principal.user_id,
     )
 
 
@@ -68,7 +68,7 @@ async def get_session(
     service: Annotated[SessionExplorerService, Depends(get_session_explorer_service)],
 ) -> SessionDetailResponse:
     """Retrieve session details with aggregated tool execution counts."""
-    return await service.get_session(session_id, owner_id=principal.user_id)
+    return await service.get_session(session_id, user_id=principal.user_id)
 
 
 @router.get(
@@ -101,7 +101,7 @@ async def list_session_tool_calls(
         status=status,
         server_name=server_name,
         tool_name=tool_name,
-        owner_id=principal.user_id,
+        user_id=principal.user_id,
     )
 
 
@@ -117,4 +117,4 @@ async def get_session_tool_call(
     service: Annotated[SessionExplorerService, Depends(get_session_explorer_service)],
 ) -> ToolCallResponse:
     """Retrieve an individual tool call by its UUID within a session."""
-    return await service.get_session_tool_call(session_id, call_id, owner_id=principal.user_id)
+    return await service.get_session_tool_call(session_id, call_id, user_id=principal.user_id)

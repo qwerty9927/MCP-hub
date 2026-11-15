@@ -103,8 +103,20 @@ async def other_user_client() -> AsyncGenerator[AsyncClient, None]:
 
 
 @pytest.fixture
-async def owner_id(async_client: AsyncClient):
+async def user_id(async_client: AsyncClient):
     """Account ID of the default test account."""
     from uuid import UUID
 
     return UUID((await async_client.get("/api/v1/auth/me")).json()["id"])
+
+
+@pytest.fixture
+async def account_id():
+    """A stored account for tests that write owned rows straight through the repositories (no HTTP login)."""
+    from uuid import uuid4
+
+    from app.domain.user_entity import UserEntity
+    from app.infrastructure.repositories.user_repository import PostgresUserRepository
+
+    user = await PostgresUserRepository().create(UserEntity(email=f"{uuid4().hex[:12]}@test.local", password_hash="x"))
+    return user.id

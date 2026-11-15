@@ -43,7 +43,7 @@ async def test_same_client_reuses_one_derived_session(tracker, repo):
     second = await tracker.resolve(principal, CLIENT)
 
     assert first is not None and first == second
-    detail = await repo.get_by_id(first, owner_id=principal.user_id)
+    detail = await repo.get_by_id(first, user_id=principal.user_id)
     assert detail.metadata["session_source"] == "derived"
     assert detail.metadata["client_name"] == "claude-code"
 
@@ -57,7 +57,7 @@ async def test_idle_session_is_completed_and_replaced(tracker, repo):
     second = await tracker.resolve(principal, CLIENT)
 
     assert second != first
-    assert (await repo.get_by_id(first)).status == SessionStatus.COMPLETED
+    assert (await repo.get_by_id(first, user_id=principal.user_id)).status == SessionStatus.COMPLETED
 
 
 async def test_different_api_keys_and_clients_get_different_sessions(tracker):
@@ -99,7 +99,7 @@ async def test_unnamed_clients_are_told_apart_by_user_agent(tracker, repo):
     other = await tracker.resolve(principal, vscode)
 
     assert first == again != other
-    detail = await repo.get_by_id(first, owner_id=principal.user_id)
+    detail = await repo.get_by_id(first, user_id=principal.user_id)
     assert detail.title.startswith("Cursor/1.4 (")
     assert detail.metadata == {"session_source": "derived", "user_agent": "Cursor/1.4 (darwin)"}
 
@@ -116,7 +116,7 @@ async def test_client_name_takes_precedence_over_user_agent():
 
 async def test_repository_failure_never_raises():
     class Broken(PostgresSessionRepository):
-        async def find_active_by_fingerprint(self, owner_id, fingerprint):
+        async def find_active_by_fingerprint(self, user_id, fingerprint):
             raise RuntimeError("db down")
 
     principal = Principal(user_id=uuid4())
@@ -153,6 +153,6 @@ async def test_reuse_follows_the_session_timeout_not_the_current_key_value(track
     await repo.update_activity(first, datetime.now(UTC) - timedelta(seconds=3605))
     replaced = await tracker.resolve(now_short, CLIENT)
     assert replaced != first
-    assert (await repo.get_by_id(first)).status == SessionStatus.COMPLETED
+    assert (await repo.get_by_id(first, user_id=base.user_id)).status == SessionStatus.COMPLETED
     new_entity = await repo.find_active_by_fingerprint(base.user_id, client_fingerprint(base, CLIENT))
     assert new_entity.id == replaced and new_entity.idle_timeout_seconds == 60

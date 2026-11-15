@@ -107,7 +107,7 @@ def get_multi_execute_tool_definition() -> Tool:
 async def execute_single_tool(
     item: ToolExecutionItem,
     executor: ToolExecutor,
-    owner_id: UUID | None,
+    user_id: UUID,
     session_id: str | None = None,
 ) -> dict[str, Any]:
     """Execute one batch item through the Execution module, isolating any failure to this item."""
@@ -122,7 +122,7 @@ async def execute_single_tool(
         }
 
     try:
-        outcome = await executor.execute(slug, item.arguments, owner_id=owner_id, session_id=session_id)
+        outcome = await executor.execute(slug, item.arguments, user_id=user_id, session_id=session_id)
     except Exception as exc:
         logger.error(f"Unexpected error in multi-execute item '{slug}': {exc}")
         return {"tool_slug": slug, "status": "error", "data": None, "error": format_mcp_error(exc)}
@@ -132,7 +132,7 @@ async def execute_single_tool(
 async def handle_multi_execute_tools(
     arguments: dict[str, Any],
     executor: ToolExecutor,
-    owner_id: UUID | None,
+    user_id: UUID,
     session_id: str | None = None,
 ) -> dict[str, Any]:
     """Execute MULTI_EXECUTE_TOOLS: validate the batch, fan out concurrently, isolate failures per item."""
@@ -144,7 +144,7 @@ async def handle_multi_execute_tools(
             details={"errors": err.errors()},
         ) from err
 
-    results = await asyncio.gather(*(execute_single_tool(item, executor, owner_id, session_id) for item in validated.executions))
+    results = await asyncio.gather(*(execute_single_tool(item, executor, user_id, session_id) for item in validated.executions))
     return {"results": list(results)}
 
 

@@ -79,7 +79,7 @@ class ToolExecutor:
         tool_reference: str,
         arguments: dict[str, Any],
         *,
-        owner_id: UUID | None,
+        user_id: UUID,
         session_id: str | None = None,
         timeout: float | None = None,
     ) -> ExecutionOutcome:
@@ -93,10 +93,10 @@ class ToolExecutor:
         plus `asyncio.CancelledError`, which is recorded and then re-raised.
         """
         executed_at = datetime.now(UTC)
-        await self._check_session(session_id, owner_id)
+        await self._check_session(session_id, user_id)
 
         try:
-            tool = await self._resolve(tool_reference, owner_id)
+            tool = await self._resolve(tool_reference, user_id)
             server = await self._server_for(tool) if tool else None
             if tool is None or server is None:
                 raise _Unresolved(
@@ -146,14 +146,14 @@ class ToolExecutor:
         await self._record(outcome, arguments, session_id, started_at=executed_at)
         return outcome
 
-    async def _check_session(self, session_id: str | None, owner_id: UUID | None) -> None:
+    async def _check_session(self, session_id: str | None, user_id: UUID) -> None:
         if not session_id or self._session_repository is None:
             return
-        if await self._session_repository.get_by_id(session_id, owner_id=owner_id) is None:
+        if await self._session_repository.get_by_id(session_id, user_id=user_id) is None:
             raise NotFoundError(f"Session with id '{session_id}' not found", details={"session_id": session_id})
 
-    async def _resolve(self, tool_reference: str, owner_id: UUID | None) -> ToolEntity | None:
-        tool = await self._tool_catalog.resolve(tool_reference, owner_id=owner_id)
+    async def _resolve(self, tool_reference: str, user_id: UUID) -> ToolEntity | None:
+        tool = await self._tool_catalog.resolve(tool_reference, user_id=user_id)
         if tool is not None:
             return tool
 
@@ -162,7 +162,7 @@ class ToolExecutor:
         if server_id is None:
             return None
         try:
-            server = await self._server_registry.get_server_entity(server_id, owner_id=owner_id)
+            server = await self._server_registry.get_server_entity(server_id, user_id=user_id)
         except NotFoundError:
             return None
         if not server.enabled:
@@ -173,12 +173,12 @@ class ToolExecutor:
         except Exception as exc:
             message = f"Could not refresh tools from server '{server.name}': {format_mcp_error(exc)}"
             raise _Unresolved(ExecutionOutcomeKind.FAILED, message) from exc
-        await self._server_registry.update_health(server.id, server.health_status, len(refreshed))
-        return await self._tool_catalog.resolve(tool_reference, owner_id=owner_id)
+        await self._server_registry.update_health(server.id, server.health_status, len(refreshed), user_id=server.user_id)
+        return await self._tool_catalog.resolve(tool_reference, user_id=user_id)
 
     async def _server_for(self, tool: ToolEntity) -> ServerEntity | None:
         try:
-            return await self._server_registry.get_server_entity(tool.server_id)
+            return await self._server_registry.get_server_entity(tool.server_id, user_id=tool.user_id)
         except NotFoundError:
             return None
 

@@ -19,7 +19,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    """Scope servers, tools and sessions to an owning account. Existing rows stay unowned until the first account claims them."""
+    """Scope servers, tools and sessions to an owning account. Existing rows stay unowned; a later revision (f6a8b0d2c4e5) deletes them and requires an owner."""
     op.add_column("mcp_servers", sa.Column("owner_id", sa.String(length=36), nullable=True))
     op.create_foreign_key("fk_mcp_servers_owner_id", "mcp_servers", "users", ["owner_id"], ["id"], ondelete="CASCADE")
     op.create_index(op.f("ix_mcp_servers_owner_id"), "mcp_servers", ["owner_id"], unique=False)

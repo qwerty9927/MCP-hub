@@ -37,12 +37,12 @@ def catalog_service() -> ToolCatalogService:
     return ToolCatalogService(tool_repository=PostgresToolRepository())
 
 
-async def stored_server(name: str) -> ServerEntity:
-    return await PostgresServerRepository().create(ServerEntity(id=uuid4(), name=name, transport=TransportType.STDIO))
+async def stored_server(name: str, account_id) -> ServerEntity:
+    return await PostgresServerRepository().create(ServerEntity(id=uuid4(), name=name, transport=TransportType.STDIO, user_id=account_id))
 
 
-async def test_refresh_and_list_tools(catalog_service: ToolCatalogService):
-    server = await stored_server("server-alpha")
+async def test_refresh_and_list_tools(catalog_service: ToolCatalogService, account_id):
+    server = await stored_server("server-alpha", account_id=account_id)
     mock_mgr = MockConnectionManager()
 
     tools = await catalog_service.refresh_server_tools(server, mock_mgr)
@@ -53,48 +53,48 @@ async def test_refresh_and_list_tools(catalog_service: ToolCatalogService):
     assert tools[0].id == f"{server.id}:tool_a"
 
     # List all
-    res = await catalog_service.list_tools()
+    res = await catalog_service.list_tools(user_id=account_id)
     assert res.total == 2
     assert len(res.items) == 2
 
     # Filter by tool_name
-    res_filtered = await catalog_service.list_tools(tool_name="tool_a")
+    res_filtered = await catalog_service.list_tools(tool_name="tool_a", user_id=account_id)
     assert res_filtered.total == 1
     assert res_filtered.items[0].name == "tool_a"
 
 
-async def test_duplicate_tool_names_across_servers(catalog_service: ToolCatalogService):
+async def test_duplicate_tool_names_across_servers(catalog_service: ToolCatalogService, account_id):
     """Duplicate tool names on different servers should have distinct qualified IDs."""
-    server1 = await stored_server("server-1")
-    server2 = await stored_server("server-2")
+    server1 = await stored_server("server-1", account_id=account_id)
+    server2 = await stored_server("server-2", account_id=account_id)
     mock_mgr = MockConnectionManager()
 
     await catalog_service.refresh_server_tools(server1, mock_mgr)
     await catalog_service.refresh_server_tools(server2, mock_mgr)
 
-    res = await catalog_service.list_tools()
+    res = await catalog_service.list_tools(user_id=account_id)
     assert res.total == 4
 
-    tool1 = await catalog_service.get_tool(f"{server1.id}:tool_a")
+    tool1 = await catalog_service.get_tool(f"{server1.id}:tool_a", user_id=account_id)
     assert tool1.server_id == server1.id
 
-    tool2 = await catalog_service.get_tool(f"{server2.id}:tool_a")
+    tool2 = await catalog_service.get_tool(f"{server2.id}:tool_a", user_id=account_id)
     assert tool2.server_id == server2.id
 
 
-async def test_reads_reflect_the_database_without_a_restart(catalog_service: ToolCatalogService):
+async def test_reads_reflect_the_database_without_a_restart(catalog_service: ToolCatalogService, account_id):
     """Tools written by another service instance are visible immediately: nothing is cached in memory."""
-    server = await stored_server("server-shared")
+    server = await stored_server("server-shared", account_id=account_id)
     await ToolCatalogService(tool_repository=PostgresToolRepository()).refresh_server_tools(server, MockConnectionManager())
 
-    assert (await catalog_service.get_tool(f"{server.id}:tool_a")).name == "tool_a"
+    assert (await catalog_service.get_tool(f"{server.id}:tool_a", user_id=account_id)).name == "tool_a"
 
     await ToolCatalogService(tool_repository=PostgresToolRepository()).remove_server_tools(server.id)
 
     with pytest.raises(NotFoundError):
-        await catalog_service.get_tool(f"{server.id}:tool_a")
+        await catalog_service.get_tool(f"{server.id}:tool_a", user_id=account_id)
 
 
-async def test_get_tool_not_found(catalog_service: ToolCatalogService):
+async def test_get_tool_not_found(catalog_service: ToolCatalogService, account_id):
     with pytest.raises(NotFoundError):
-        await catalog_service.get_tool("nonexistent_tool")
+        await catalog_service.get_tool("nonexistent_tool", user_id=account_id)

@@ -24,7 +24,7 @@ class ExecutionRepositoryAbstract(ABC):
         pass
 
     @abstractmethod
-    async def get_by_id(self, execution_id: UUID, owner_id: UUID | None = None) -> ExecutionEntity | None:
+    async def get_by_id(self, execution_id: UUID, *, user_id: UUID) -> ExecutionEntity | None:
         """Retrieve an execution record by ID."""
         pass
 
@@ -37,7 +37,8 @@ class ExecutionRepositoryAbstract(ABC):
         status: str | None = None,
         page: int = 1,
         page_size: int = 20,
-        owner_id: UUID | None = None,
+        *,
+        user_id: UUID,
     ) -> tuple[list[ExecutionEntity], int]:
         """List executions with pagination and filtering."""
         pass
@@ -85,9 +86,9 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
             await session.refresh(model)
             return model.to_domain()
 
-    async def get_by_id(self, execution_id: UUID, owner_id: UUID | None = None) -> ExecutionEntity | None:
+    async def get_by_id(self, execution_id: UUID, *, user_id: UUID) -> ExecutionEntity | None:
         async with self.session_factory() as session:
-            stmt = _owned(select(ExecutionModel).where(ExecutionModel.id == str(execution_id)), owner_id)
+            stmt = _owned(select(ExecutionModel).where(ExecutionModel.id == str(execution_id)), user_id)
             result = await session.execute(stmt)
             model = result.scalar_one_or_none()
             return model.to_domain() if model else None
@@ -100,10 +101,11 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
         status: str | None = None,
         page: int = 1,
         page_size: int = 20,
-        owner_id: UUID | None = None,
+        *,
+        user_id: UUID,
     ) -> tuple[list[ExecutionEntity], int]:
         async with self.session_factory() as session:
-            stmt = _owned(select(ExecutionModel), owner_id)
+            stmt = _owned(select(ExecutionModel), user_id)
 
             if server_id is not None:
                 stmt = stmt.where(ExecutionModel.server_id == str(server_id))
@@ -221,8 +223,6 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
             return model.to_tool_call_domain() if model else None
 
 
-def _owned(stmt: Select, owner_id: UUID | None) -> Select:
-    """Limit an Execution query to Servers owned by `owner_id` (no limit when None)."""
-    if owner_id is None:
-        return stmt
-    return stmt.join(ServerModel, ServerModel.id == ExecutionModel.server_id).where(ServerModel.owner_id == str(owner_id))
+def _owned(stmt: Select, user_id: UUID) -> Select:
+    """Limit an Execution query to Servers owned by `user_id`."""
+    return stmt.join(ServerModel, ServerModel.id == ExecutionModel.server_id).where(ServerModel.user_id == str(user_id))

@@ -19,7 +19,7 @@ class ServerModel(Base):
     __tablename__ = "mcp_servers"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    owner_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=True)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
     name: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     transport: Mapped[str] = mapped_column(String(20), nullable=False)
@@ -42,7 +42,7 @@ class ServerModel(Base):
         nullable=False,
     )
 
-    __table_args__ = (UniqueConstraint("owner_id", "name", name="uq_mcp_servers_owner_name"),)
+    __table_args__ = (UniqueConstraint("user_id", "name", name="uq_mcp_servers_user_name"),)
 
     # Relationships to tools and executions
     tools = relationship("ToolModel", back_populates="server", cascade="all, delete-orphan")
@@ -58,7 +58,7 @@ class ServerModel(Base):
             stdio_config=StdioConfig(**self.stdio_config) if self.stdio_config else None,
             http_config=HttpConfig(**self.http_config) if self.http_config else None,
             enabled=self.enabled,
-            owner_id=UUID(self.owner_id) if self.owner_id else None,
+            user_id=UUID(self.user_id),
             health_status=ServerHealthStatus(self.health_status),
             last_connected_at=self.last_connected_at,
             last_health_check_at=self.last_health_check_at,
@@ -78,7 +78,7 @@ class ServerModel(Base):
             stdio_config=entity.stdio_config.model_dump() if entity.stdio_config else None,
             http_config=entity.http_config.model_dump() if entity.http_config else None,
             enabled=entity.enabled,
-            owner_id=str(entity.owner_id) if entity.owner_id else None,
+            user_id=str(entity.user_id),
             health_status=entity.health_status.value if hasattr(entity.health_status, "value") else str(entity.health_status),
             last_connected_at=entity.last_connected_at,
             last_health_check_at=entity.last_health_check_at,

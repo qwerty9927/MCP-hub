@@ -136,7 +136,7 @@ async def test_tool_call_opens_a_derived_session_for_the_caller(mcp_server, mock
 
     mock_session_repo.get_or_create.assert_not_awaited()
     created = mock_session_repo.create.await_args.args[0]
-    assert created.owner_id == PRINCIPAL.user_id
+    assert created.user_id == PRINCIPAL.user_id
     assert created.api_key_id == PRINCIPAL.api_key_id
     assert created.idle_timeout_seconds == 300
     assert created.metadata == {
@@ -279,8 +279,8 @@ async def test_handle_call_tool_search(mcp_server, mock_registry, mock_tool_cata
     assert data["matched_count"] == 1
     assert data["tools"][0]["tool_slug"] == "math_server__calculate"
     assert data["tools"][0]["server_id"] == str(srv_id)
-    assert mock_registry.list_servers.await_args.kwargs["owner_id"] == PRINCIPAL.user_id
-    assert mock_tool_catalog.list_tools.await_args.kwargs["owner_id"] == PRINCIPAL.user_id
+    assert mock_registry.list_servers.await_args.kwargs["user_id"] == PRINCIPAL.user_id
+    assert mock_tool_catalog.list_tools.await_args.kwargs["user_id"] == PRINCIPAL.user_id
 
 
 @pytest.mark.asyncio
@@ -288,7 +288,7 @@ async def test_handle_call_tool_multi_execute(mcp_server, mock_tool_executor, mo
     """Verify Multi-Execute dispatches each item to the Execution module with the discovered session."""
     srv_id = uuid4()
     ctx = _create_mock_context("sess-multi")
-    mock_session_repo.find_active_by_fingerprint.return_value = SessionEntity(id="sess-multi", owner_id=PRINCIPAL.user_id)
+    mock_session_repo.find_active_by_fingerprint.return_value = SessionEntity(id="sess-multi", user_id=PRINCIPAL.user_id)
     slug = f"{srv_id}:add"
     mock_tool_executor.execute.return_value = ExecutionOutcome(
         kind=ExecutionOutcomeKind.SUCCEEDED,
@@ -307,7 +307,7 @@ async def test_handle_call_tool_multi_execute(mcp_server, mock_tool_executor, mo
     assert res.is_error is False
     data = json.loads(res.content[0].text)
     assert data["results"] == [{"tool_slug": slug, "status": "success", "data": "42", "error": None}]
-    mock_tool_executor.execute.assert_awaited_once_with(slug, {"a": 20, "b": 22}, owner_id=PRINCIPAL.user_id, session_id="sess-multi")
+    mock_tool_executor.execute.assert_awaited_once_with(slug, {"a": 20, "b": 22}, user_id=PRINCIPAL.user_id, session_id="sess-multi")
 
 
 @pytest.mark.asyncio

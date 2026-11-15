@@ -21,6 +21,8 @@ from app.mcp.multi_execute_tools import (
 )
 from app.services.tool_executor import ExecutionOutcome
 
+USER_ID = uuid4()  # owner for entities in these mock-only tests
+
 
 def outcome(kind: ExecutionOutcomeKind, ref: str, **kwargs: Any) -> ExecutionOutcome:
     return ExecutionOutcome(kind=kind, tool_reference=ref, executed_at=datetime.now(UTC), execution_id=uuid4(), **kwargs)
@@ -32,7 +34,13 @@ class StubExecutor:
         self.calls: list[tuple[str, dict[str, Any], str | None]] = []
 
     async def execute(
-        self, tool_reference: str, arguments: dict[str, Any], *, owner_id=None, session_id: str | None = None, timeout: float | None = None
+        self,
+        tool_reference: str,
+        arguments: dict[str, Any],
+        *,
+        user_id=USER_ID,
+        session_id: str | None = None,
+        timeout: float | None = None,
     ):
         self.calls.append((tool_reference, arguments, session_id))
         result = self.outcomes[tool_reference]
@@ -43,7 +51,7 @@ class StubExecutor:
 
 async def run(executor: StubExecutor, *slugs: str, session_id: str | None = None) -> list[dict[str, Any]]:
     payload = {"executions": [{"tool_slug": s, "arguments": {"x": 1}} for s in slugs]}
-    res = await handle_multi_execute_tools(arguments=payload, executor=executor, owner_id=None, session_id=session_id)
+    res = await handle_multi_execute_tools(arguments=payload, executor=executor, user_id=USER_ID, session_id=session_id)
     return res["results"]
 
 
@@ -146,4 +154,4 @@ async def test_payload_validation():
     executor = StubExecutor({})
     for bad in ({"executions": []}, {}, {"executions": [{"tool_slug": "calc", "arguments": {}}], "extra_key": True}):
         with pytest.raises(ValidationError):
-            await handle_multi_execute_tools(arguments=bad, executor=executor, owner_id=None)
+            await handle_multi_execute_tools(arguments=bad, executor=executor, user_id=USER_ID)

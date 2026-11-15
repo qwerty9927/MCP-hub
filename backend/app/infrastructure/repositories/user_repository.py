@@ -28,10 +28,6 @@ class UserRepositoryAbstract(ABC):
     async def get_by_email(self, email: str) -> UserEntity | None:
         pass
 
-    @abstractmethod
-    async def get_oldest(self) -> UserEntity | None:
-        """Return the account created first, or None when there are no accounts."""
-
 
 class PostgresUserRepository(UserRepositoryAbstract):
     def __init__(self, session_factory: async_sessionmaker | None = None) -> None:
@@ -66,11 +62,5 @@ class PostgresUserRepository(UserRepositoryAbstract):
     async def get_by_email(self, email: str) -> UserEntity | None:
         async with self.session_factory() as session:
             result = await session.execute(select(UserModel).where(UserModel.email == email))
-            model = result.scalar_one_or_none()
-            return model.to_domain() if model else None
-
-    async def get_oldest(self) -> UserEntity | None:
-        async with self.session_factory() as session:
-            result = await session.execute(select(UserModel).order_by(UserModel.created_at.asc(), UserModel.id.asc()).limit(1))
             model = result.scalar_one_or_none()
             return model.to_domain() if model else None

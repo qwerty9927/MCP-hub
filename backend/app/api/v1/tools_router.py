@@ -49,7 +49,7 @@ async def list_tools(
         search=search,
         page=page,
         page_size=page_size,
-        owner_id=principal.user_id,
+        user_id=principal.user_id,
     )
 
 
@@ -70,7 +70,7 @@ async def list_server_tools(
     page_size: int = Query(default=20, ge=1, le=100, description="Items per page"),
 ) -> PaginatedResponse[ToolResponse]:
     """Retrieve tools discovered for a specific server."""
-    await registry.get_server_entity(server_id, owner_id=principal.user_id)
+    await registry.get_server_entity(server_id, user_id=principal.user_id)
     return await tool_cat.list_tools(
         server_id=server_id,
         tool_name=tool_name,
@@ -78,7 +78,7 @@ async def list_server_tools(
         search=search,
         page=page,
         page_size=page_size,
-        owner_id=principal.user_id,
+        user_id=principal.user_id,
     )
 
 
@@ -93,7 +93,7 @@ async def get_tool(
     tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog_service)],
 ) -> ToolResponse:
     """Retrieve details and schema of a specific tool by qualified ID or name."""
-    entity = await tool_cat.get_tool(tool_id, owner_id=principal.user_id)
+    entity = await tool_cat.get_tool(tool_id, user_id=principal.user_id)
     return ToolResponse(
         id=entity.id,
         name=entity.name,
@@ -120,7 +120,7 @@ async def execute_tool(
 ) -> ToolExecuteResponse:
     """Validate arguments and invoke the specified MCP tool on the target server."""
     outcome = await executor.execute(
-        qualified_tool_id(server_id, tool_name), payload.arguments, owner_id=principal.user_id, session_id=payload.session_id
+        qualified_tool_id(server_id, tool_name), payload.arguments, user_id=principal.user_id, session_id=payload.session_id
     )
     return _execute_response(outcome)
 

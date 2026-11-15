@@ -33,4 +33,4 @@ The hub supplies its own session identity, from things it can trust:
 ## Consequences
 - Two clients that share one API key and identify identically are grouped into one Session.
 - A long-running agent that pauses for more than 30 minutes continues in a new Session.
-- `mcp_sessions` gains `owner_id`, `api_key_id` and `client_fingerprint`; the lookup is indexed on `(owner_id, client_fingerprint, last_activity_at)`.
+- `mcp_sessions` gains `user_id` (originally `owner_id`, renamed and made NOT NULL later), `api_key_id` and `client_fingerprint`; the lookup is indexed on `(user_id, client_fingerprint, last_activity_at)`.

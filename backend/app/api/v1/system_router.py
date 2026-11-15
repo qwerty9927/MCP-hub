@@ -73,13 +73,13 @@ async def metrics(
     connection_mgr: Annotated[ConnectionManager, Depends(get_connection_manager)],
 ) -> MetricsResponse:
     """Telemetry metrics including active sessions, server health counts, and execution totals."""
-    servers, total_servers = await server_repo.list(page=1, page_size=1000, owner_id=principal.user_id)
+    servers, total_servers = await server_repo.list(page=1, page_size=1000, user_id=principal.user_id)
     healthy_servers = sum(1 for s in servers if s.health_status == ServerHealthStatus.HEALTHY)
-    _, total_executions = await exec_repo.list(page=1, page_size=1, owner_id=principal.user_id)
+    _, total_executions = await exec_repo.list(page=1, page_size=1, user_id=principal.user_id)
     uptime_seconds = round(time.perf_counter() - START_TIME, 2)
 
     return MetricsResponse(
-        active_sessions=connection_mgr.get_active_session_count(owner_id=principal.user_id),
+        active_sessions=connection_mgr.get_active_session_count(user_id=principal.user_id),
         total_servers=total_servers,
         healthy_servers=healthy_servers,
         total_executions=total_executions,

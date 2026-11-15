@@ -176,10 +176,10 @@ Strict unidirectional dependency flow:
 - When connecting to remote `streamable-http` servers with authentication headers (e.g. GitHub Copilot, OAuth), pass an `http_client` created via `create_mcp_http_client(headers=server.http_config.headers)` into `streamable_http_client(url, http_client=http_client)`.
 
 ### Accounts, Authentication & Ownership
-- **Every router depends on the caller**: each endpoint in `app/api/v1/` (except `/auth/register`, `/auth/login`, `/health`, `/ready`) takes `principal: Annotated[Principal, Depends(get_current_principal)]` and passes `owner_id=principal.user_id` down. Service methods that read or change owned data take a keyword-only `owner_id` with no default, so a forgotten owner is a TypeError, not a data leak.
+- **Every router depends on the caller**: each endpoint in `app/api/v1/` (except `/auth/register`, `/auth/login`, `/health`, `/ready`) takes `principal: Annotated[Principal, Depends(get_current_principal)]` and passes `user_id=principal.user_id` down. Repository and service methods that read or change owned data take a keyword-only `user_id: UUID` with no default and no `None` (unscoped) mode, so a forgotten owner is a TypeError, not a data leak.
 - Another account's resource is a `NotFoundError` (404), never 403, so its existence is not revealed.
 - REST accepts only console JWTs (`AuthService.authenticate_console`). `/mcp` accepts only API keys, sent in the `x-api-key` header (`AuthService.authenticate_api_key`), checked in `MCPProxyASGI`, which also sets the SDK's `scope["user"]` so transport sessions are bound to the credential that opened them.
-- `discovered_tools.owner_id` is a copy of the server's owner so catalog lookups can be scoped without a join.
+- `user_id` is NOT NULL on `mcp_servers`, `discovered_tools` and `mcp_sessions` (foreign key to `users`, cascade delete), and required on their domain entities. `discovered_tools.user_id` is a copy of the server's owner so catalog lookups can be scoped without a join. The only cross-account code is the idle-session sweeper.
 - Settings: `JWT_SECRET` (32+ chars), `ACCESS_TOKEN_EXPIRE_MINUTES`, `ALLOW_SELF_SIGNUP`. Keep `ALLOW_SELF_SIGNUP=false` on any network-exposed deployment: a registered user can add stdio servers.
 
 ### Stateless `/mcp` and derived Sessions (ADR-0003, ADR-0004)
@@ -268,7 +268,7 @@ Strict unidirectional dependency flow:
    The suite deletes every row in the database it targets: always export `TEST_DATABASE_URL` (conftest no longer falls back to `DATABASE_URL`).
   3. Purges all rows from `discovered_tools`, `tool_executions`, and `mcp_servers`.
   4. Clears MCP gateway session mappings.
-- **Test Client**: `async_client` is signed in as a default account (`owner_id` fixture gives its ID); `other_user_client` is a second account; `anon_client` has no credentials.
+- **Test Client**: `async_client` is signed in as a default account (`user_id` fixture gives its ID; `account_id` creates a bare account for repository-level tests); `other_user_client` is a second account; `anon_client` has no credentials.
 - **Test Categories**:
   - `tests/unit/`: Test individual services, repositories (`test_repository.py`), and helpers.
   - `tests/integration/`: Test multi-server orchestration, gateway lifecycle, and real database persistence.

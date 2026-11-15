@@ -315,9 +315,9 @@ class ConnectionManager:
                     details={"tool_name": tool_name, "reason": str(exc)},
                 ) from exc
 
-    def get_active_session_count(self, owner_id: UUID | None = None) -> int:
-        """Return the number of live downstream sessions (only those on `owner_id`'s Servers when given)."""
-        return len([w for w in self._workers.values() if w.is_alive and (owner_id is None or w.server.owner_id == owner_id)])
+    def get_active_session_count(self, user_id: UUID) -> int:
+        """Return the number of live downstream sessions (only those on `user_id`'s Servers when given)."""
+        return len([w for w in self._workers.values() if w.is_alive and w.server.user_id == user_id])
 
     async def shutdown(self) -> None:
         """Shutdown all active sessions and clean up resources."""

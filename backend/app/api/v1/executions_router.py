@@ -40,7 +40,7 @@ async def list_executions(
         status=status,
         page=page,
         page_size=page_size,
-        owner_id=principal.user_id,
+        user_id=principal.user_id,
     )
 
     total_pages = math.ceil(total / page_size) if total > 0 else 0
@@ -65,7 +65,7 @@ async def get_execution(
     repo: Annotated[ExecutionRepositoryAbstract, Depends(get_execution_repository)],
 ) -> ExecutionResponse:
     """Retrieve a specific tool execution log entry by its UUID."""
-    record = await repo.get_by_id(execution_id, owner_id=principal.user_id)
+    record = await repo.get_by_id(execution_id, user_id=principal.user_id)
     if not record:
         raise NotFoundError(
             f"Execution with id '{execution_id}' not found",

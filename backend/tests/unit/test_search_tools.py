@@ -17,6 +17,8 @@ from app.mcp.search_tools import (
     score_tool_match,
 )
 
+USER_ID = uuid4()  # owner for entities in these mock-only tests
+
 
 def test_search_tool_definition_and_schema():
     tool = get_search_tool_definition()
@@ -111,6 +113,7 @@ def test_handle_search_tools_ranking_and_deduplication():
             },
             description="Evaluate mathematical expressions",
             availability_status="AVAILABLE",
+            user_id=USER_ID,
         ),
         ToolEntity(
             id=f"{srv2_id}:transform",
@@ -127,6 +130,7 @@ def test_handle_search_tools_ranking_and_deduplication():
             },
             description="Transforms text case",
             availability_status="AVAILABLE",
+            user_id=USER_ID,
         ),
         ToolEntity(
             id=f"{srv2_id}:echo",
@@ -136,6 +140,7 @@ def test_handle_search_tools_ranking_and_deduplication():
             input_schema={"type": "object", "properties": {"message": {"type": "string"}}},
             description="Echo message",
             availability_status="AVAILABLE",
+            user_id=USER_ID,
         ),
     ]
 
@@ -176,6 +181,7 @@ def test_handle_search_tools_filters_meta_tools():
             input_schema={},
             description="Meta tool",
             availability_status="AVAILABLE",
+            user_id=USER_ID,
         ),
         ToolEntity(
             id="hub:MULTI_EXECUTE_TOOLS",
@@ -185,6 +191,7 @@ def test_handle_search_tools_filters_meta_tools():
             input_schema={},
             description="Meta tool",
             availability_status="AVAILABLE",
+            user_id=USER_ID,
         ),
         ToolEntity(
             id="srv:real_tool",
@@ -194,6 +201,7 @@ def test_handle_search_tools_filters_meta_tools():
             input_schema={},
             description="Real tool",
             availability_status="AVAILABLE",
+            user_id=USER_ID,
         ),
     ]
 

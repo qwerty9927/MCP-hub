@@ -80,7 +80,7 @@ All listing endpoints return records wrapped in this envelope:
 
 The console token is a JWT that expires after `ACCESS_TOKEN_EXPIRE_MINUTES`. API keys start with `mhk_` and do not expire until revoked.
 
-The first account ever registered takes ownership of servers and sessions that existed before accounts did.
+Every server, tool and session belongs to exactly one account (`user_id`, never null); rows without an owner cannot exist.
 
 ---
 

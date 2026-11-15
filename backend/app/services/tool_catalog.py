@@ -48,7 +48,7 @@ class ToolCatalogService:
                     id=qualified_tool_id(server.id, mcp_tool.name),
                     server_id=server.id,
                     server_name=server.name,
-                    owner_id=server.owner_id,
+                    user_id=server.user_id,
                     name=mcp_tool.name,
                     description=mcp_tool.description,
                     input_schema=schema,
@@ -74,9 +74,10 @@ class ToolCatalogService:
         search: str | None = None,
         page: int = 1,
         page_size: int = 20,
-        owner_id: UUID | None = None,
+        *,
+        user_id: UUID,
     ) -> PaginatedResponse[ToolResponse]:
-        """Search and list tools with filtering and pagination; `owner_id` limits it to that account's Servers."""
+        """Search and list tools with filtering and pagination; `user_id` limits it to that account's Servers."""
         items, total = await self.tool_repo.list_tools(
             server_id=server_id,
             tool_name=tool_name,
@@ -84,7 +85,7 @@ class ToolCatalogService:
             search=search,
             page=page,
             page_size=page_size,
-            owner_id=owner_id,
+            user_id=user_id,
         )
 
         read_items = [
@@ -111,17 +112,17 @@ class ToolCatalogService:
             total_pages=total_pages,
         )
 
-    async def resolve(self, tool_reference: str, *, owner_id: UUID | None) -> ToolEntity | None:
+    async def resolve(self, tool_reference: str, *, user_id: UUID) -> ToolEntity | None:
         """Resolve a Tool Reference (Qualified Tool ID or Tool Slug) to one of the owner's Tools, or None."""
         server_id, tool_name = split_qualified_tool_id(tool_reference)
         if server_id is not None:
             try:
-                return await self.get_tool(tool_name, server_id=server_id, owner_id=owner_id)
+                return await self.get_tool(tool_name, server_id=server_id, user_id=user_id)
             except NotFoundError:
                 return None
 
         try:
-            return await self.get_tool(tool_reference, owner_id=owner_id)
+            return await self.get_tool(tool_reference, user_id=user_id)
         except NotFoundError:
             pass
 
@@ -129,15 +130,15 @@ class ToolCatalogService:
         if "__" not in tool_reference:
             return None
         server_slug, slug_tool_name = tool_reference.split("__", 1)
-        candidates = await self.list_tools(tool_name=slug_tool_name, page=1, page_size=100, owner_id=owner_id)
+        candidates = await self.list_tools(tool_name=slug_tool_name, page=1, page_size=100, user_id=user_id)
         for candidate in candidates.items:
             if slugify(candidate.server_name) == server_slug:
-                return await self.get_tool(candidate.id, owner_id=owner_id)
+                return await self.get_tool(candidate.id, user_id=user_id)
         return None
 
-    async def get_tool(self, tool_id_or_name: str, server_id: UUID | None = None, owner_id: UUID | None = None) -> ToolEntity:
+    async def get_tool(self, tool_id_or_name: str, server_id: UUID | None = None, *, user_id: UUID) -> ToolEntity:
         """Find a tool by qualified ID, or by name on `server_id` (only that server) or on any of the owner's servers."""
-        tool = await self.tool_repo.get_tool(tool_id_or_name, server_id=server_id, owner_id=owner_id)
+        tool = await self.tool_repo.get_tool(tool_id_or_name, server_id=server_id, user_id=user_id)
         if tool is not None:
             return tool
 
