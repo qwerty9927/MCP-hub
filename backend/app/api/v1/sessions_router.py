@@ -3,13 +3,12 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies import get_current_principal, get_session_explorer_service
 from app.domain.principal_entity import Principal
 from app.schemas.common_schema import PaginatedResponse
 from app.schemas.session_schema import (
-    SessionCreateRequest,
     SessionDetailResponse,
     SessionResponse,
     ToolCallResponse,
@@ -17,21 +16,6 @@ from app.schemas.session_schema import (
 from app.services.session_explorer import SessionExplorerService
 
 router = APIRouter(prefix="/sessions", tags=["Sessions"])
-
-
-@router.post(
-    "",
-    response_model=SessionResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Create a new MCP session",
-)
-async def create_session(
-    payload: SessionCreateRequest,
-    principal: Annotated[Principal, Depends(get_current_principal)],
-    service: Annotated[SessionExplorerService, Depends(get_session_explorer_service)],
-) -> SessionResponse:
-    """Explicitly create a new session."""
-    return await service.create_session(payload, user_id=principal.user_id)
 
 
 @router.get(

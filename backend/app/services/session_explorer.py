@@ -3,16 +3,13 @@
 import math
 import re
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import UUID
 
-from app.core.enums.session_enum import SessionStatus
 from app.core.exceptions import NotFoundError
-from app.domain.session_entity import SessionEntity
 from app.infrastructure.repositories.execution_repository import ExecutionRepositoryAbstract
 from app.infrastructure.repositories.session_repository import SessionRepositoryAbstract
 from app.schemas.common_schema import PaginatedResponse
 from app.schemas.session_schema import (
-    SessionCreateRequest,
     SessionDetailResponse,
     SessionResponse,
     ToolCallResponse,
@@ -35,26 +32,6 @@ class SessionExplorerService:
     ) -> None:
         self.session_repo = session_repository
         self.execution_repo = execution_repository
-
-    async def create_session(self, payload: SessionCreateRequest, *, user_id: UUID) -> SessionResponse:
-        """Explicitly create a new session."""
-        session_id = uuid4().hex
-        entity = SessionEntity(
-            id=session_id,
-            title=payload.title or f"Session {session_id[:8]}",
-            status=SessionStatus.ACTIVE,
-            metadata=payload.metadata,
-            user_id=user_id,
-        )
-        created = await self.session_repo.create(entity)
-        return SessionResponse(
-            id=created.id,
-            title=created.title,
-            status=created.status.value if hasattr(created.status, "value") else str(created.status),
-            created_at=created.created_at,
-            last_activity_at=created.last_activity_at,
-            total_tool_calls=0,
-        )
 
     async def list_sessions(
         self,

@@ -14,7 +14,6 @@ from app.domain.session_entity import SessionEntity
 from app.infrastructure.repositories.execution_repository import PostgresExecutionRepository
 from app.infrastructure.repositories.server_repository import PostgresServerRepository
 from app.infrastructure.repositories.session_repository import PostgresSessionRepository
-from app.schemas.session_schema import SessionCreate
 from app.services.session_explorer import SessionExplorerService, mask_sensitive_data
 
 
@@ -286,7 +285,7 @@ async def test_session_explorer_service_errors(account_id):
         await service.list_session_tool_calls(fake_session_id, user_id=account_id)
 
     # Create session, but query missing tool call
-    session_resp = await service.create_session(SessionCreate(title="Empty Session"), user_id=account_id)
+    empty_session = await session_repo.create(SessionEntity(id=uuid4().hex, title="Empty Session", user_id=account_id))
     fake_call_id = uuid4()
     with pytest.raises(NotFoundError):
-        await service.get_session_tool_call(session_resp.id, fake_call_id, user_id=account_id)
+        await service.get_session_tool_call(empty_session.id, fake_call_id, user_id=account_id)

@@ -786,32 +786,3 @@ Retrieve a specific tool call's detailed record within a session.
   }
 }
 ```
-
-### 7.5 Explicitly Create Session
-`POST /api/v1/sessions`
-
-Explicitly register a new session (e.g., from web frontend or external orchestrator).
-
-#### Request Body:
-```json
-{
-  "title": "Agent Debugging Session #1",
-  "metadata": {
-    "initiator": "user-portal",
-    "user_id": "usr_12345"
-  }
-}
-```
-
-#### Response Body (`201 Created`):
-```json
-{
-  "id": "a1b2c3d4e5f647d8a9b0c1d2e3f4a5b6",
-  "title": "Agent Debugging Session #1",
-  "status": "active",
-  "created_at": "2026-11-08T10:30:00.000Z",
-  "last_activity_at": "2026-11-08T10:30:00.000Z",
-  "total_tool_calls": 0
-}
-```
-

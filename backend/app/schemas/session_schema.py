@@ -4,16 +4,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
-
-
-class SessionCreateRequest(BaseModel):
-    """Payload for creating a new session explicitly."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    title: str | None = Field(default=None, max_length=255, description="Human-readable title or label")
-    metadata: dict[str, Any] | None = Field(default=None, description="Optional metadata or client attributes")
+from pydantic import BaseModel, Field
 
 
 class SessionResponse(BaseModel):
@@ -57,9 +48,6 @@ class ToolCallResponse(BaseModel):
     arguments: dict[str, Any] = Field(default_factory=dict, description="Tool execution input arguments")
     response: Any | None = Field(default=None, description="Output payload returned by the tool")
 
-
-# Backward-compatible alias
-SessionCreate = SessionCreateRequest
 
 # Backward-compatible alias
 SessionRead = SessionResponse
