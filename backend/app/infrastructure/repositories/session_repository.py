@@ -8,7 +8,6 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import Interval, and_, case, distinct, func, or_, select, update
-from sqlalchemy.ext.asyncio import async_sessionmaker
 
 import app.infrastructure.database as db_module
 from app.core.enums.session_enum import SessionStatus
@@ -82,19 +81,8 @@ class SessionRepositoryAbstract(ABC):
 class PostgresSessionRepository(SessionRepositoryAbstract):
     """PostgreSQL implementation of SessionRepositoryAbstract."""
 
-    def __init__(self, session_factory: async_sessionmaker | None = None) -> None:
-        self._session_factory = session_factory
-
-    @property
-    def session_factory(self) -> async_sessionmaker:
-        return self._session_factory or db_module.async_session_factory
-
-    @session_factory.setter
-    def session_factory(self, factory: async_sessionmaker | None) -> None:
-        self._session_factory = factory
-
     async def create(self, session: SessionEntity) -> SessionEntity:
-        async with self.session_factory() as db_session:
+        async with db_module.async_session_factory() as db_session:
             model = SessionModel.from_domain(session)
             db_session.add(model)
             await db_session.commit()
@@ -109,7 +97,7 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
         title: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> SessionEntity | None:
-        async with self.session_factory() as db_session:
+        async with db_module.async_session_factory() as db_session:
             stmt = select(SessionModel).where(SessionModel.id == session_id)
             result = await db_session.execute(stmt)
             model = result.scalar_one_or_none()
@@ -147,7 +135,7 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
             return new_session.to_domain()
 
     async def find_active_by_fingerprint(self, user_id: UUID, fingerprint: str) -> SessionEntity | None:
-        async with self.session_factory() as db_session:
+        async with db_module.async_session_factory() as db_session:
             stmt = (
                 select(SessionModel)
                 .where(
@@ -162,7 +150,7 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
             return model.to_domain() if model else None
 
     async def get_by_id(self, session_id: str, *, user_id: UUID) -> SessionDetailEntity | None:
-        async with self.session_factory() as db_session:
+        async with db_module.async_session_factory() as db_session:
             owner_clause = SessionModel.user_id == str(user_id)
             stmt = (
                 select(
@@ -229,7 +217,7 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
         *,
         user_id: UUID,
     ) -> tuple[list[SessionEntity], int]:
-        async with self.session_factory() as db_session:
+        async with db_module.async_session_factory() as db_session:
             conditions = [SessionModel.user_id == str(user_id)]
             if search:
                 search_term = f"%{search}%"
@@ -269,7 +257,7 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
 
     async def update_status(self, session_id: str, status: SessionStatus | str, *, user_id: UUID) -> bool:
         status_val = status.value if hasattr(status, "value") else str(status)
-        async with self.session_factory() as db_session:
+        async with db_module.async_session_factory() as db_session:
             stmt = update(SessionModel).where(SessionModel.id == session_id)
             stmt = stmt.where(SessionModel.user_id == str(user_id))
             stmt = stmt.values(status=status_val, last_activity_at=datetime.now(UTC))
@@ -279,7 +267,7 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
 
     async def update_activity(self, session_id: str, timestamp: datetime | None = None) -> None:
         now = timestamp or datetime.now(UTC)
-        async with self.session_factory() as db_session:
+        async with db_module.async_session_factory() as db_session:
             stmt = update(SessionModel).where(SessionModel.id == session_id).values(last_activity_at=now)
             await db_session.execute(stmt)
             await db_session.commit()
@@ -289,7 +277,7 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
         idle_timeout = func.make_interval(
             0, 0, 0, 0, 0, 0, func.coalesce(SessionModel.idle_timeout_seconds, default_idle_seconds), type_=Interval
         )
-        async with self.session_factory() as db_session:
+        async with db_module.async_session_factory() as db_session:
             stmt = (
                 update(SessionModel)
                 .where(
@@ -299,6 +287,8 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
                 .values(status=SessionStatus.COMPLETED.value)
                 .execution_options(synchronize_session=False)
             )
+
             result = await db_session.execute(stmt)
             await db_session.commit()
+
             return result.rowcount

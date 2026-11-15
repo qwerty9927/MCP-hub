@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 from uuid import UUID
 
 from sqlalchemy import delete, func, select
-from sqlalchemy.ext.asyncio import async_sessionmaker
 
 import app.infrastructure.database as db_module
 from app.domain.tool_entity import ToolEntity
@@ -57,24 +56,13 @@ class ToolRepositoryAbstract(ABC):
 class PostgresToolRepository(ToolRepositoryAbstract):
     """PostgreSQL implementation of ToolRepositoryAbstract using SQLAlchemy."""
 
-    def __init__(self, session_factory: async_sessionmaker | None = None) -> None:
-        self._session_factory = session_factory
-
-    @property
-    def session_factory(self) -> async_sessionmaker:
-        return self._session_factory or db_module.async_session_factory
-
-    @session_factory.setter
-    def session_factory(self, factory: async_sessionmaker | None) -> None:
-        self._session_factory = factory
-
     async def save_server_tools(
         self,
         server_id: UUID,
         server_name: str,
         tools: list[ToolEntity],
     ) -> list[ToolEntity]:
-        async with self.session_factory() as session:
+        async with db_module.async_session_factory() as session:
             # Delete existing tools for this server
             await session.execute(delete(ToolModel).where(ToolModel.server_id == str(server_id)))
 
@@ -98,7 +86,7 @@ class PostgresToolRepository(ToolRepositoryAbstract):
             return saved_entities
 
     async def delete_server_tools(self, server_id: UUID) -> None:
-        async with self.session_factory() as session:
+        async with db_module.async_session_factory() as session:
             await session.execute(delete(ToolModel).where(ToolModel.server_id == str(server_id)))
             await session.commit()
 
@@ -109,7 +97,7 @@ class PostgresToolRepository(ToolRepositoryAbstract):
         *,
         user_id: UUID,
     ) -> ToolEntity | None:
-        async with self.session_factory() as session:
+        async with db_module.async_session_factory() as session:
             owned = ToolModel.user_id == str(user_id)
 
             # 1. Look up by exact qualified ID
@@ -141,7 +129,7 @@ class PostgresToolRepository(ToolRepositoryAbstract):
         *,
         user_id: UUID,
     ) -> tuple[list[ToolEntity], int]:
-        async with self.session_factory() as session:
+        async with db_module.async_session_factory() as session:
             stmt = select(ToolModel)
 
             stmt = stmt.where(ToolModel.user_id == str(user_id))
