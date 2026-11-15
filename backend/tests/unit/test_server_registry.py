@@ -29,7 +29,7 @@ def mock_server_repo() -> AsyncMock:
 
 @pytest.fixture
 def registry_service(mock_server_repo: AsyncMock) -> ServerRegistryService:
-    return ServerRegistryService(repository=mock_server_repo)
+    return ServerRegistryService(server_repository=mock_server_repo)
 
 
 async def test_create_server_success(registry_service: ServerRegistryService, mock_server_repo: AsyncMock):

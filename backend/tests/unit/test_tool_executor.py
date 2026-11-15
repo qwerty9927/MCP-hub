@@ -66,7 +66,7 @@ def build_executor(
     session_repo: PostgresSessionRepository,
 ) -> ToolExecutor:
     return ToolExecutor(
-        server_registry=ServerRegistryService(repository=server_repo),
+        server_registry=ServerRegistryService(server_repository=server_repo),
         connection_manager=downstream,
         tool_catalog=catalog,
         execution_repository=execution_repo,

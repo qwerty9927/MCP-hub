@@ -20,12 +20,12 @@ from app.schemas.server_schema import (
 class ServerRegistryService:
     """Manages MCP server registrations, updates, and persistence."""
 
-    def __init__(self, repository: ServerRepositoryAbstract) -> None:
-        self.repository = repository
+    def __init__(self, server_repository: ServerRepositoryAbstract) -> None:
+        self.server_repository = server_repository
 
     async def create_server(self, data: ServerCreateRequest, *, user_id: UUID) -> ServerResponse:
         """Register a new MCP server configuration owned by `user_id`."""
-        existing = await self.repository.get_by_name(data.name, user_id=user_id)
+        existing = await self.server_repository.get_by_name(data.name, user_id=user_id)
         if existing:
             raise ConflictError(
                 f"A server with name '{data.name}' already exists",
@@ -43,7 +43,7 @@ class ServerRegistryService:
             health_status=ServerHealthStatus.UNKNOWN,
         )
 
-        saved = await self.repository.create(server)
+        saved = await self.server_repository.create(server)
         logger.info(f"Registered MCP server '{saved.name}' (id: {saved.id}, transport: {saved.transport})")
         return ServerResponse.from_domain(saved)
 
@@ -54,7 +54,7 @@ class ServerRegistryService:
 
     async def get_server_entity(self, server_id: UUID, *, user_id: UUID) -> ServerEntity:
         """Get the raw entity; with `user_id`, a server owned by anyone else is NotFound (no existence leak)."""
-        server = await self.repository.get_by_id(server_id, user_id=user_id)
+        server = await self.server_repository.get_by_id(server_id, user_id=user_id)
         if not server:
             raise NotFoundError(
                 f"Server with id '{server_id}' not found",
@@ -76,7 +76,7 @@ class ServerRegistryService:
         user_id: UUID,
     ) -> PaginatedResponse[ServerResponse]:
         """List servers with pagination, filtering, and sorting."""
-        items, total = await self.repository.list(
+        items, total = await self.server_repository.list(
             page=page,
             page_size=page_size,
             enabled=enabled,
@@ -105,7 +105,7 @@ class ServerRegistryService:
 
         # Check name uniqueness if changed
         if data.name and data.name.lower() != server.name.lower():
-            existing = await self.repository.get_by_name(data.name, user_id=server.user_id)
+            existing = await self.server_repository.get_by_name(data.name, user_id=server.user_id)
             if existing and existing.id != server_id:
                 raise ConflictError(
                     f"A server with name '{data.name}' already exists",
@@ -125,14 +125,14 @@ class ServerRegistryService:
             server.enabled = data.enabled
 
         server.updated_at = datetime.now(UTC)
-        updated = await self.repository.update(server)
+        updated = await self.server_repository.update(server)
         logger.info(f"Updated MCP server '{updated.name}' (id: {updated.id})")
         return ServerResponse.from_domain(updated)
 
     async def delete_server(self, server_id: UUID, *, user_id: UUID) -> bool:
         """Delete the owner's MCP server from the registry."""
         server = await self.get_server_entity(server_id, user_id=user_id)
-        deleted = await self.repository.delete(server_id)
+        deleted = await self.server_repository.delete(server_id)
         if deleted:
             logger.info(f"Deleted MCP server '{server.name}' (id: {server_id})")
         return deleted
@@ -154,6 +154,6 @@ class ServerRegistryService:
                 server.last_connected_at = datetime.now(UTC)
             if discovered_tool_count is not None:
                 server.discovered_tool_count = discovered_tool_count
-            await self.repository.update(server)
+            await self.server_repository.update(server)
         except NotFoundError:
             pass

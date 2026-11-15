@@ -37,10 +37,10 @@ router = APIRouter(prefix="/servers", tags=["Servers"])
 async def create_server(
     payload: ServerCreateRequest,
     principal: Annotated[Principal, Depends(get_current_principal)],
-    registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
+    server_registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
 ) -> ServerResponse:
     """Register an MCP server with stdio or streamable-http transport."""
-    return await registry.create_server(payload, user_id=principal.user_id)
+    return await server_registry.create_server(payload, user_id=principal.user_id)
 
 
 @router.get(
@@ -199,14 +199,14 @@ async def test_server_connection(
 async def refresh_server_tools(
     server_id: UUID,
     principal: Annotated[Principal, Depends(get_current_principal)],
-    registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
-    connection_mgr: Annotated[ConnectionManager, Depends(get_connection_manager)],
-    tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog_service)],
+    server_registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
+    connection_manager: Annotated[ConnectionManager, Depends(get_connection_manager)],
+    tool_catalog: Annotated[ToolCatalogService, Depends(get_tool_catalog_service)],
 ) -> list[ToolResponse]:
     """Query the MCP server for tools and replace its entries in the tool catalog."""
-    server = await registry.get_server_entity(server_id, user_id=principal.user_id)
-    tools = await tool_cat.refresh_server_tools(server, connection_mgr)
-    await registry.update_health(server_id, ServerHealthStatus.HEALTHY, len(tools), user_id=principal.user_id)
+    server = await server_registry.get_server_entity(server_id, user_id=principal.user_id)
+    tools = await tool_catalog.refresh_server_tools(server, connection_manager)
+    await server_registry.update_health(server_id, ServerHealthStatus.HEALTHY, len(tools), user_id=principal.user_id)
 
     return [
         ToolResponse(

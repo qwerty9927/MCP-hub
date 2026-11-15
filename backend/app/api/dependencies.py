@@ -101,7 +101,7 @@ def get_tool_catalog_service() -> ToolCatalogService:
 
 def get_server_registry_service() -> ServerRegistryService:
     """Return server registry service."""
-    return ServerRegistryService(repository=get_server_repository())
+    return ServerRegistryService(server_repository=get_server_repository())
 
 
 def get_tool_executor_service() -> ToolExecutor:

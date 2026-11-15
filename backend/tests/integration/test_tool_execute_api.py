@@ -31,7 +31,7 @@ async def server(user_id):
 def fake_executor():
     downstream = FakeDownstream()
     executor = ToolExecutor(
-        server_registry=ServerRegistryService(repository=PostgresServerRepository()),
+        server_registry=ServerRegistryService(server_repository=PostgresServerRepository()),
         connection_manager=downstream,
         tool_catalog=ToolCatalogService(tool_repository=PostgresToolRepository()),
         execution_repository=PostgresExecutionRepository(),
