@@ -24,11 +24,7 @@ function mcpEndpoint(): string {
 }
 
 export function mcpClientConfig(key: string): string {
-    return JSON.stringify(
-        { mcpServers: { "mcp-hub": { type: "http", url: mcpEndpoint(), headers: { Authorization: `Bearer ${key}` } } } },
-        null,
-        2
-    );
+    return JSON.stringify({ mcpServers: { "mcp-hub": { type: "http", url: mcpEndpoint(), headers: { "x-api-key": key } } } }, null, 2);
 }
 
 function CopyButton({ value, label }: { value: string; label: string }) {

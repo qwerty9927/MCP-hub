@@ -207,6 +207,6 @@ describe("ApiKeysCard", () => {
         expect(authApi.createApiKey).toHaveBeenCalledWith("cursor");
         expect(await screen.findByLabelText("New API key")).toHaveValue("mhk_new1-full-secret");
         expect(screen.getByText(/only time it is shown/)).toBeInTheDocument();
-        expect(JSON.parse(mcpClientConfig("mhk_x")).mcpServers["mcp-hub"].headers.Authorization).toBe("Bearer mhk_x");
+        expect(JSON.parse(mcpClientConfig("mhk_x")).mcpServers["mcp-hub"].headers).toEqual({ "x-api-key": "mhk_x" });
     });
 });
