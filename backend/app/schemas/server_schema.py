@@ -83,14 +83,14 @@ class ServerResponse(BaseModel):
         """Convert a server domain entity or dictionary into ServerResponse with masked headers."""
         if isinstance(server, dict):
             transport = server["transport"]
-            stdio_cfg = server.get("stdio_config") or {}
-            http_cfg = server.get("http_config") or {}
-            headers = mask_sensitive_headers(http_cfg.get("headers")) if http_cfg else None
+            stdio_config = server.get("stdio_config") or {}
+            http_config = server.get("http_config") or {}
+            headers = mask_sensitive_headers(http_config.get("headers")) if http_config else None
 
             config_read = ConnectionConfigResponse(
-                command=stdio_cfg.get("command") if transport == TransportType.STDIO else None,
-                args=stdio_cfg.get("args") if transport == TransportType.STDIO else None,
-                url=http_cfg.get("url") if transport == TransportType.STREAMABLE_HTTP else None,
+                command=stdio_config.get("command") if transport == TransportType.STDIO else None,
+                args=stdio_config.get("args") if transport == TransportType.STDIO else None,
+                url=http_config.get("url") if transport == TransportType.STREAMABLE_HTTP else None,
                 headers=headers if transport == TransportType.STREAMABLE_HTTP else None,
             )
 

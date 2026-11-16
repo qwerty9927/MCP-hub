@@ -33,7 +33,7 @@ _REJECTION_ERRORS: dict[RejectionReason, type[AppError]] = {
 )
 async def list_tools(
     principal: Annotated[Principal, Depends(get_current_principal)],
-    tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog_service)],
+    tool_catalog: Annotated[ToolCatalogService, Depends(get_tool_catalog_service)],
     server_id: UUID | None = Query(default=None, description="Filter by server UUID"),
     tool_name: str | None = Query(default=None, description="Filter by tool name"),
     status: str | None = Query(default=None, description="Filter by availability status"),
@@ -42,7 +42,7 @@ async def list_tools(
     page_size: int = Query(default=20, ge=1, le=100, description="Items per page"),
 ) -> PaginatedResponse[ToolResponse]:
     """Retrieve aggregated tool catalog with search and filtering."""
-    return await tool_cat.list_tools(
+    return await tool_catalog.list_tools(
         server_id=server_id,
         tool_name=tool_name,
         status=status,
@@ -61,8 +61,8 @@ async def list_tools(
 async def list_server_tools(
     server_id: UUID,
     principal: Annotated[Principal, Depends(get_current_principal)],
-    tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog_service)],
-    registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
+    tool_catalog: Annotated[ToolCatalogService, Depends(get_tool_catalog_service)],
+    server_registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
     tool_name: str | None = Query(default=None, description="Filter by tool name"),
     status: str | None = Query(default=None, description="Filter by availability status"),
     search: str | None = Query(default=None, description="Search query matching name or description"),
@@ -70,8 +70,8 @@ async def list_server_tools(
     page_size: int = Query(default=20, ge=1, le=100, description="Items per page"),
 ) -> PaginatedResponse[ToolResponse]:
     """Retrieve tools discovered for a specific server."""
-    await registry.get_server_entity(server_id, user_id=principal.user_id)
-    return await tool_cat.list_tools(
+    await server_registry.get_server_entity(server_id, user_id=principal.user_id)
+    return await tool_catalog.list_tools(
         server_id=server_id,
         tool_name=tool_name,
         status=status,
@@ -90,10 +90,10 @@ async def list_server_tools(
 async def get_tool(
     tool_id: str,
     principal: Annotated[Principal, Depends(get_current_principal)],
-    tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog_service)],
+    tool_catalog: Annotated[ToolCatalogService, Depends(get_tool_catalog_service)],
 ) -> ToolResponse:
     """Retrieve details and schema of a specific tool by its id or name."""
-    entity = await tool_cat.get_tool(tool_id, user_id=principal.user_id)
+    entity = await tool_catalog.get_tool(tool_id, user_id=principal.user_id)
     return ToolResponse(
         id=entity.id,
         name=entity.name,
@@ -116,10 +116,10 @@ async def execute_tool(
     tool_name: str,
     payload: ToolExecuteRequest,
     principal: Annotated[Principal, Depends(get_current_principal)],
-    executor: Annotated[ToolExecutor, Depends(get_tool_executor_service)],
+    tool_executor: Annotated[ToolExecutor, Depends(get_tool_executor_service)],
 ) -> ToolExecuteResponse:
     """Validate arguments and invoke the specified MCP tool on the target server."""
-    outcome = await executor.execute(
+    outcome = await tool_executor.execute(
         tool_name, payload.arguments, user_id=principal.user_id, server_id=server_id, session_id=payload.session_id
     )
     return _execute_response(outcome)

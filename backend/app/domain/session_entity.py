@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from app.core.enums.session_enum import SessionStatus, ToolCallStatus
 
@@ -12,8 +12,8 @@ from app.core.enums.session_enum import SessionStatus, ToolCallStatus
 class SessionEntity:
     """Core domain entity representing an MCP session."""
 
-    id: str
     user_id: UUID  # the owning account
+    id: UUID = field(default_factory=uuid4)
     status: SessionStatus = SessionStatus.ACTIVE
     title: str | None = None
     metadata: dict[str, Any] | None = None
@@ -31,7 +31,7 @@ class SessionEntity:
 class SessionDetailEntity:
     """Domain entity representing detailed session view with aggregated metrics."""
 
-    id: str
+    id: UUID
     status: SessionStatus
     title: str | None
     metadata: dict[str, Any] | None
@@ -52,7 +52,7 @@ class ToolCallEntity:
     tool_name: str
     status: ToolCallStatus
     started_at: datetime
-    session_id: str | None = None
+    session_id: UUID | None = None
     completed_at: datetime | None = None
     duration_ms: float | None = None
     error_summary: str | None = None

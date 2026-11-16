@@ -25,14 +25,14 @@ router = APIRouter(prefix="/sessions", tags=["Sessions"])
 )
 async def list_sessions(
     principal: Annotated[Principal, Depends(get_current_principal)],
-    service: Annotated[SessionExplorerService, Depends(get_session_explorer_service)],
+    session_explorer: Annotated[SessionExplorerService, Depends(get_session_explorer_service)],
     page: int = Query(default=1, ge=1, description="Page number"),
     page_size: int = Query(default=20, ge=1, le=100, description="Items per page"),
     search: str | None = Query(default=None, description="Search term matching session ID or title"),
     status: str | None = Query(default=None, description="Filter by session status (active, completed, failed)"),
 ) -> PaginatedResponse[SessionResponse]:
     """Retrieve existing MCP sessions with database-side pagination and filters."""
-    return await service.list_sessions(
+    return await session_explorer.list_sessions(
         page=page,
         page_size=page_size,
         search=search,
@@ -47,12 +47,12 @@ async def list_sessions(
     summary="Get session details and execution metrics",
 )
 async def get_session(
-    session_id: str,
+    session_id: UUID,
     principal: Annotated[Principal, Depends(get_current_principal)],
-    service: Annotated[SessionExplorerService, Depends(get_session_explorer_service)],
+    session_explorer: Annotated[SessionExplorerService, Depends(get_session_explorer_service)],
 ) -> SessionDetailResponse:
     """Retrieve session details with aggregated tool execution counts."""
-    return await service.get_session(session_id, user_id=principal.user_id)
+    return await session_explorer.get_session(session_id, user_id=principal.user_id)
 
 
 @router.get(
@@ -61,9 +61,9 @@ async def get_session(
     summary="List tool execution history for a session",
 )
 async def list_session_tool_calls(
-    session_id: str,
+    session_id: UUID,
     principal: Annotated[Principal, Depends(get_current_principal)],
-    service: Annotated[SessionExplorerService, Depends(get_session_explorer_service)],
+    session_explorer: Annotated[SessionExplorerService, Depends(get_session_explorer_service)],
     page: int = Query(default=1, ge=1, description="Page number"),
     page_size: int = Query(default=20, ge=1, le=100, description="Items per page"),
     sort_by: str = Query(
@@ -76,7 +76,7 @@ async def list_session_tool_calls(
     tool_name: str | None = Query(default=None, description="Filter by tool name"),
 ) -> PaginatedResponse[ToolCallResponse]:
     """Retrieve all tool calls belonging to a session in chronological order with pagination and filters."""
-    return await service.list_session_tool_calls(
+    return await session_explorer.list_session_tool_calls(
         session_id=session_id,
         page=page,
         page_size=page_size,
@@ -95,10 +95,10 @@ async def list_session_tool_calls(
     summary="Get specific tool call details within a session",
 )
 async def get_session_tool_call(
-    session_id: str,
+    session_id: UUID,
     call_id: UUID,
     principal: Annotated[Principal, Depends(get_current_principal)],
-    service: Annotated[SessionExplorerService, Depends(get_session_explorer_service)],
+    session_explorer: Annotated[SessionExplorerService, Depends(get_session_explorer_service)],
 ) -> ToolCallResponse:
     """Retrieve an individual tool call by its UUID within a session."""
-    return await service.get_session_tool_call(session_id, call_id, user_id=principal.user_id)
+    return await session_explorer.get_session_tool_call(session_id, call_id, user_id=principal.user_id)

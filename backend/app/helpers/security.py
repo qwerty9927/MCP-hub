@@ -3,23 +3,12 @@
 import asyncio
 import ipaddress
 import os
-import re
 import socket
 from pathlib import Path
 from urllib.parse import urlparse
 
 from app.core.config import get_settings
 from app.core.exceptions import ForbiddenError
-
-# Sensitive environment variable keywords to mask or block
-SENSITIVE_ENV_PATTERNS = [
-    re.compile(r".*TOKEN.*", re.IGNORECASE),
-    re.compile(r".*SECRET.*", re.IGNORECASE),
-    re.compile(r".*PASSWORD.*", re.IGNORECASE),
-    re.compile(r".*KEY.*", re.IGNORECASE),
-    re.compile(r".*DATABASE_URL.*", re.IGNORECASE),
-    re.compile(r".*CREDENTIAL.*", re.IGNORECASE),
-]
 
 # Sensitive HTTP headers
 SENSITIVE_HEADER_NAMES = {
@@ -66,12 +55,12 @@ def validate_stdio_command(command: str, args: list[str] | None = None) -> None:
 
     # Validate arguments for null bytes or suspicious characters
     if args:
-        for arg in args:
-            if "\0" in arg:
+        for argument in args:
+            if "\0" in argument:
                 raise ForbiddenError("Argument contains illegal null byte")
 
 
-def sanitize_environment(custom_env: dict[str, str] | None, inherit_base: bool = True) -> dict[str, str]:
+def sanitize_environment(custom_environment: dict[str, str] | None, inherit_base: bool = True) -> dict[str, str]:
     """Sanitize environment variables passed to child stdio processes.
 
     Ensures host secrets are not leaked unintentionally to child processes.
@@ -84,12 +73,12 @@ def sanitize_environment(custom_env: dict[str, str] | None, inherit_base: bool =
             if key in os.environ:
                 sanitized[key] = os.environ[key]
 
-    if not custom_env:
+    if not custom_environment:
         return sanitized
 
-    for key, val in custom_env.items():
+    for key, value in custom_environment.items():
         # Prevent passing modified system secrets unless explicitly needed
-        sanitized[str(key)] = str(val)
+        sanitized[str(key)] = str(value)
 
     return sanitized
 
@@ -192,11 +181,11 @@ def mask_sensitive_headers(headers: dict[str, str] | None) -> dict[str, str]:
         return {}
 
     masked: dict[str, str] = {}
-    for key, val in headers.items():
+    for key, value in headers.items():
         if key.lower() in SENSITIVE_HEADER_NAMES:
             masked[key] = "********"
         else:
-            masked[key] = val
+            masked[key] = value
     return masked
 
 

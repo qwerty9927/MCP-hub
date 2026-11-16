@@ -5,7 +5,7 @@
 
 export type TransportType = "stdio" | "streamable-http";
 
-export type ServerHealthStatus = "UNKNOWN" | "HEALTHY" | "UNHEALTHY" | "CONNECTING" | "DISCONNECTED";
+export type ServerHealthStatus = "UNKNOWN" | "HEALTHY" | "UNHEALTHY" | "DISCONNECTED";
 
 export interface StdioConfig {
     command: string;
@@ -186,7 +186,7 @@ export interface ApiErrorResponse {
 }
 
 export type SessionStatus = "active" | "completed" | "failed";
-export type ToolCallStatus = "running" | "completed" | "failed" | "rejected";
+export type ToolCallStatus = "completed" | "failed" | "rejected";
 
 export interface SessionRead {
     id: string;

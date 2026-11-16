@@ -81,7 +81,6 @@ export function ServerFilterBar({ filters, onChange }: ServerFilterBarProps) {
                         <SelectItem value="all">All Statuses</SelectItem>
                         <SelectItem value="HEALTHY">Healthy</SelectItem>
                         <SelectItem value="UNHEALTHY">Unhealthy</SelectItem>
-                        <SelectItem value="CONNECTING">Connecting</SelectItem>
                         <SelectItem value="DISCONNECTED">Disconnected</SelectItem>
                         <SelectItem value="UNKNOWN">Unknown</SelectItem>
                     </SelectContent>

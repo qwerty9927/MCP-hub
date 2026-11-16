@@ -58,7 +58,7 @@ class PostgresApiKeyRepository(ApiKeyRepositoryAbstract):
         async with db_module.async_session_factory() as session:
             stmt = select(ApiKeyModel).where(ApiKeyModel.user_id == str(user_id)).order_by(ApiKeyModel.created_at.desc())
             result = await session.execute(stmt)
-            return [m.to_domain() for m in result.scalars().all()]
+            return [model.to_domain() for model in result.scalars().all()]
 
     async def revoke(self, user_id: UUID, key_id: UUID) -> bool:
         async with db_module.async_session_factory() as session:

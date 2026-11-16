@@ -16,3 +16,5 @@ mcp_hub.db
 .agents
 skills-lock.json
 uv.lock
+.cache/
+.mypy_cache

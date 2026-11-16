@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 class SessionResponse(BaseModel):
     """Session summary response schema."""
 
-    id: str = Field(..., description="Unique session identifier")
+    id: UUID = Field(..., description="Unique session identifier")
     title: str | None = Field(default=None, description="Session title or identifier")
     status: str = Field(..., description="Session lifecycle status (active, completed, failed)")
     created_at: datetime = Field(..., description="Timestamp when session was created")
@@ -21,7 +21,7 @@ class SessionResponse(BaseModel):
 class SessionDetailResponse(BaseModel):
     """Detailed session view with aggregated execution metrics."""
 
-    id: str = Field(..., description="Unique session identifier")
+    id: UUID = Field(..., description="Unique session identifier")
     title: str | None = Field(default=None, description="Session title or identifier")
     metadata: dict[str, Any] | None = Field(default=None, description="Session metadata or client properties")
     status: str = Field(..., description="Session lifecycle status (active, completed, failed)")
@@ -37,7 +37,7 @@ class ToolCallResponse(BaseModel):
     """Detailed tool execution record within a session."""
 
     id: UUID = Field(..., description="Unique call ID")
-    session_id: str | None = Field(default=None, description="Parent session ID")
+    session_id: UUID | None = Field(default=None, description="Parent session ID")
     server_name: str = Field(..., description="Name of the MCP server")
     tool_name: str = Field(..., description="Name of the executed tool")
     status: str = Field(..., description="Execution status (running, completed, failed, rejected)")
@@ -47,7 +47,3 @@ class ToolCallResponse(BaseModel):
     error_summary: str | None = Field(default=None, description="Summary error message if execution failed")
     arguments: dict[str, Any] = Field(default_factory=dict, description="Tool execution input arguments")
     response: Any | None = Field(default=None, description="Output payload returned by the tool")
-
-
-# Backward-compatible alias
-SessionRead = SessionResponse

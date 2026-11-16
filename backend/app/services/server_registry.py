@@ -88,7 +88,7 @@ class ServerRegistryService:
             user_id=user_id,
         )
 
-        read_items = [ServerResponse.from_domain(s) for s in items]
+        read_items = [ServerResponse.from_domain(server) for server in items]
         total_pages = math.ceil(total / page_size) if total > 0 else 0
 
         return PaginatedResponse[ServerResponse](

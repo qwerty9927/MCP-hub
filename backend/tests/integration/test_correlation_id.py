@@ -25,16 +25,6 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
         yield c
 
 
-def _assert_valid_correlation_id(response) -> str:
-    """Helper asserting x-correlation-id header is present, non-empty, and valid UUIDv4."""
-    corr_id = response.headers.get("x-correlation-id")
-    assert corr_id is not None, f"Response missing x-correlation-id header: {response.headers}"
-    parsed_uuid = uuid.UUID(corr_id)
-    assert str(parsed_uuid) == corr_id
-    assert parsed_uuid.version == 4
-    return corr_id
-
-
 # --- 1. SUCCESSFUL API CALLS (200, 201, 204) ---
 
 
@@ -240,3 +230,13 @@ async def test_internal_correlation_id_not_client_controlled(client: AsyncClient
 
     corr_id = _assert_valid_correlation_id(response)
     assert corr_id != client_supplied_id
+
+
+def _assert_valid_correlation_id(response) -> str:
+    """Helper asserting x-correlation-id header is present, non-empty, and valid UUIDv4."""
+    corr_id = response.headers.get("x-correlation-id")
+    assert corr_id is not None, f"Response missing x-correlation-id header: {response.headers}"
+    parsed_uuid = uuid.UUID(corr_id)
+    assert str(parsed_uuid) == corr_id
+    assert parsed_uuid.version == 4
+    return corr_id

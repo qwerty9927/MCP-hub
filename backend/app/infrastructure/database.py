@@ -1,7 +1,6 @@
 """Database configuration and session management for PostgreSQL."""
 
-from collections.abc import AsyncGenerator
-
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -38,26 +37,16 @@ def create_database_engine(
     )
 
 
-async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
-    """Dependency for obtaining an asynchronous database session."""
-    async with async_session_factory() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
-
-
 async def init_db(target_engine: AsyncEngine | None = None) -> None:
     """Initialize database tables."""
-    eng = target_engine or engine
-    async with eng.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    database_engine = target_engine or engine
+    async with database_engine.begin() as connection:
+        # discovered_tools.embedding needs pgvector; create_all does not create extensions.
+        await connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        await connection.run_sync(Base.metadata.create_all)
 
 
 engine = create_database_engine(_settings.DATABASE_URL, _settings.DEBUG)
-
 async_session_factory = async_sessionmaker(
     bind=engine,
     autoflush=False,

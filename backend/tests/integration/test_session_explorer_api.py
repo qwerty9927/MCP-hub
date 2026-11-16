@@ -16,12 +16,6 @@ from app.infrastructure.repositories.session_repository import PostgresSessionRe
 DEMO_SERVER = str(Path(__file__).resolve().parent.parent.parent / "demo_server" / "server.py")
 
 
-async def _seed_session(user_id, title: str, metadata: dict | None = None) -> str:
-    """Create an active session owned by `user_id` and return its ID."""
-    created = await PostgresSessionRepository().create(SessionEntity(id=str(uuid4()), title=title, metadata=metadata, user_id=user_id))
-    return created.id
-
-
 @pytest.mark.asyncio
 async def test_session_explorer_api_lifecycle(async_client: AsyncClient, user_id):
     """Verify complete HTTP API lifecycle for Session Explorer."""
@@ -171,3 +165,9 @@ async def test_session_explorer_sensitive_masking(async_client: AsyncClient, use
     assert data["arguments"]["password"] == "***MASKED***"
     assert data["arguments"]["api_key"] == "***MASKED***"
     assert data["response"]["token"] == "***MASKED***"
+
+
+async def _seed_session(user_id, title: str, metadata: dict | None = None) -> str:
+    """Create an active session owned by `user_id` and return its ID, as the API renders it."""
+    created = await PostgresSessionRepository().create(SessionEntity(id=uuid4(), title=title, metadata=metadata, user_id=user_id))
+    return str(created.id)

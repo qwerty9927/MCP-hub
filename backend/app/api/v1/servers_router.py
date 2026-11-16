@@ -50,7 +50,7 @@ async def create_server(
 )
 async def list_servers(
     principal: Annotated[Principal, Depends(get_current_principal)],
-    registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
+    server_registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
     page: int = Query(default=1, ge=1, description="Page number"),
     page_size: int = Query(default=20, ge=1, le=100, description="Items per page"),
     enabled: bool | None = Query(default=None, description="Filter by enabled status"),
@@ -61,7 +61,7 @@ async def list_servers(
     sort_order: str = Query(default="desc", pattern="^(asc|desc)$", description="Sort order"),
 ) -> PaginatedResponse[ServerResponse]:
     """Retrieve paginated MCP servers with optional filtering and sorting."""
-    return await registry.list_servers(
+    return await server_registry.list_servers(
         page=page,
         page_size=page_size,
         enabled=enabled,
@@ -82,10 +82,10 @@ async def list_servers(
 async def get_server(
     server_id: UUID,
     principal: Annotated[Principal, Depends(get_current_principal)],
-    registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
+    server_registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
 ) -> ServerResponse:
     """Get complete configuration and status of an MCP server by ID."""
-    return await registry.get_server(server_id, user_id=principal.user_id)
+    return await server_registry.get_server(server_id, user_id=principal.user_id)
 
 
 @router.patch(
@@ -97,10 +97,10 @@ async def update_server(
     server_id: UUID,
     payload: ServerUpdateRequest,
     principal: Annotated[Principal, Depends(get_current_principal)],
-    registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
+    server_registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
 ) -> ServerResponse:
     """Update configuration attributes of an existing MCP server."""
-    result = await registry.update_server(server_id, payload, user_id=principal.user_id)
+    result = await server_registry.update_server(server_id, payload, user_id=principal.user_id)
     return result
 
 
@@ -112,15 +112,15 @@ async def update_server(
 async def delete_server(
     server_id: UUID,
     principal: Annotated[Principal, Depends(get_current_principal)],
-    registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
-    connection_mgr: Annotated[ConnectionManager, Depends(get_connection_manager)],
-    tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog_service)],
+    server_registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
+    connection_manager: Annotated[ConnectionManager, Depends(get_connection_manager)],
+    tool_catalog: Annotated[ToolCatalogService, Depends(get_tool_catalog_service)],
 ) -> None:
     """Remove server registration, close active connections, and delete its stored tools."""
-    await registry.get_server_entity(server_id, user_id=principal.user_id)
-    await connection_mgr.disconnect(server_id)
-    await tool_cat.remove_server_tools(server_id)
-    await registry.delete_server(server_id, user_id=principal.user_id)
+    await server_registry.get_server_entity(server_id, user_id=principal.user_id)
+    await connection_manager.disconnect(server_id)
+    await tool_catalog.remove_server_tools(server_id)
+    await server_registry.delete_server(server_id, user_id=principal.user_id)
 
 
 @router.post(
@@ -131,21 +131,21 @@ async def delete_server(
 async def connect_server(
     server_id: UUID,
     principal: Annotated[Principal, Depends(get_current_principal)],
-    registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
-    connection_mgr: Annotated[ConnectionManager, Depends(get_connection_manager)],
-    tool_cat: Annotated[ToolCatalogService, Depends(get_tool_catalog_service)],
+    server_registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
+    connection_manager: Annotated[ConnectionManager, Depends(get_connection_manager)],
+    tool_catalog: Annotated[ToolCatalogService, Depends(get_tool_catalog_service)],
 ) -> ServerResponse:
     """Establish active session to the server and discover available tools."""
-    server = await registry.get_server_entity(server_id, user_id=principal.user_id)
+    server = await server_registry.get_server_entity(server_id, user_id=principal.user_id)
     try:
-        await connection_mgr.get_or_create_session(server)
-        tools = await tool_cat.refresh_server_tools(server, connection_mgr)
-        await registry.update_health(server_id, ServerHealthStatus.HEALTHY, len(tools), user_id=principal.user_id)
+        await connection_manager.get_or_create_session(server)
+        tools = await tool_catalog.refresh_server_tools(server, connection_manager)
+        await server_registry.update_health(server_id, ServerHealthStatus.HEALTHY, len(tools), user_id=principal.user_id)
     except Exception:
-        await registry.update_health(server_id, ServerHealthStatus.UNHEALTHY, user_id=principal.user_id)
+        await server_registry.update_health(server_id, ServerHealthStatus.UNHEALTHY, user_id=principal.user_id)
         raise
 
-    return await registry.get_server(server_id, user_id=principal.user_id)
+    return await server_registry.get_server(server_id, user_id=principal.user_id)
 
 
 @router.post(
@@ -156,14 +156,14 @@ async def connect_server(
 async def disconnect_server(
     server_id: UUID,
     principal: Annotated[Principal, Depends(get_current_principal)],
-    registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
-    connection_mgr: Annotated[ConnectionManager, Depends(get_connection_manager)],
+    server_registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
+    connection_manager: Annotated[ConnectionManager, Depends(get_connection_manager)],
 ) -> ServerResponse:
     """Disconnect active session for the given server."""
-    await registry.get_server_entity(server_id, user_id=principal.user_id)
-    await connection_mgr.disconnect(server_id)
-    await registry.update_health(server_id, ServerHealthStatus.DISCONNECTED, user_id=principal.user_id)
-    return await registry.get_server(server_id, user_id=principal.user_id)
+    await server_registry.get_server_entity(server_id, user_id=principal.user_id)
+    await connection_manager.disconnect(server_id)
+    await server_registry.update_health(server_id, ServerHealthStatus.DISCONNECTED, user_id=principal.user_id)
+    return await server_registry.get_server(server_id, user_id=principal.user_id)
 
 
 @router.post(
@@ -174,14 +174,14 @@ async def disconnect_server(
 async def test_server_connection(
     server_id: UUID,
     principal: Annotated[Principal, Depends(get_current_principal)],
-    registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
-    connection_mgr: Annotated[ConnectionManager, Depends(get_connection_manager)],
+    server_registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
+    connection_manager: Annotated[ConnectionManager, Depends(get_connection_manager)],
 ) -> ServerTestResponse:
     """Perform a ping and tool listing check without persisting permanent session."""
-    server = await registry.get_server_entity(server_id, user_id=principal.user_id)
-    success, message, count, latency = await connection_mgr.test_connection(server)
+    server = await server_registry.get_server_entity(server_id, user_id=principal.user_id)
+    success, message, count, latency = await connection_manager.test_connection(server)
     new_status = ServerHealthStatus.HEALTHY if success else ServerHealthStatus.UNHEALTHY
-    await registry.update_health(server_id, new_status, count if success else None, user_id=principal.user_id)
+    await server_registry.update_health(server_id, new_status, count if success else None, user_id=principal.user_id)
 
     return ServerTestResponse(
         success=success,
@@ -210,14 +210,14 @@ async def refresh_server_tools(
 
     return [
         ToolResponse(
-            id=t.id,
-            name=t.name,
-            description=t.description,
-            input_schema=t.input_schema,
-            server_id=t.server_id,
-            server_name=t.server_name,
-            availability_status=t.availability_status,
-            last_discovered_at=t.last_discovered_at,
+            id=tool.id,
+            name=tool.name,
+            description=tool.description,
+            input_schema=tool.input_schema,
+            server_id=tool.server_id,
+            server_name=tool.server_name,
+            availability_status=tool.availability_status,
+            last_discovered_at=tool.last_discovered_at,
         )
-        for t in tools
+        for tool in tools
     ]

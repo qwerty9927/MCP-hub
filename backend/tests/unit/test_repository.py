@@ -137,7 +137,7 @@ async def test_tool_repository_crud_and_cascade(account_id):
 
     # 7. Cascade delete when parent server is deleted
     await server_repo.delete(server_id)
-    remaining_tools, remaining_total = await tool_repo.list_tools(server_id=server_id, user_id=account_id)
+    _, remaining_total = await tool_repo.list_tools(server_id=server_id, user_id=account_id)
     assert remaining_total == 0
 
 

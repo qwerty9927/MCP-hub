@@ -20,8 +20,8 @@ class CorrelationAndLoggingMiddleware:
             return
 
         # Internally generate unique correlation ID in backend for every request
-        corr_id = str(uuid.uuid4())
-        set_correlation_id(corr_id)
+        correlation_id = str(uuid.uuid4())
+        set_correlation_id(correlation_id)
 
         start_time = time.perf_counter()
         method = scope.get("method", "")
@@ -30,9 +30,9 @@ class CorrelationAndLoggingMiddleware:
 
         async def send_wrapper(message):
             if message["type"] == "http.response.start":
-                resp_headers = [(k, v) for k, v in message.get("headers", []) if k.lower() != b"x-correlation-id"]
-                resp_headers.append((b"x-correlation-id", corr_id.encode("latin1")))
-                message["headers"] = resp_headers
+                response_headers = [(k, v) for k, v in message.get("headers", []) if k.lower() != b"x-correlation-id"]
+                response_headers.append((b"x-correlation-id", correlation_id.encode("latin1")))
+                message["headers"] = response_headers
             await send(message)
 
         try:

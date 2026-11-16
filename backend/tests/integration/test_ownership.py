@@ -23,7 +23,7 @@ async def owned(async_client, user_id):
     server_id = UUID(server["id"])
     tool = ToolEntity(id=uuid4(), server_id=server_id, server_name="math", name="add", input_schema={}, user_id=user_id)
     await PostgresToolRepository().replace_server_tools(server_id, "math", [tool])
-    session = await PostgresSessionRepository().create(SessionEntity(id=str(uuid4()), title="mine", user_id=user_id))
+    session = await PostgresSessionRepository().create(SessionEntity(id=uuid4(), title="mine", user_id=user_id))
     execution = await PostgresExecutionRepository().create(
         ExecutionEntity(
             id=uuid4(),
@@ -87,7 +87,7 @@ async def test_foreign_session_cannot_be_used_for_execution(other_user_client, o
     mine = (await other_user_client.post("/api/v1/servers", json=SERVER)).json()
 
     res = await other_user_client.post(
-        f"/api/v1/servers/{mine['id']}/tools/add/execute", json={"arguments": {}, "session_id": owned["session"]}
+        f"/api/v1/servers/{mine['id']}/tools/add/execute", json={"arguments": {}, "session_id": str(owned["session"])}
     )
 
     assert res.status_code == 404

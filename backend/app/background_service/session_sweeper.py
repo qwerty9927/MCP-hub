@@ -16,7 +16,7 @@ class SessionSweeperService:
     """Completes every active Session idle for longer than its own timeout (or the default)."""
 
     def __init__(self, session_repository: SessionRepositoryAbstract) -> None:
-        self._sessions = session_repository
+        self._session_repository = session_repository
 
     async def complete_idle_sessions(self) -> int:
         """Run one sweep; returns how many Sessions were completed.
@@ -24,7 +24,7 @@ class SessionSweeperService:
         Never raises: a failed sweep is logged and the scheduler runs the next one on time.
         """
         try:
-            completed = await self._sessions.complete_idle_sessions(datetime.now(UTC), DEFAULT_SESSION_IDLE_SECONDS)
+            completed = await self._session_repository.complete_idle_sessions(datetime.now(UTC), DEFAULT_SESSION_IDLE_SECONDS)
         except Exception as exc:
             logger.error(f"Could not complete idle sessions: {exc}")
             return 0

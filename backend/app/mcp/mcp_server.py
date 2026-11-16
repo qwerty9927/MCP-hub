@@ -4,6 +4,7 @@ import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
+from uuid import UUID
 
 from mcp.server.auth.middleware.bearer_auth import AuthenticatedUser
 from mcp.server.context import ServerRequestContext
@@ -29,6 +30,7 @@ from app.core.constants.meta_tools import (
 from app.core.exceptions import ValidationError
 from app.core.logging import logger
 from app.domain.principal_entity import Principal
+from app.domain.tool_entity import ToolEntity
 from app.mcp.mcp_proxy_asgi import MCPProxyASGI
 from app.mcp.multi_execute_tools import (
     MULTI_EXECUTE_TOOLS_SCHEMA,
@@ -226,7 +228,7 @@ class MCPServer:
             user_agent = ctx.request.headers.get("user-agent") or None
         return ClientIdentity(name=name, version=version, protocol_version=ctx.protocol_version, user_agent=user_agent)
 
-    async def _track_session(self, ctx: ServerRequestContext, principal: Principal | None) -> str | None:
+    async def _track_session(self, ctx: ServerRequestContext, principal: Principal | None) -> UUID | None:
         """Attribute the request to a hub Session."""
         if principal is None:
             return None
@@ -237,20 +239,13 @@ class MCPServer:
         arguments: dict[str, Any] | None,
         principal: Principal,
     ) -> CallToolResult:
-        """Handle execution of Search based on mcp_servers and discovered_tools."""
+        """Handle SEARCH_TOOLS: vector search over the caller's Tools on enabled Servers (ADR-0006)."""
         try:
-            # Fetch enabled servers from mcp_servers table
-            servers_res = await self.server_registry.list_servers(page=1, page_size=1000, enabled=True, user_id=principal.user_id)
-            enabled_server_ids = {s.id for s in servers_res.items}
 
-            # Fetch discovered tools from discovered_tools table
-            all_tools_res = await self.tool_catalog.list_tools(page=1, page_size=1000, user_id=principal.user_id)
-            candidate_tools = [t for t in all_tools_res.items if t.server_id in enabled_server_ids and t.availability_status == "AVAILABLE"]
+            async def search(queries: list[str], top_k: int) -> list[list[tuple[ToolEntity, float]]]:
+                return await self.tool_catalog.search(queries, user_id=principal.user_id, top_k=top_k)
 
-            result_dict = handle_search_tools(
-                arguments=arguments or {},
-                tools=candidate_tools,
-            )
+            result_dict = await handle_search_tools(arguments=arguments or {}, search=search)
             return CallToolResult(
                 is_error=False,
                 content=[
@@ -287,7 +282,7 @@ class MCPServer:
         self,
         arguments: dict[str, Any] | None,
         principal: Principal,
-        session_id: str | None = None,
+        session_id: UUID | None = None,
     ) -> CallToolResult:
         """Handle execution of Multi-Execute based on mcp_servers and discovered_tools."""
         try:

@@ -20,30 +20,11 @@ class ToolResponse(BaseModel):
     last_discovered_at: datetime = Field(..., description="Timestamp of when tool was last discovered/refreshed")
 
 
-class ToolSummaryResponse(BaseModel):
-    """Compact summary of a discovered tool."""
-
-    id: UUID = Field(..., description="Tool ID (UUID); a new one each time the server's tools are re-discovered")
-    name: str = Field(..., description="Tool name")
-    server_id: UUID = Field(..., description="Parent server UUID")
-    server_name: str = Field(..., description="Parent server name")
-    description: str | None = None
-    availability_status: str = "AVAILABLE"
-
-
 class ToolExecuteRequest(BaseModel):
     """Payload for executing a tool."""
 
     arguments: dict[str, Any] = Field(default_factory=dict, description="Key-value arguments matching tool inputSchema")
-    session_id: str | None = Field(default=None, description="Optional session ID to associate with this tool execution")
-
-
-class ToolContentItem(BaseModel):
-    """Single item of content returned by tool execution."""
-
-    type: str = Field(default="text", description="Type of content: text, image, resource, etc.")
-    text: str | None = None
-    data: Any | None = None
+    session_id: UUID | None = Field(default=None, description="Optional session ID to associate with this tool execution")
 
 
 class ToolExecuteResponse(BaseModel):
@@ -58,10 +39,3 @@ class ToolExecuteResponse(BaseModel):
     duration_ms: float
     executed_at: datetime
     correlation_id: str | None = Field(default=None, description="Request correlation ID for execution tracing")
-
-
-# Backward-compatible alias
-ToolRead = ToolResponse
-
-# Backward-compatible alias
-ToolSummaryRead = ToolSummaryResponse

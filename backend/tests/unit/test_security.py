@@ -102,18 +102,6 @@ def test_validate_http_url_blocks_mapped_and_unspecified_addresses():
         validate_http_url("http://0.0.0.0:8000/mcp", allow_private=False)
 
 
-def _resolve_to(monkeypatch: pytest.MonkeyPatch, *addresses: str) -> list[str]:
-    """Make the running loop resolve every hostname to `addresses`; returns the hostnames looked up."""
-    lookups: list[str] = []
-
-    async def fake_getaddrinfo(host, port, **kwargs):
-        lookups.append(host)
-        return [(socket.AF_INET6 if ":" in addr else socket.AF_INET, socket.SOCK_STREAM, 6, "", (addr, port)) for addr in addresses]
-
-    monkeypatch.setattr(asyncio.get_running_loop(), "getaddrinfo", fake_getaddrinfo)
-    return lookups
-
-
 async def test_resolved_url_rejects_public_name_pointing_at_private_address(monkeypatch):
     _resolve_to(monkeypatch, "10.0.0.5")
 
@@ -175,3 +163,15 @@ def test_mask_sensitive_headers():
     assert masked["X-Api-Key"] == "********"
     assert masked["Content-Type"] == "application/json"
     assert masked["User-Agent"] == "MCP-Client"
+
+
+def _resolve_to(monkeypatch: pytest.MonkeyPatch, *addresses: str) -> list[str]:
+    """Make the running loop resolve every hostname to `addresses`; returns the hostnames looked up."""
+    lookups: list[str] = []
+
+    async def fake_getaddrinfo(host, port, **kwargs):
+        lookups.append(host)
+        return [(socket.AF_INET6 if ":" in addr else socket.AF_INET, socket.SOCK_STREAM, 6, "", (addr, port)) for addr in addresses]
+
+    monkeypatch.setattr(asyncio.get_running_loop(), "getaddrinfo", fake_getaddrinfo)
+    return lookups

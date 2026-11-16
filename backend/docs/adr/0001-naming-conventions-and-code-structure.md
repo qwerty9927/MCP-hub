@@ -31,7 +31,7 @@ We standardize on explicit, full-word role suffixes for structural modules and u
 
 2. **Schema Suffix Standard**:
    - Inbound request payloads strictly use `*Request` (e.g., `ServerCreateRequest`, `ServerUpdateRequest`, `SessionCreateRequest`, `ToolExecuteRequest`).
-   - Outbound response payloads strictly use `*Response` (e.g., `ServerResponse`, `ServerTestResponse`, `ToolResponse`, `ToolSummaryResponse`, `ToolExecuteResponse`, `ExecutionResponse`, `SessionResponse`, `SessionDetailResponse`, `ToolCallResponse`, `ConnectionConfigResponse`).
+   - Outbound response payloads strictly use `*Response` (e.g., `ServerResponse`, `ServerTestResponse`, `ToolResponse`, `ToolExecuteResponse`, `ExecutionResponse`, `SessionResponse`, `SessionDetailResponse`, `ToolCallResponse`, `ConnectionConfigResponse`).
    - Backward-compatible type aliases (e.g., `ServerCreate = ServerCreateRequest`) may be retained temporarily to prevent breaking external consumers.
 
 3. **Deletion of Deprecated Modules**:

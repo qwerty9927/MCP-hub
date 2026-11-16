@@ -108,7 +108,7 @@ async def execute_single_tool(
     item: ToolExecutionItem,
     executor: ToolExecutor,
     user_id: UUID,
-    session_id: str | None = None,
+    session_id: UUID | None = None,
 ) -> dict[str, Any]:
     """Execute one batch item through the Execution module, isolating any failure to this item."""
     slug = item.tool_slug
@@ -133,7 +133,7 @@ async def handle_multi_execute_tools(
     arguments: dict[str, Any],
     executor: ToolExecutor,
     user_id: UUID,
-    session_id: str | None = None,
+    session_id: UUID | None = None,
 ) -> dict[str, Any]:
     """Execute MULTI_EXECUTE_TOOLS: validate the batch, fan out concurrently, isolate failures per item."""
     try:
@@ -153,12 +153,12 @@ def _agent_data(content: list[dict[str, Any]]) -> Any:
     if not content:
         return None
     if len(content) == 1 and content[0].get("type") == "text" and "text" in content[0]:
-        text_val = content[0]["text"]
+        text = content[0]["text"]
         try:
-            parsed = json.loads(text_val)
+            parsed = json.loads(text)
         except (TypeError, ValueError):
-            return text_val
-        return parsed if isinstance(parsed, (dict, list)) else text_val
+            return text
+        return parsed if isinstance(parsed, (dict, list)) else text
     return content
 
 

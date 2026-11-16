@@ -167,7 +167,6 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
                                 <SelectItem value="completed">Completed</SelectItem>
                                 <SelectItem value="failed">Failed</SelectItem>
                                 <SelectItem value="rejected">Rejected</SelectItem>
-                                <SelectItem value="running">Running</SelectItem>
                             </SelectContent>
                         </Select>
 

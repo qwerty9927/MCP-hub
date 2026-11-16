@@ -3,7 +3,6 @@
 import asyncio
 import time
 from contextlib import AsyncExitStack
-from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -50,7 +49,6 @@ class SessionWorker:
         self.stop_event = asyncio.Event()
         self.error: Exception | None = None
         self.task: asyncio.Task | None = None
-        self.connected_at: datetime | None = None
         self.is_alive: bool = False
         self.last_verified_at: float = 0.0  # time.monotonic() of the last successful connect or ping
 
@@ -73,10 +71,10 @@ class SessionWorker:
 
         if self.error:
             await self.stop()
-            error_str = format_mcp_error(self.error)
+            error_message = format_mcp_error(self.error)
             raise BadGatewayError(
-                f"Failed to connect to server '{self.server.id}': {error_str}",
-                details={"server_id": str(self.server.id), "reason": error_str},
+                f"Failed to connect to server '{self.server.id}': {error_message}",
+                details={"server_id": str(self.server.id), "reason": error_message},
             )
 
         if not self.session:
@@ -113,12 +111,12 @@ class SessionWorker:
                         self.server.stdio_config.command,
                         self.server.stdio_config.args,
                     )
-                    sanitized_env = sanitize_environment(self.server.stdio_config.env)
+                    sanitized_environment = sanitize_environment(self.server.stdio_config.env)
 
                     params = StdioServerParameters(
                         command=self.server.stdio_config.command,
                         args=self.server.stdio_config.args,
-                        env=sanitized_env,
+                        env=sanitized_environment,
                     )
                     logger.info(f"Spawning stdio process for '{self.server.name}': {params.command} {params.args}")
                     read_stream, write_stream = await stack.enter_async_context(stdio_client(params))
@@ -145,7 +143,6 @@ class SessionWorker:
 
                 self.session = session
                 self.is_alive = True
-                self.connected_at = datetime.now(UTC)
                 self.ready_event.set()
                 logger.info(f"MCP SessionWorker started and initialized for '{self.server.name}'")
 
@@ -243,9 +240,9 @@ class ConnectionManager:
         except Exception as exc:
             latency_ms = (time.perf_counter() - start_time) * 1000
             await worker.stop()
-            error_msg = format_mcp_error(exc)
-            logger.warning(f"Connection test failed for '{server.name}': {error_msg}")
-            return False, error_msg, 0, round(latency_ms, 2)
+            error_message = format_mcp_error(exc)
+            logger.warning(f"Connection test failed for '{server.name}': {error_message}")
+            return False, error_message, 0, round(latency_ms, 2)
 
     async def list_tools(
         self,
@@ -256,8 +253,8 @@ class ConnectionManager:
         fetch_timeout = timeout or self.settings.DEFAULT_CONNECTION_TIMEOUT
         session = await self.get_or_create_session(server, timeout=fetch_timeout)
         try:
-            res = await asyncio.wait_for(session.list_tools(), timeout=fetch_timeout)
-            return res.tools
+            result = await asyncio.wait_for(session.list_tools(), timeout=fetch_timeout)
+            return result.tools
         except TimeoutError as exc:
             raise GatewayTimeoutError(
                 f"Operation 'list_tools' timed out after {fetch_timeout} seconds",
@@ -265,10 +262,10 @@ class ConnectionManager:
             ) from exc
         except Exception as exc:
             await self.disconnect(server.id)
-            error_msg = format_mcp_error(exc)
+            error_message = format_mcp_error(exc)
             raise BadGatewayError(
-                f"Failed to list tools from server '{server.id}': {error_msg}",
-                details={"server_id": str(server.id), "reason": error_msg},
+                f"Failed to list tools from server '{server.id}': {error_message}",
+                details={"server_id": str(server.id), "reason": error_message},
             ) from exc
 
     async def call_tool(
@@ -279,8 +276,8 @@ class ConnectionManager:
         timeout: float | None = None,
     ) -> mcp_types.CallToolResult:
         """Invoke a tool on the specified server under concurrency and timeout controls."""
-        exec_timeout = timeout or self.settings.DEFAULT_EXECUTION_TIMEOUT
-        session = await self.get_or_create_session(server, timeout=exec_timeout)
+        execution_timeout = timeout or self.settings.DEFAULT_EXECUTION_TIMEOUT
+        session = await self.get_or_create_session(server, timeout=execution_timeout)
 
         worker = self._workers.get(server.id)
         semaphore = worker.semaphore if worker else asyncio.Semaphore(1)
@@ -289,7 +286,7 @@ class ConnectionManager:
             try:
                 result = await asyncio.wait_for(
                     session.call_tool(tool_name, arguments=arguments),
-                    timeout=exec_timeout,
+                    timeout=execution_timeout,
                 )
                 if isinstance(result, mcp_types.CallToolResult):
                     return result
@@ -301,10 +298,10 @@ class ConnectionManager:
                     },
                 )
             except TimeoutError as exc:
-                logger.error(f"Execution of tool '{tool_name}' timed out after {exec_timeout}s")
+                logger.error(f"Execution of tool '{tool_name}' timed out after {execution_timeout}s")
                 raise GatewayTimeoutError(
-                    f"Tool '{tool_name}' execution timed out after {exec_timeout} seconds",
-                    details={"tool_name": tool_name, "timeout_seconds": exec_timeout},
+                    f"Tool '{tool_name}' execution timed out after {execution_timeout} seconds",
+                    details={"tool_name": tool_name, "timeout_seconds": execution_timeout},
                 ) from exc
             except Exception as exc:
                 logger.error(f"Error executing tool '{tool_name}' on server '{server.name}': {exc}")
@@ -317,7 +314,7 @@ class ConnectionManager:
 
     def get_active_session_count(self, user_id: UUID) -> int:
         """Return the number of live downstream sessions (only those on `user_id`'s Servers when given)."""
-        return len([w for w in self._workers.values() if w.is_alive and w.server.user_id == user_id])
+        return len([worker for worker in self._workers.values() if worker.is_alive and worker.server.user_id == user_id])
 
     async def shutdown(self) -> None:
         """Shutdown all active sessions and clean up resources."""

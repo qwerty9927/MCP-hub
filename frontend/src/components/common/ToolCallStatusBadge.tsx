@@ -1,5 +1,5 @@
 import React from "react";
-import { Ban, CheckCircle2, Loader2, XCircle } from "lucide-react";
+import { Ban, CheckCircle2, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -34,13 +34,6 @@ export function ToolCallStatusBadge({ status, className }: ToolCallStatusBadgePr
                 >
                     <Ban className="h-3 w-3" />
                     Rejected
-                </Badge>
-            );
-        case "running":
-            return (
-                <Badge variant="warning" className={classes}>
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    Running
                 </Badge>
             );
         default:

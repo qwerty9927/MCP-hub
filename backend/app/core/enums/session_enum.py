@@ -14,7 +14,6 @@ class SessionStatus(StrEnum):
 class ToolCallStatus(StrEnum):
     """Execution status of an individual tool call within a session."""
 
-    RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
     REJECTED = "rejected"

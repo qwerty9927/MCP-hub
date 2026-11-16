@@ -53,7 +53,7 @@ class SessionModel(Base):
     def to_domain(self, total_tool_calls: int = 0) -> SessionEntity:
         """Convert database model to domain entity."""
         return SessionEntity(
-            id=self.id,
+            id=UUID(self.id),
             title=self.title,
             status=SessionStatus(self.status) if self.status in SessionStatus._value2member_map_ else SessionStatus.ACTIVE,
             metadata=self.metadata_json,

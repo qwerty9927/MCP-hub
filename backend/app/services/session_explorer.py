@@ -30,8 +30,8 @@ class SessionExplorerService:
         session_repository: SessionRepositoryAbstract,
         execution_repository: ExecutionRepositoryAbstract,
     ) -> None:
-        self.session_repo = session_repository
-        self.execution_repo = execution_repository
+        self._session_repository = session_repository
+        self._execution_repository = execution_repository
 
     async def list_sessions(
         self,
@@ -43,7 +43,7 @@ class SessionExplorerService:
         user_id: UUID,
     ) -> PaginatedResponse[SessionResponse]:
         """Retrieve paginated sessions with optional search and status filtering."""
-        items, total = await self.session_repo.list(
+        items, total = await self._session_repository.list(
             page=page,
             page_size=page_size,
             search=search,
@@ -53,14 +53,14 @@ class SessionExplorerService:
 
         records = [
             SessionResponse(
-                id=s.id,
-                title=s.title,
-                status=s.status.value if hasattr(s.status, "value") else str(s.status),
-                created_at=s.created_at,
-                last_activity_at=s.last_activity_at,
-                total_tool_calls=s.total_tool_calls,
+                id=session.id,
+                title=session.title,
+                status=session.status.value if hasattr(session.status, "value") else str(session.status),
+                created_at=session.created_at,
+                last_activity_at=session.last_activity_at,
+                total_tool_calls=session.total_tool_calls,
             )
-            for s in items
+            for session in items
         ]
 
         total_pages = math.ceil(total / page_size) if total > 0 else 0
@@ -73,13 +73,13 @@ class SessionExplorerService:
             total_pages=total_pages,
         )
 
-    async def get_session(self, session_id: str, *, user_id: UUID) -> SessionDetailResponse:
+    async def get_session(self, session_id: UUID, *, user_id: UUID) -> SessionDetailResponse:
         """Retrieve detailed session view by ID including aggregated metrics."""
-        detail = await self.session_repo.get_by_id(session_id, user_id=user_id)
+        detail = await self._session_repository.get_by_id(session_id, user_id=user_id)
         if not detail:
             raise NotFoundError(
                 f"Session with id '{session_id}' not found",
-                details={"session_id": session_id},
+                details={"session_id": str(session_id)},
             )
 
         return SessionDetailResponse(
@@ -97,7 +97,7 @@ class SessionExplorerService:
 
     async def list_session_tool_calls(
         self,
-        session_id: str,
+        session_id: UUID,
         page: int = 1,
         page_size: int = 20,
         sort_by: str = "created_at",
@@ -110,15 +110,15 @@ class SessionExplorerService:
     ) -> PaginatedResponse[ToolCallResponse]:
         """Retrieve all tool calls belonging to a session in chronological order."""
         # 1. Verify session exists
-        session = await self.session_repo.get_by_id(session_id, user_id=user_id)
+        session = await self._session_repository.get_by_id(session_id, user_id=user_id)
         if not session:
             raise NotFoundError(
                 f"Session with id '{session_id}' not found",
-                details={"session_id": session_id},
+                details={"session_id": str(session_id)},
             )
 
         # 2. Query execution records
-        items, total = await self.execution_repo.list_by_session(
+        items, total = await self._execution_repository.list_by_session(
             session_id=session_id,
             page=page,
             page_size=page_size,
@@ -156,22 +156,22 @@ class SessionExplorerService:
             total_pages=total_pages,
         )
 
-    async def get_session_tool_call(self, session_id: str, call_id: UUID, *, user_id: UUID) -> ToolCallResponse:
+    async def get_session_tool_call(self, session_id: UUID, call_id: UUID, *, user_id: UUID) -> ToolCallResponse:
         """Retrieve a specific tool call within a session."""
         # 1. Verify session exists
-        session = await self.session_repo.get_by_id(session_id, user_id=user_id)
+        session = await self._session_repository.get_by_id(session_id, user_id=user_id)
         if not session:
             raise NotFoundError(
                 f"Session with id '{session_id}' not found",
-                details={"session_id": session_id},
+                details={"session_id": str(session_id)},
             )
 
         # 2. Query tool call
-        call = await self.execution_repo.get_tool_call(session_id, call_id)
+        call = await self._execution_repository.get_tool_call(session_id, call_id)
         if not call:
             raise NotFoundError(
                 f"Tool call with id '{call_id}' not found in session '{session_id}'",
-                details={"session_id": session_id, "call_id": str(call_id)},
+                details={"session_id": str(session_id), "call_id": str(call_id)},
             )
 
         return ToolCallResponse(

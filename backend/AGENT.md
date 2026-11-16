@@ -213,7 +213,8 @@ Strict unidirectional dependency flow:
     2. Proactively search for hidden prerequisites (e.g., ID lookups before mutations).
     3. Normalize queries without PII or long values.
     4. Use English verbs (`list`, `get`, `search`, `create`, `update`, `delete`, `send`).
-  - Relevance scoring evaluates names, descriptions, and JSON schema property names / descriptions with token matching and substring boosting.
+  - Ranking is vector similarity in pgvector (ADR-0006): each query is embedded by `EmbeddingServiceAbstract` (`app/services/embedding_service.py`, local fastembed model) and `ToolRepositoryAbstract.search_by_embedding` returns the caller's `top_k` nearest Tools on enabled Servers by cosine distance, with their `similarity`.
+  - Tools are embedded from `tool_embedding_text` when their Server is discovered; a failed embedding stores NULL and `EmbeddingBackfillService` (`app/background_service/embedding_backfill.py`, job `backfill-tool-embeddings`, run at startup and every 10 minutes) fills it in. Settings: `EMBEDDING_MODEL`, `EMBEDDING_DIMENSION` (must match the `discovered_tools.embedding` column), `EMBEDDING_CACHE_DIR`. Tests use `tests/fake_embeddings.py` (set in `conftest`), never the real model; the one real-model test runs only with `RUN_SLOW=1`.
   - Automatically excludes `META_TOOL_NAMES` from discovery candidates to avoid self-recursion.
   - Deduplicates matches across queries preserving ranking order.
 - **Parallel Dispatcher (`app/mcp/multi_execute_tools.py`)**:

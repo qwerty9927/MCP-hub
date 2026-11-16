@@ -24,7 +24,3 @@ class ExecutionResponse(BaseModel):
         default=None,
         description="Response payload returned by the downstream tool execution",
     )
-
-
-# Backward-compatible alias
-ExecutionRead = ExecutionResponse
