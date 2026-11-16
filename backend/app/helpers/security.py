@@ -3,23 +3,12 @@
 import asyncio
 import ipaddress
 import os
-import re
 import socket
 from pathlib import Path
 from urllib.parse import urlparse
 
 from app.core.config import get_settings
 from app.core.exceptions import ForbiddenError
-
-# Sensitive environment variable keywords to mask or block
-SENSITIVE_ENV_PATTERNS = [
-    re.compile(r".*TOKEN.*", re.IGNORECASE),
-    re.compile(r".*SECRET.*", re.IGNORECASE),
-    re.compile(r".*PASSWORD.*", re.IGNORECASE),
-    re.compile(r".*KEY.*", re.IGNORECASE),
-    re.compile(r".*DATABASE_URL.*", re.IGNORECASE),
-    re.compile(r".*CREDENTIAL.*", re.IGNORECASE),
-]
 
 # Sensitive HTTP headers
 SENSITIVE_HEADER_NAMES = {

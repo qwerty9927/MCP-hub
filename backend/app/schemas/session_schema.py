@@ -47,7 +47,3 @@ class ToolCallResponse(BaseModel):
     error_summary: str | None = Field(default=None, description="Summary error message if execution failed")
     arguments: dict[str, Any] = Field(default_factory=dict, description="Tool execution input arguments")
     response: Any | None = Field(default=None, description="Output payload returned by the tool")
-
-
-# Backward-compatible alias
-SessionRead = SessionResponse

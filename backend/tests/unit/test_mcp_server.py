@@ -91,7 +91,6 @@ async def test_tool_call_opens_a_derived_session_for_the_caller(mcp_server, mock
 
     await mcp_server.handle_call_tool(ctx, _ANY_TOOL_CALL)
 
-    mock_session_repo.get_or_create.assert_not_awaited()
     created = mock_session_repo.create.await_args.args[0]
     assert created.user_id == PRINCIPAL.user_id
     assert created.api_key_id == PRINCIPAL.api_key_id

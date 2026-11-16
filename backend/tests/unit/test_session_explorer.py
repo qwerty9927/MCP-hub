@@ -186,7 +186,7 @@ async def test_execution_repo_list_by_session_sorting_and_filtering(account_id):
     )
 
     session_id = uuid4()
-    await session_repo.get_or_create(session_id, user_id=account_id, title="Sorting Test")
+    await session_repo.create(SessionEntity(id=session_id, title="Sorting Test", user_id=account_id))
 
     # Add 3 tool calls at sequential timestamps
     t1 = datetime(2026, 11, 8, 10, 0, 0, tzinfo=UTC)

@@ -1,7 +1,5 @@
 """Database configuration and session management for PostgreSQL."""
 
-from collections.abc import AsyncGenerator
-
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -37,17 +35,6 @@ def create_database_engine(
         max_overflow=20,
         pool_pre_ping=True,
     )
-
-
-async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
-    """Dependency for obtaining an asynchronous database session."""
-    async with async_session_factory() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
 
 
 async def init_db(target_engine: AsyncEngine | None = None) -> None:

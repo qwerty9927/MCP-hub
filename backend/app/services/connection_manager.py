@@ -3,7 +3,6 @@
 import asyncio
 import time
 from contextlib import AsyncExitStack
-from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -50,7 +49,6 @@ class SessionWorker:
         self.stop_event = asyncio.Event()
         self.error: Exception | None = None
         self.task: asyncio.Task | None = None
-        self.connected_at: datetime | None = None
         self.is_alive: bool = False
         self.last_verified_at: float = 0.0  # time.monotonic() of the last successful connect or ping
 
@@ -145,7 +143,6 @@ class SessionWorker:
 
                 self.session = session
                 self.is_alive = True
-                self.connected_at = datetime.now(UTC)
                 self.ready_event.set()
                 logger.info(f"MCP SessionWorker started and initialized for '{self.server.name}'")
 

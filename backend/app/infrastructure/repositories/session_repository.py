@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime
-from typing import Any
 from uuid import UUID
 
 from sqlalchemy import Interval, and_, case, distinct, func, or_, select, update
@@ -22,18 +21,6 @@ class SessionRepositoryAbstract(ABC):
     @abstractmethod
     async def create(self, session: SessionEntity) -> SessionEntity:
         """Create a new session record."""
-        pass
-
-    @abstractmethod
-    async def get_or_create(
-        self,
-        session_id: UUID,
-        user_id: UUID,
-        api_key_id: UUID | None = None,
-        title: str | None = None,
-        metadata: dict[str, Any] | None = None,
-    ) -> SessionEntity | None:
-        """Get the owner's session by ID or create it; None when the ID belongs to another owner."""
         pass
 
     @abstractmethod
@@ -88,51 +75,6 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
             await database_session.commit()
             await database_session.refresh(model)
             return model.to_domain()
-
-    async def get_or_create(
-        self,
-        session_id: UUID,
-        user_id: UUID,
-        api_key_id: UUID | None = None,
-        title: str | None = None,
-        metadata: dict[str, Any] | None = None,
-    ) -> SessionEntity | None:
-        async with db_module.async_session_factory() as database_session:
-            stmt = select(SessionModel).where(SessionModel.id == str(session_id))
-            result = await database_session.execute(stmt)
-            model = result.scalar_one_or_none()
-            if model:
-                if model.user_id != str(user_id):
-                    return None
-                # Update title/metadata if provided and not set
-                updated = False
-                if title and not model.title:
-                    model.title = title
-                    updated = True
-                if metadata and not model.metadata_json:
-                    model.metadata_json = metadata
-                    updated = True
-                if updated:
-                    await database_session.commit()
-                    await database_session.refresh(model)
-                return model.to_domain()
-
-            # Create new session
-            now = datetime.now(UTC)
-            new_session = SessionModel(
-                id=str(session_id),
-                title=title or f"Session {str(session_id)[:8]}",
-                status="active",
-                user_id=str(user_id),
-                api_key_id=str(api_key_id) if api_key_id else None,
-                metadata_json=metadata,
-                created_at=now,
-                last_activity_at=now,
-            )
-            database_session.add(new_session)
-            await database_session.commit()
-            await database_session.refresh(new_session)
-            return new_session.to_domain()
 
     async def find_active_by_fingerprint(self, user_id: UUID, fingerprint: str) -> SessionEntity | None:
         async with db_module.async_session_factory() as database_session:

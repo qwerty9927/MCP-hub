@@ -25,7 +25,3 @@ class ConnectionConfigResponse(BaseModel):
     args: list[str] | None = None
     url: str | None = None
     headers: dict[str, str] | None = None
-
-
-# Backward-compatible alias
-ConnectionConfigRead = ConnectionConfigResponse

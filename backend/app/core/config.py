@@ -31,8 +31,6 @@ class Settings(BaseSettings):
     ENVIRONMENT: Literal["development", "test", "production"]
     DEBUG: bool
     API_V1_STR: str
-    HOST: str
-    PORT: int
 
     # CORS
     CORS_ORIGINS: list[str]

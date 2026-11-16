@@ -158,7 +158,7 @@ Registers a new MCP server. Validates command against the security allowlist or 
 - `page_size` *(int, default: 20, max: 100)*: Items per page.
 - `enabled` *(bool, optional)*: Filter by `true` or `false`.
 - `transport` *(string, optional)*: `stdio` or `streamable-http`.
-- `health_status` *(string, optional)*: `UNKNOWN`, `HEALTHY`, `UNHEALTHY`, `CONNECTING`, `DISCONNECTED`.
+- `health_status` *(string, optional)*: `UNKNOWN`, `HEALTHY`, `UNHEALTHY`, `DISCONNECTED`.
 - `search` *(string, optional)*: Substring match against `name` or `description`.
 - `sort_by` *(string, default: "created_at")*: `created_at`, `name`, `updated_at`, `discovered_tool_count`.
 - `sort_order` *(string, default: "desc")*: `asc` or `desc`.
@@ -399,7 +399,7 @@ Invokes an MCP tool on the server with argument validation and audit logging.
 - `server_id` *(UUID, optional)*
 - `tool_name` *(string, optional)*
 - `is_error` *(bool, optional)*
-- `status` *(string, optional)*: `running`, `completed`, `failed`, `rejected`. A `rejected` execution also has `is_error: true`.
+- `status` *(string, optional)*: `completed`, `failed`, `rejected`. A `rejected` execution also has `is_error: true`.
 
 #### Response (`200 OK`):
 ```json
@@ -715,7 +715,7 @@ Retrieve the chronological tool call execution history for a session.
 - `page_size` (integer, default: 20): Items per page (1 to 100).
 - `sort_by` (string, default: `created_at`): Sort field (`created_at`, `started_at`, `completed_at`, `duration_ms`, `server_name`, `tool_name`, `status`).
 - `order` (string, default: `asc`): Sort direction (`asc`, `desc`).
-- `status` (string, optional): Filter by status (`running`, `completed`, `failed`, `rejected`).
+- `status` (string, optional): Filter by status (`completed`, `failed`, `rejected`).
 - `server_name` (string, optional): Filter by server name (case-insensitive substring).
 - `tool_name` (string, optional): Filter by tool name (case-insensitive substring).
 

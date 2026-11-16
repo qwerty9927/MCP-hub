@@ -14,14 +14,12 @@ class FakeEmbeddingService(EmbeddingServiceAbstract):
 
     def __init__(self, dimension: int | None = None) -> None:
         self._dimension = dimension or get_settings().EMBEDDING_DIMENSION
-        self.document_calls = 0
 
     @property
     def dimension(self) -> int:
         return self._dimension
 
     async def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        self.document_calls += 1
         return [self._vector(text) for text in texts]
 
     async def embed_query(self, text: str) -> list[float]:

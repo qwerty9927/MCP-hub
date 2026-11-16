@@ -213,7 +213,6 @@ Key environment options in `.env`:
 ```ini
 PROJECT_NAME="MCP Hub Backend"
 ENVIRONMENT="development"
-PORT=8000
 ALLOWED_STDIO_EXECUTABLES=["python", "python3", "uv", "node", "npx"]
 ALLOW_PRIVATE_NETWORK_HTTP=true
 ```
