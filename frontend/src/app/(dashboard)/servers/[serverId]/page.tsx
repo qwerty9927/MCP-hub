@@ -147,6 +147,9 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
     const isActionLoading =
         connectMutation.isPending || disconnectMutation.isPending || testMutation.isPending || refreshToolsMutation.isPending;
 
+    // Refresh and connect replace the server's tools (new ids), so the rows on screen go stale until the new list loads.
+    const toolsRefreshing = refreshToolsMutation.isPending || connectMutation.isPending;
+
     const tools = toolsData?.items || [];
     const executions = executionsData?.items || [];
 
@@ -359,55 +362,74 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                                     }
                                 />
                             ) : (
-                                <div className="rounded-md border border-border">
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>Tool Name</TableHead>
-                                                <TableHead>Description</TableHead>
-                                                <TableHead>Parameters</TableHead>
-                                                <TableHead className="text-right">Action</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {tools.map((tool) => {
-                                                const requiredParams = tool.input_schema?.required?.length || 0;
-                                                const totalProps = Object.keys(tool.input_schema?.properties || {}).length;
+                                <div className="relative" aria-busy={toolsRefreshing}>
+                                    {toolsRefreshing && (
+                                        <div
+                                            role="status"
+                                            className="absolute inset-0 z-10 flex items-center justify-center gap-2 text-sm font-medium text-foreground"
+                                        >
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            Refreshing tools…
+                                        </div>
+                                    )}
+                                    <div
+                                        data-testid="server-tools-table"
+                                        inert={toolsRefreshing}
+                                        className={
+                                            toolsRefreshing
+                                                ? "rounded-md border border-border opacity-40 pointer-events-none select-none transition-opacity"
+                                                : "rounded-md border border-border transition-opacity"
+                                        }
+                                    >
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Tool Name</TableHead>
+                                                    <TableHead>Description</TableHead>
+                                                    <TableHead>Parameters</TableHead>
+                                                    <TableHead className="text-right">Action</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {tools.map((tool) => {
+                                                    const requiredParams = tool.input_schema?.required?.length || 0;
+                                                    const totalProps = Object.keys(tool.input_schema?.properties || {}).length;
 
-                                                return (
-                                                    <TableRow key={tool.id}>
-                                                        <TableCell className="font-mono font-medium">
-                                                            <Link
-                                                                href={`/tools/${encodeURIComponent(tool.id)}`}
-                                                                className="hover:underline text-foreground hover:text-primary transition-colors"
-                                                            >
-                                                                {tool.name}
-                                                            </Link>
-                                                        </TableCell>
-                                                        <TableCell className="text-muted-foreground text-xs max-w-md">
-                                                            {tool.description || "No description"}
-                                                        </TableCell>
-                                                        <TableCell className="text-xs">
-                                                            <span className="font-mono bg-muted px-2 py-0.5 rounded">
-                                                                {totalProps} props ({requiredParams} required)
-                                                            </span>
-                                                        </TableCell>
-                                                        <TableCell className="text-right">
-                                                            <Button asChild size="sm" variant="outline">
+                                                    return (
+                                                        <TableRow key={tool.id}>
+                                                            <TableCell className="font-mono font-medium">
                                                                 <Link
-                                                                    href={`/playground?server=${server.id}&tool=${encodeURIComponent(
-                                                                        tool.name
-                                                                    )}`}
+                                                                    href={`/tools/${encodeURIComponent(tool.id)}`}
+                                                                    className="hover:underline text-foreground hover:text-primary transition-colors"
                                                                 >
-                                                                    Run in Playground
+                                                                    {tool.name}
                                                                 </Link>
-                                                            </Button>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                );
-                                            })}
-                                        </TableBody>
-                                    </Table>
+                                                            </TableCell>
+                                                            <TableCell className="text-muted-foreground text-xs max-w-md">
+                                                                {tool.description || "No description"}
+                                                            </TableCell>
+                                                            <TableCell className="text-xs">
+                                                                <span className="font-mono bg-muted px-2 py-0.5 rounded">
+                                                                    {totalProps} props ({requiredParams} required)
+                                                                </span>
+                                                            </TableCell>
+                                                            <TableCell className="text-right">
+                                                                <Button asChild size="sm" variant="outline">
+                                                                    <Link
+                                                                        href={`/playground?server=${server.id}&tool=${encodeURIComponent(
+                                                                            tool.name
+                                                                        )}`}
+                                                                    >
+                                                                        Run in Playground
+                                                                    </Link>
+                                                                </Button>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    );
+                                                })}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
                                 </div>
                             )}
                         </CardContent>
