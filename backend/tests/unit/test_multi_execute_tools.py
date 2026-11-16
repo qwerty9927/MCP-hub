@@ -24,10 +24,6 @@ from app.services.tool_executor import ExecutionOutcome
 USER_ID = uuid4()  # owner for entities in these mock-only tests
 
 
-def outcome(kind: ExecutionOutcomeKind, ref: str, **kwargs: Any) -> ExecutionOutcome:
-    return ExecutionOutcome(kind=kind, tool_reference=ref, executed_at=datetime.now(UTC), execution_id=uuid4(), **kwargs)
-
-
 class StubExecutor:
     def __init__(self, outcomes: dict[str, ExecutionOutcome | Exception]) -> None:
         self.outcomes = outcomes
@@ -47,6 +43,10 @@ class StubExecutor:
         if isinstance(result, Exception):
             raise result
         return result
+
+
+def outcome(kind: ExecutionOutcomeKind, ref: str, **kwargs: Any) -> ExecutionOutcome:
+    return ExecutionOutcome(kind=kind, tool_reference=ref, executed_at=datetime.now(UTC), execution_id=uuid4(), **kwargs)
 
 
 async def run(executor: StubExecutor, *slugs: str, session_id: str | None = None) -> list[dict[str, Any]]:

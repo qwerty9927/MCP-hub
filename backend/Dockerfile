@@ -37,6 +37,10 @@ ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONPATH="/app" \
     PYTHONUNBUFFERED=1
 
+# Pre-download the tool-search embedding model so containers do not fetch it on first start.
+# Keep the model name and cache dir in sync with EMBEDDING_MODEL / EMBEDDING_CACHE_DIR in .env.
+RUN python -c "from fastembed import TextEmbedding; TextEmbedding('BAAI/bge-small-en-v1.5', cache_dir='/app/.cache/fastembed')"
+
 RUN chown -R mcphub:mcphub /app
 
 USER mcphub

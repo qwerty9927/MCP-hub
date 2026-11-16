@@ -35,31 +35,6 @@ _FOREIGN_KEYS = (
 )
 
 
-def _rename_fk(table: str, column: str, new_name: str) -> None:
-    """Rename the foreign key on `table.column` to `new_name`, whatever it is called now."""
-    current = (
-        op.get_bind()
-        .execute(
-            sa.text(
-                "SELECT c.conname FROM pg_constraint c "
-                "JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey) "
-                "WHERE c.contype = 'f' AND c.conrelid = CAST(:table AS regclass) AND a.attname = :column"
-            ),
-            {"table": table, "column": column},
-        )
-        .scalar()
-    )
-    if current and current != new_name:
-        op.execute(f'ALTER TABLE {table} RENAME CONSTRAINT "{current}" TO {new_name}')
-
-
-def _rename_unique(table: str, old: str, new: str) -> None:
-    op.execute(
-        f"DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = '{old}') "
-        f"THEN ALTER TABLE {table} RENAME CONSTRAINT {old} TO {new}; END IF; END $$"
-    )
-
-
 def upgrade() -> None:
     """Every Server, Tool and Session must belong to an account; the column is now `user_id`.
 
@@ -94,3 +69,28 @@ def downgrade() -> None:
         op.execute(f"ALTER INDEX IF EXISTS {new} RENAME TO {old}")
     for table in _TABLES:
         op.alter_column(table, "user_id", new_column_name="owner_id", existing_type=sa.String(length=36), nullable=True)
+
+
+def _rename_fk(table: str, column: str, new_name: str) -> None:
+    """Rename the foreign key on `table.column` to `new_name`, whatever it is called now."""
+    current = (
+        op.get_bind()
+        .execute(
+            sa.text(
+                "SELECT c.conname FROM pg_constraint c "
+                "JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey) "
+                "WHERE c.contype = 'f' AND c.conrelid = CAST(:table AS regclass) AND a.attname = :column"
+            ),
+            {"table": table, "column": column},
+        )
+        .scalar()
+    )
+    if current and current != new_name:
+        op.execute(f'ALTER TABLE {table} RENAME CONSTRAINT "{current}" TO {new_name}')
+
+
+def _rename_unique(table: str, old: str, new: str) -> None:
+    op.execute(
+        f"DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = '{old}') "
+        f"THEN ALTER TABLE {table} RENAME CONSTRAINT {old} TO {new}; END IF; END $$"
+    )

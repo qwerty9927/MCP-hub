@@ -16,6 +16,7 @@ backend_dir = Path(__file__).resolve().parent.parent
 if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
+import app.api.dependencies as dependencies_module  # noqa: E402
 import app.infrastructure.database as db_module  # noqa: E402
 from app.api.dependencies import _connection_manager  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
@@ -26,6 +27,10 @@ from app.models.server_model import ServerModel  # noqa: E402
 from app.models.session_model import SessionModel  # noqa: E402
 from app.models.tool_model import ToolModel  # noqa: E402
 from app.models.user_model import UserModel  # noqa: E402
+from tests.fake_embeddings import FakeEmbeddingService  # noqa: E402
+
+# Every service built through app.api.dependencies embeds with the fake: no model download in tests.
+dependencies_module._embedding_service = FakeEmbeddingService()
 
 # Configure test engine with NullPool to prevent event loop cross-task issues in pytest-asyncio.
 # Allows overriding DATABASE_URL with TEST_DATABASE_URL to protect local development data.
@@ -38,6 +43,9 @@ db_module.async_session_factory = async_sessionmaker(
     expire_on_commit=False,
     class_=AsyncSession,
 )
+
+
+DEFAULT_PASSWORD = "test-password-123"
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -63,9 +71,6 @@ async def cleanup_dependencies():
         await session.commit()
 
     await db_module.engine.dispose()
-
-
-DEFAULT_PASSWORD = "test-password-123"
 
 
 async def login_headers(client: AsyncClient, email: str, password: str = DEFAULT_PASSWORD) -> dict[str, str]:

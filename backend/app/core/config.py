@@ -59,6 +59,12 @@ class Settings(BaseSettings):
     # Observability
     LOG_LEVEL: str
 
+    # Tool search embeddings (fastembed, stored in pgvector). The column's size is fixed by a migration,
+    # so EMBEDDING_DIMENSION must match it and the model.
+    EMBEDDING_MODEL: str
+    EMBEDDING_DIMENSION: int
+    EMBEDDING_CACHE_DIR: str  # relative paths are resolved against the backend directory
+
     @field_validator("JWT_SECRET")
     @classmethod
     def _jwt_secret_is_long_enough(cls, value: str) -> str:

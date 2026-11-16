@@ -550,7 +550,7 @@ To support LLM agents orchestrating tools across many servers without exhausting
   2. **Hidden Prerequisites:** Proactively query for missing identifiers/prerequisites (e.g. user lookup before invitation).
   3. **No PII:** Keep queries normalized and free of UUIDs or personal data.
   4. **English Verbs:** Use standard API action verbs (`list`, `get`, `search`, `create`, `update`, `delete`, `send`).
-- **Behavior:** Performs token matching and substring-boosted relevance scoring against tool slugs, original names, descriptions, and input schema property names/descriptions. Excludes meta-tools and deduplicates across queries.
+- **Behavior:** Each query is embedded and matched by cosine similarity (pgvector) against the embeddings of the caller's Tools on enabled Servers (built from tool name, server name, description and parameters). Returns the `top_k` nearest Tools per query, best first; excludes meta-tools and deduplicates across queries. `similarity` is the cosine similarity (higher is closer).
 - **Response Format (`CallToolResult` text content):**
   ```json
   {
@@ -566,7 +566,8 @@ To support LLM agents orchestrating tools across many servers without exhausting
             "expression": { "type": "string" }
           },
           "required": ["expression"]
-        }
+        },
+        "similarity": 0.812
       }
     ]
   }

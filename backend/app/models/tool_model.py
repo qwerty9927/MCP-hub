@@ -4,9 +4,11 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import JSON, DateTime, ForeignKey, String, Text, UniqueConstraint, text
+from pgvector.sqlalchemy import Vector
+from sqlalchemy import JSON, DateTime, ForeignKey, Index, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.config import get_settings
 from app.domain.tool_entity import ToolEntity
 from app.models.base_model import Base
 
@@ -16,7 +18,15 @@ class ToolModel(Base):
 
     __tablename__ = "discovered_tools"
     # A server lists each tool name once.
-    __table_args__ = (UniqueConstraint("server_id", "name", name="uq_discovered_tools_server_name"),)
+    __table_args__ = (
+        UniqueConstraint("server_id", "name", name="uq_discovered_tools_server_name"),
+        Index(
+            "ix_discovered_tools_embedding",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, server_default=text("gen_random_uuid()::text"))
     server_id: Mapped[str] = mapped_column(
@@ -36,6 +46,8 @@ class ToolModel(Base):
         default=lambda: datetime.now(UTC),
         nullable=False,
     )
+    # Unit vector of tool_embedding_text(tool), searched by cosine distance (ADR-0006). NULL until embedded.
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(get_settings().EMBEDDING_DIMENSION), nullable=True)
 
     # Relationship to parent server
     server = relationship("ServerModel", back_populates="tools")

@@ -72,7 +72,7 @@ flowchart TD
 1. **MCP Gateway (Hub as Server)**: The hub acts as both an MCP client (connecting downstream) and an MCP server exposing aggregated tools through a single Streamable HTTP endpoint (`/mcp`). Downstream tools are dynamically discovered, namespaced (`{server_slug}__{tool_name}`), collision-proofed, and forwarded with full fidelity.
 2. **SessionWorker Isolation**: MCP client sessions use AnyIO cancel scopes internally. To prevent cross-task cancel scope errors in asynchronous web servers, each active MCP connection runs inside a dedicated `SessionWorker` task. The worker enters and exits its `AsyncExitStack` within the same task while concurrently processing requests via asyncio queues and synchronization primitives.
 3. **Multi-Transport Support**: First-class support for both `stdio` (subprocess pipelines) and `streamable-http` (HTTP streaming endpoints) using the official `mcp` 2.x SDK.
-4. **Unified Tool Catalog**: Tools discovered from heterogeneous MCP servers are indexed into a consolidated catalog with persistent PostgreSQL storage and caching. Every tool has a stable UUID id; cross-server naming collisions are resolved by the server in the REST path (`/servers/{server_id}/tools/{tool_name}`) and by namespaced slugs (`{server_slug}__{tool_name}`) in the MCP Gateway.
+4. **Unified Tool Catalog**: Tools discovered from heterogeneous MCP servers are indexed into a consolidated catalog with persistent PostgreSQL storage and caching. Every tool has a UUID id (new on each re-discovery) and an embedding for semantic search; cross-server naming collisions are resolved by the server in the REST path (`/servers/{server_id}/tools/{tool_name}`) and by namespaced slugs (`{server_slug}__{tool_name}`) in the MCP Gateway.
 5. **Defense-in-Depth Security**:
    - Stdio commands restricted to an approved executable allowlist (`python`, `uv`, `node`, `npx`, `docker`).
    - Command injection defense and argument validation.
@@ -81,7 +81,7 @@ flowchart TD
    - Clean environment sanitization preventing host secrets from leaking into child processes.
 6. **Agent-Driven Meta-Tool Architecture**:
    Exposes two native meta-tools on `/mcp` designed for autonomous upstream agents:
-   - `SEARCH_TOOLS`: Pure keyword discovery with case-insensitive tokenization and substring boosting across names, descriptions, and input schema properties. Excludes meta-tools to prevent recursion and returns deduplicated candidate tools ranked by relevance.
+   - `SEARCH_TOOLS`: Semantic discovery: queries and tools are embedded by a local fastembed model and ranked by cosine similarity in pgvector (ADR-0006). Excludes meta-tools to prevent recursion and returns deduplicated candidate tools, best match first, with their `similarity`.
    - `MULTI_EXECUTE_TOOLS`: Parallel dispatcher executing multiple tool calls concurrently via `asyncio.gather` through `ToolExecutor` (the Execution module). Provides per-tool failure isolation (a failed downstream call does not fail sibling executions) while strictly preserving AnyIO cancel scopes, JSON schema validation, and database audit logging.
 
 ---
@@ -145,7 +145,7 @@ backend/
 │   │   ├── mcp_proxy_asgi.py            # Streamable HTTP ASGI proxy application
 │   │   ├── mcp_server.py                # MCPServer exposing the hub over Streamable HTTP (/mcp)
 │   │   ├── multi_execute_tools.py       # Parallel MULTI_EXECUTE_TOOLS dispatcher
-│   │   └── search_tools.py              # Pure discovery SEARCH_TOOLS handler & scoring
+│   │   └── search_tools.py              # SEARCH_TOOLS handler (vector search via the tool catalog)
 │   └── infrastructure/
 │       ├── database.py                  # Database connection & session setup
 │       └── repositories/
@@ -220,11 +220,13 @@ ALLOW_PRIVATE_NETWORK_HTTP=true
 
 ### 3. Run Database Migrations (Alembic)
 
-Initialize or upgrade the PostgreSQL database schema:
+Initialize or upgrade the PostgreSQL database schema. The database must have the pgvector extension available (for example the `pgvector/pgvector:pg17` image); the migrations run `CREATE EXTENSION IF NOT EXISTS vector`:
 
 ```bash
 alembic upgrade head
 ```
+
+On first start the backend downloads the tool-search embedding model (`EMBEDDING_MODEL`, about 64 MB) into `EMBEDDING_CACHE_DIR`.
 
 ### 4. Run the Backend
 
@@ -243,7 +245,7 @@ Once running:
 
 ## Running with Docker Compose
 
-To launch the containerized backend with PostgreSQL (`postgres:16-alpine`):
+To launch the containerized backend with PostgreSQL + pgvector (`pgvector/pgvector:pg17`):
 
 ```bash
 cd backend

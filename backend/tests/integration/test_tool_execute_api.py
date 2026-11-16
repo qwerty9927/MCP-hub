@@ -18,6 +18,7 @@ from app.services.server_registry import ServerRegistryService
 from app.services.tool_catalog import ToolCatalogService
 from app.services.tool_executor import ToolExecutor
 from tests.fake_downstream import FakeDownstream
+from tests.fake_embeddings import FakeEmbeddingService
 
 
 @pytest.fixture
@@ -33,7 +34,7 @@ def fake_executor():
     executor = ToolExecutor(
         server_registry=ServerRegistryService(server_repository=PostgresServerRepository()),
         connection_manager=downstream,
-        tool_catalog=ToolCatalogService(tool_repository=PostgresToolRepository()),
+        tool_catalog=ToolCatalogService(tool_repository=PostgresToolRepository(), embedding_service=FakeEmbeddingService()),
         execution_repository=PostgresExecutionRepository(),
         session_repository=PostgresSessionRepository(),
     )

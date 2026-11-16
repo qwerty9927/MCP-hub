@@ -12,6 +12,7 @@ from app.infrastructure.repositories.server_repository import PostgresServerRepo
 from app.infrastructure.repositories.tool_repository import PostgresToolRepository
 from app.services.connection_manager import ConnectionManager
 from app.services.tool_catalog import ToolCatalogService
+from tests.fake_embeddings import FakeEmbeddingService
 
 
 class MockConnectionManager(ConnectionManager):
@@ -34,7 +35,7 @@ class MockConnectionManager(ConnectionManager):
 
 @pytest.fixture
 def catalog_service() -> ToolCatalogService:
-    return ToolCatalogService(tool_repository=PostgresToolRepository())
+    return ToolCatalogService(tool_repository=PostgresToolRepository(), embedding_service=FakeEmbeddingService())
 
 
 async def stored_server(name: str, account_id) -> ServerEntity:
@@ -86,11 +87,15 @@ async def test_duplicate_tool_names_across_servers(catalog_service: ToolCatalogS
 async def test_reads_reflect_the_database_without_a_restart(catalog_service: ToolCatalogService, account_id):
     """Tools written by another service instance are visible immediately: nothing is cached in memory."""
     server = await stored_server("server-shared", account_id=account_id)
-    await ToolCatalogService(tool_repository=PostgresToolRepository()).refresh_server_tools(server, MockConnectionManager())
+    await ToolCatalogService(tool_repository=PostgresToolRepository(), embedding_service=FakeEmbeddingService()).refresh_server_tools(
+        server, MockConnectionManager()
+    )
 
     assert (await catalog_service.get_tool("tool_a", server_id=server.id, user_id=account_id)).name == "tool_a"
 
-    await ToolCatalogService(tool_repository=PostgresToolRepository()).remove_server_tools(server.id)
+    await ToolCatalogService(tool_repository=PostgresToolRepository(), embedding_service=FakeEmbeddingService()).remove_server_tools(
+        server.id
+    )
 
     with pytest.raises(NotFoundError):
         await catalog_service.get_tool("tool_a", server_id=server.id, user_id=account_id)

@@ -1,4 +1,4 @@
-"""Unit tests for SEARCH_TOOLS pure discovery meta-tool."""
+"""Unit tests for SEARCH_TOOLS: argument validation and shaping the ranked results (ranking itself is pgvector's)."""
 
 from uuid import uuid4
 
@@ -14,235 +14,104 @@ from app.mcp.search_tools import (
     SEARCH_TOOLS_SCHEMA,
     get_search_tool_definition,
     handle_search_tools,
-    score_tool_match,
 )
 
 USER_ID = uuid4()  # owner for entities in these mock-only tests
 
 
+def tool(name: str, server_name: str = "math server", description: str | None = None) -> ToolEntity:
+    return ToolEntity(
+        id=uuid4(),
+        server_id=uuid4(),
+        server_name=server_name,
+        name=name,
+        input_schema={"type": "object"},
+        description=description,
+        user_id=USER_ID,
+    )
+
+
+def search_returning(*ranked: list[tuple[ToolEntity, float]]):
+    """A search function that returns `ranked` (one list per query) and records what it was asked."""
+    calls: list[tuple[list[str], int]] = []
+
+    async def search(queries: list[str], top_k: int) -> list[list[tuple[ToolEntity, float]]]:
+        calls.append((queries, top_k))
+        return list(ranked)
+
+    search.calls = calls  # type: ignore[attr-defined]
+    return search
+
+
 def test_search_tool_definition_and_schema():
-    tool = get_search_tool_definition()
-    assert tool.name == SEARCH_TOOLS_NAME
-    assert tool.input_schema == SEARCH_TOOLS_SCHEMA
-    assert "queries" in tool.input_schema["required"]
-    assert tool.input_schema["additionalProperties"] is False
-    assert tool.input_schema["properties"]["queries"]["items"]["minLength"] == 1
-    assert tool.input_schema["properties"]["queries"]["items"]["maxLength"] == 256
-    assert "### Agent Search & Decomposition Guidelines:" in tool.description
+    definition = get_search_tool_definition()
+    assert definition.name == SEARCH_TOOLS_NAME
+    assert definition.input_schema == SEARCH_TOOLS_SCHEMA
+    assert "queries" in definition.input_schema["required"]
+    assert definition.input_schema["additionalProperties"] is False
+    assert definition.input_schema["properties"]["queries"]["items"]["minLength"] == 1
+    assert definition.input_schema["properties"]["queries"]["items"]["maxLength"] == 256
+    assert "### Agent Search & Decomposition Guidelines:" in definition.description
     # Ensure description is cleanly dedented via inspect.cleandoc
-    assert not any(line.startswith("            ") for line in tool.description.splitlines())
+    assert not any(line.startswith("            ") for line in definition.description.splitlines())
 
 
-def test_score_tool_match():
-    # 1. Exact match on slug or original name has high score
-    s_exact = score_tool_match(
-        query="calculate",
-        tool_slug="math__calculate",
-        original_name="calculate",
-        description="Performs math",
-        server_name="math_server",
-        input_schema={},
-    )
-    assert s_exact >= 50.0
+async def test_results_keep_rank_order_shape_and_similarity():
+    calc, add = tool("calculate", description="Evaluate math"), tool("add")
+    search = search_returning([(calc, 0.91234), (add, 0.5)])
 
-    # 2. Substring in description
-    s_desc = score_tool_match(
-        query="addition",
-        tool_slug="math__calculate",
-        original_name="calculate",
-        description="Supports addition and multiplication",
-        server_name="math_server",
-        input_schema={},
-    )
-    assert s_desc > 0.0
+    res = await handle_search_tools({"queries": ["calculate expression"], "top_k": 3}, search)
 
-    # 3. Match in schema properties and property descriptions
-    s_schema = score_tool_match(
-        query="expression",
-        tool_slug="math__calculate",
-        original_name="calculate",
-        description="A math tool",
-        server_name="math_server",
-        input_schema={
-            "type": "object",
-            "properties": {
-                "expression": {
-                    "type": "string",
-                    "description": "Math expression string",
-                }
-            },
-        },
-    )
-    assert s_schema > 0.0
-
-    # 4. Zero matches
-    s_none = score_tool_match(
-        query="database query",
-        tool_slug="math__calculate",
-        original_name="calculate",
-        description="A math tool",
-        server_name="math_server",
-        input_schema={},
-    )
-    assert s_none == 0.0
-
-    # 5. Empty or whitespace query
-    assert score_tool_match("", "math__calc", "calc", "", "", {}) == 0.0
-    assert score_tool_match("   ", "math__calc", "calc", "", "", {}) == 0.0
+    assert search.calls == [(["calculate expression"], 3)]
+    assert res["matched_count"] == 2
+    assert res["tools"][0] == {
+        "tool_slug": "math_server__calculate",
+        "server_id": str(calc.server_id),
+        "description": "Evaluate math",
+        "input_schema": {"type": "object"},
+        "similarity": 0.912,
+    }
+    assert [t["tool_slug"] for t in res["tools"]] == ["math_server__calculate", "math_server__add"]
 
 
-def test_handle_search_tools_ranking_and_deduplication():
-    srv1_id = uuid4()
-    srv2_id = uuid4()
+async def test_a_tool_found_by_several_queries_is_listed_once():
+    calc, echo = tool("calculate"), tool("echo", server_name="echo")
+    search = search_returning([(calc, 0.9)], [(calc, 0.8), (echo, 0.7)])
 
-    tool_list = [
-        ToolEntity(
-            id=uuid4(),
-            server_id=srv1_id,
-            server_name="math_server",
-            name="calculate",
-            input_schema={
-                "type": "object",
-                "properties": {
-                    "expression": {
-                        "type": "string",
-                        "description": "Mathematical expression to evaluate",
-                    }
-                },
-                "required": ["expression"],
-            },
-            description="Evaluate mathematical expressions",
-            availability_status="AVAILABLE",
-            user_id=USER_ID,
-        ),
-        ToolEntity(
-            id=uuid4(),
-            server_id=srv2_id,
-            server_name="text_server",
-            name="transform",
-            input_schema={
-                "type": "object",
-                "properties": {
-                    "text": {"type": "string"},
-                    "mode": {"type": "string", "enum": ["upper", "lower"]},
-                },
-                "required": ["text"],
-            },
-            description="Transforms text case",
-            availability_status="AVAILABLE",
-            user_id=USER_ID,
-        ),
-        ToolEntity(
-            id=uuid4(),
-            server_id=srv2_id,
-            server_name="text_server",
-            name="echo",
-            input_schema={"type": "object", "properties": {"message": {"type": "string"}}},
-            description="Echo message",
-            availability_status="AVAILABLE",
-            user_id=USER_ID,
-        ),
-    ]
+    res = await handle_search_tools({"queries": ["calculate", "echo text"]}, search)
 
-    # Query matching calculate via schema parameter 'expression'
-    res = handle_search_tools(
-        arguments={"queries": ["math expression", "evaluate math"]},
-        tools=tool_list,
-    )
-    assert res["matched_count"] == 1
-    assert res["tools"][0]["tool_slug"] == "math_server__calculate"
-    assert res["tools"][0]["server_id"] == str(srv1_id)
-    assert "expression" in res["tools"][0]["input_schema"]["properties"]
-
-    # Multiple queries with top_k=1 per query
-    res_multi = handle_search_tools(
-        arguments={"queries": ["math calculate", "text uppercase transform"], "top_k": 1},
-        tools=tool_list,
-    )
-    assert res_multi["matched_count"] == 2
-    slugs = [t["tool_slug"] for t in res_multi["tools"]]
-    assert slugs == ["math_server__calculate", "text_server__transform"]
-
-    # Top-k limit
-    res_top_k = handle_search_tools(
-        arguments={"queries": ["text"], "top_k": 1},
-        tools=tool_list,
-    )
-    assert res_top_k["matched_count"] == 1
+    assert [t["tool_slug"] for t in res["tools"]] == ["math_server__calculate", "echo__echo"]
+    assert search.calls == [(["calculate", "echo text"], 5)]  # default top_k
 
 
-def test_handle_search_tools_filters_meta_tools():
-    tool_list = [
-        ToolEntity(
-            id=uuid4(),
-            server_id=uuid4(),
-            server_name="hub",
-            name=SEARCH_TOOLS_NAME,
-            input_schema={},
-            description="Meta tool",
-            availability_status="AVAILABLE",
-            user_id=USER_ID,
-        ),
-        ToolEntity(
-            id=uuid4(),
-            server_id=uuid4(),
-            server_name="hub",
-            name=MULTI_EXECUTE_TOOLS_NAME,
-            input_schema={},
-            description="Meta tool",
-            availability_status="AVAILABLE",
-            user_id=USER_ID,
-        ),
-        ToolEntity(
-            id=uuid4(),
-            server_id=uuid4(),
-            server_name="srv",
-            name="real_tool",
-            input_schema={},
-            description="Real tool",
-            availability_status="AVAILABLE",
-            user_id=USER_ID,
-        ),
-    ]
+async def test_meta_tools_are_never_returned():
+    real = tool("real_tool", server_name="srv")
+    search = search_returning([(tool(SEARCH_TOOLS_NAME, "hub"), 0.99), (tool(MULTI_EXECUTE_TOOLS_NAME, "hub"), 0.98), (real, 0.5)])
 
-    res = handle_search_tools(
-        arguments={"queries": ["meta search execute tool"]},
-        tools=tool_list,
-    )
-    slugs = [t["tool_slug"] for t in res["tools"]]
-    assert SEARCH_TOOLS_NAME not in slugs
-    assert MULTI_EXECUTE_TOOLS_NAME not in slugs
-    assert "srv__real_tool" in slugs
+    res = await handle_search_tools({"queries": ["meta search execute tool"]}, search)
+
+    assert [t["tool_slug"] for t in res["tools"]] == ["srv__real_tool"]
 
 
-def test_handle_search_tools_validation_error():
-    # Empty queries list
+async def test_no_matches_is_an_empty_list():
+    res = await handle_search_tools({"queries": ["anything"]}, search_returning([]))
+    assert res == {"matched_count": 0, "tools": []}
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"queries": []},  # empty list
+        {"top_k": 5},  # missing queries
+        {"queries": ["test"], "top_k": 50},  # top_k out of bounds
+        {"queries": ["test"], "unexpected_field": True},  # extra="forbid"
+        {"queries": [""]},  # empty item
+        {"queries": ["   "]},  # whitespace-only item
+        {"queries": ["a" * 257]},  # longer than 256
+    ],
+)
+async def test_invalid_arguments_raise_before_searching(arguments):
+    search = search_returning()
     with pytest.raises(ValidationError):
-        handle_search_tools(arguments={"queries": []}, tools=[])
-
-    # Missing queries
-    with pytest.raises(ValidationError):
-        handle_search_tools(arguments={"top_k": 5}, tools=[])
-
-    # top_k out of bounds
-    with pytest.raises(ValidationError):
-        handle_search_tools(arguments={"queries": ["test"], "top_k": 50}, tools=[])
-
-    # Extra unexpected argument (extra="forbid")
-    with pytest.raises(ValidationError):
-        handle_search_tools(
-            arguments={"queries": ["test"], "unexpected_field": True},
-            tools=[],
-        )
-
-    # Empty string query item (min_length=1)
-    with pytest.raises(ValidationError):
-        handle_search_tools(arguments={"queries": [""]}, tools=[])
-
-    # Whitespace-only query item (stripped to empty)
-    with pytest.raises(ValidationError):
-        handle_search_tools(arguments={"queries": ["   "]}, tools=[])
-
-    # Query string exceeding max length 256
-    with pytest.raises(ValidationError):
-        handle_search_tools(arguments={"queries": ["a" * 257]}, tools=[])
+        await handle_search_tools(arguments, search)
+    assert search.calls == []

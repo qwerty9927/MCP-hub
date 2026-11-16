@@ -5,7 +5,9 @@ from typing import Annotated
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from app.background_service.embedding_backfill import EmbeddingBackfillService
 from app.background_service.session_sweeper import SessionSweeperService
+from app.core.config import get_settings
 from app.core.exceptions import UnauthorizedError
 from app.domain.principal_entity import Principal
 from app.infrastructure.repositories.api_key_repository import ApiKeyRepositoryAbstract, PostgresApiKeyRepository
@@ -29,6 +31,7 @@ from app.infrastructure.repositories.user_repository import PostgresUserReposito
 from app.mcp.mcp_server import MCPServer
 from app.services.auth_service import AuthService
 from app.services.connection_manager import ConnectionManager
+from app.services.embedding_service import EmbeddingServiceAbstract, FastEmbedService
 from app.services.server_registry import ServerRegistryService
 from app.services.session_explorer import SessionExplorerService
 from app.services.session_tracker import SessionTrackerService
@@ -43,6 +46,12 @@ _session_repo: SessionRepositoryAbstract = PostgresSessionRepository()
 _user_repo: UserRepositoryAbstract = PostgresUserRepository()
 _api_key_repo: ApiKeyRepositoryAbstract = PostgresApiKeyRepository()
 _connection_manager = ConnectionManager()
+_settings = get_settings()
+_embedding_service: EmbeddingServiceAbstract = FastEmbedService(
+    model_name=_settings.EMBEDDING_MODEL,
+    dimension=_settings.EMBEDDING_DIMENSION,
+    cache_dir=_settings.EMBEDDING_CACHE_DIR,
+)
 _mcp_server: MCPServer | None = None
 
 _bearer_security = HTTPBearer(auto_error=False, description="Console login token from POST /auth/login")
@@ -94,9 +103,14 @@ def get_connection_manager() -> ConnectionManager:
     return _connection_manager
 
 
+def get_embedding_service() -> EmbeddingServiceAbstract:
+    """Return the embedding model used for tool search (loaded on first use)."""
+    return _embedding_service
+
+
 def get_tool_catalog_service() -> ToolCatalogService:
     """Return tool catalog service instance."""
-    return ToolCatalogService(tool_repository=_tool_repo)
+    return ToolCatalogService(tool_repository=_tool_repo, embedding_service=get_embedding_service())
 
 
 def get_server_registry_service() -> ServerRegistryService:
@@ -126,6 +140,11 @@ def get_session_explorer_service() -> SessionExplorerService:
 def get_session_sweeper_service() -> SessionSweeperService:
     """Return the background job that completes idle Sessions."""
     return SessionSweeperService(session_repository=get_session_repository())
+
+
+def get_embedding_backfill_service() -> EmbeddingBackfillService:
+    """Return the background job that embeds Tools stored without an embedding."""
+    return EmbeddingBackfillService(tool_repository=get_tool_repository(), embedding_service=get_embedding_service())
 
 
 def get_session_tracker_service() -> SessionTrackerService:

@@ -10,6 +10,13 @@ from app.core.constants.session_constants import DEFAULT_SESSION_IDLE_SECONDS, M
 _EMAIL_PATTERN = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
 
 
+_SESSION_IDLE_DESCRIPTION = (
+    "Minutes without a tool call after which a Session opened with this key is marked completed "
+    f"({MIN_SESSION_IDLE_MINUTES}-{MAX_SESSION_IDLE_MINUTES}). Null uses the default of "
+    f"{DEFAULT_SESSION_IDLE_SECONDS // 60}. This is not the key's expiry."
+)
+
+
 class RegisterRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -44,13 +51,6 @@ class UserResponse(BaseModel):
     id: UUID
     email: str
     created_at: datetime
-
-
-_SESSION_IDLE_DESCRIPTION = (
-    "Minutes without a tool call after which a Session opened with this key is marked completed "
-    f"({MIN_SESSION_IDLE_MINUTES}-{MAX_SESSION_IDLE_MINUTES}). Null uses the default of "
-    f"{DEFAULT_SESSION_IDLE_SECONDS // 60}. This is not the key's expiry."
-)
 
 
 class ApiKeyCreateRequest(BaseModel):

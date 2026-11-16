@@ -26,6 +26,7 @@ from app.services.server_registry import ServerRegistryService
 from app.services.tool_catalog import ToolCatalogService
 from app.services.tool_executor import ToolExecutor
 from tests.fake_downstream import FakeDownstream
+from tests.fake_embeddings import FakeEmbeddingService
 
 
 class FailingExecutionRepository(PostgresExecutionRepository):
@@ -55,7 +56,7 @@ def downstream() -> FakeDownstream:
 
 @pytest.fixture
 def catalog() -> ToolCatalogService:
-    return ToolCatalogService(tool_repository=PostgresToolRepository())
+    return ToolCatalogService(tool_repository=PostgresToolRepository(), embedding_service=FakeEmbeddingService())
 
 
 def build_executor(

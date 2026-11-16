@@ -18,19 +18,21 @@ from app.core.constants.meta_tools import (
 )
 from app.core.constants.session_constants import DEFAULT_SESSION_IDLE_SECONDS
 from app.core.enums.execution_enum import ExecutionOutcomeKind
-from app.core.enums.server_enum import ServerHealthStatus, TransportType
 from app.core.exceptions import UnauthorizedError
 from app.domain.principal_entity import Principal
 from app.domain.session_entity import SessionEntity
+from app.domain.tool_entity import ToolEntity
 from app.mcp.mcp_proxy_asgi import MCPProxyASGI, authenticated_user
 from app.mcp.mcp_server import MCPServer
 from app.mcp.multi_execute_tools import MULTI_EXECUTE_TOOLS_SCHEMA
 from app.mcp.search_tools import SEARCH_TOOLS_SCHEMA
-from app.schemas.common_schema import PaginatedResponse
-from app.schemas.server_schema import ServerResponse
-from app.schemas.tool_schema import ToolResponse
 from app.services.session_tracker import SessionTrackerService
 from app.services.tool_executor import ExecutionOutcome
+
+PRINCIPAL = Principal(user_id=uuid4(), api_key_id=uuid4())
+
+
+_ANY_TOOL_CALL = CallToolRequestParams(name=SEARCH_TOOLS_NAME, arguments={"queries": ["anything"]})
 
 
 @pytest.fixture
@@ -73,51 +75,6 @@ def mcp_server(mock_registry, mock_tool_catalog, mock_connection_mgr, mock_tool_
         session_tracker=SessionTrackerService(mock_session_repo),
         auth_service=mock_auth_service,
     )
-
-
-PRINCIPAL = Principal(user_id=uuid4(), api_key_id=uuid4())
-
-
-def _create_mock_context(
-    session_id: str | None = "test-session-123",
-    request_headers: dict[str, str] | None = None,
-    client_info_name: str | None = None,
-    client_info_version: str | None = None,
-    principal: Principal | None = PRINCIPAL,
-) -> ServerRequestContext:
-    """Helper to create a typed ServerRequestContext for testing."""
-    mock_session = MagicMock()
-    mock_conn = MagicMock()
-    mock_conn.session_id = session_id
-    mock_conn.protocol_version = "2024-11-05"
-    mock_session._connection = mock_conn
-
-    if client_info_name:
-        mock_client_params = MagicMock()
-        mock_client_info = MagicMock()
-        mock_client_info.name = client_info_name
-        mock_client_info.version = client_info_version or "1.0.0"
-        mock_client_params.client_info = mock_client_info
-        mock_session.client_params = mock_client_params
-    else:
-        mock_session.client_params = None
-
-    mock_session.protocol_version = "2024-11-05"
-
-    ctx = MagicMock(spec=ServerRequestContext)
-    ctx.session = mock_session
-    ctx.protocol_version = "2024-11-05"
-    if request_headers is not None or principal is not None:
-        mock_req = MagicMock()
-        mock_req.headers = request_headers or {}
-        mock_req.scope = {"user": authenticated_user(principal, "mhk_test")} if principal else {}
-        ctx.request = mock_req
-    else:
-        ctx.request = None
-    return ctx
-
-
-_ANY_TOOL_CALL = CallToolRequestParams(name=SEARCH_TOOLS_NAME, arguments={"queries": ["anything"]})
 
 
 @pytest.mark.asyncio
@@ -219,54 +176,20 @@ async def test_handle_call_tool_unsupported_tool(mcp_server):
 
 
 @pytest.mark.asyncio
-async def test_handle_call_tool_search(mcp_server, mock_registry, mock_tool_catalog):
-    """Verify Search tool query resolves candidates from mcp_servers and discovered_tools."""
+async def test_handle_call_tool_search(mcp_server, mock_tool_catalog):
+    """SEARCH_TOOLS asks the catalog's vector search for the caller's Tools and returns them as slugs."""
     srv_id = uuid4()
     ctx = _create_mock_context("sess-search")
-
-    # Mock enabled servers in mcp_servers table
-    mock_registry.list_servers.return_value = PaginatedResponse[ServerResponse](
-        items=[
-            ServerResponse(
-                id=srv_id,
-                name="math_server",
-                transport=TransportType.STDIO,
-                connection_config={"command": "python"},
-                enabled=True,
-                health_status=ServerHealthStatus.HEALTHY,
-                created_at=MagicMock(),
-                updated_at=MagicMock(),
-            )
-        ],
-        total=1,
-        page=1,
-        page_size=1000,
-        total_pages=1,
+    calculate = ToolEntity(
+        id=uuid4(),
+        server_id=srv_id,
+        server_name="math_server",
+        name="calculate",
+        description="Evaluate math expressions",
+        input_schema={"type": "object", "properties": {"expression": {"type": "string"}}, "required": ["expression"]},
+        user_id=PRINCIPAL.user_id,
     )
-
-    # Mock discovered tools in discovered_tools table
-    mock_tool_catalog.list_tools.return_value = PaginatedResponse[ToolResponse](
-        items=[
-            ToolResponse(
-                id=uuid4(),
-                name="calculate",
-                description="Evaluate math expressions",
-                input_schema={
-                    "type": "object",
-                    "properties": {"expression": {"type": "string"}},
-                    "required": ["expression"],
-                },
-                server_id=srv_id,
-                server_name="math_server",
-                availability_status="AVAILABLE",
-                last_discovered_at=MagicMock(),
-            )
-        ],
-        total=1,
-        page=1,
-        page_size=1000,
-        total_pages=1,
-    )
+    mock_tool_catalog.search.return_value = [[(calculate, 0.87)]]
 
     params = CallToolRequestParams(
         name=SEARCH_TOOLS_NAME,
@@ -279,8 +202,8 @@ async def test_handle_call_tool_search(mcp_server, mock_registry, mock_tool_cata
     assert data["matched_count"] == 1
     assert data["tools"][0]["tool_slug"] == "math_server__calculate"
     assert data["tools"][0]["server_id"] == str(srv_id)
-    assert mock_registry.list_servers.await_args.kwargs["user_id"] == PRINCIPAL.user_id
-    assert mock_tool_catalog.list_tools.await_args.kwargs["user_id"] == PRINCIPAL.user_id
+    assert data["tools"][0]["similarity"] == 0.87
+    mock_tool_catalog.search.assert_awaited_once_with(["math calculate"], user_id=PRINCIPAL.user_id, top_k=5)
 
 
 @pytest.mark.asyncio
@@ -369,3 +292,42 @@ async def test_mcp_proxy_asgi_refuses_non_post_without_reaching_the_sdk(mcp_serv
     start = send.await_args_list[0].args[0]
     assert start["status"] == 405
     assert (b"allow", b"POST") in start["headers"]
+
+
+def _create_mock_context(
+    session_id: str | None = "test-session-123",
+    request_headers: dict[str, str] | None = None,
+    client_info_name: str | None = None,
+    client_info_version: str | None = None,
+    principal: Principal | None = PRINCIPAL,
+) -> ServerRequestContext:
+    """Helper to create a typed ServerRequestContext for testing."""
+    mock_session = MagicMock()
+    mock_conn = MagicMock()
+    mock_conn.session_id = session_id
+    mock_conn.protocol_version = "2024-11-05"
+    mock_session._connection = mock_conn
+
+    if client_info_name:
+        mock_client_params = MagicMock()
+        mock_client_info = MagicMock()
+        mock_client_info.name = client_info_name
+        mock_client_info.version = client_info_version or "1.0.0"
+        mock_client_params.client_info = mock_client_info
+        mock_session.client_params = mock_client_params
+    else:
+        mock_session.client_params = None
+
+    mock_session.protocol_version = "2024-11-05"
+
+    ctx = MagicMock(spec=ServerRequestContext)
+    ctx.session = mock_session
+    ctx.protocol_version = "2024-11-05"
+    if request_headers is not None or principal is not None:
+        mock_req = MagicMock()
+        mock_req.headers = request_headers or {}
+        mock_req.scope = {"user": authenticated_user(principal, "mhk_test")} if principal else {}
+        ctx.request = mock_req
+    else:
+        ctx.request = None
+    return ctx

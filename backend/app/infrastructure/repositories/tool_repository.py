@@ -2,11 +2,12 @@ from abc import ABC, abstractmethod
 from dataclasses import replace
 from uuid import UUID
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 
 import app.infrastructure.database as db_module
 from app.domain.tool_entity import ToolEntity
 from app.helpers.validation import is_uuid
+from app.models.server_model import ServerModel
 from app.models.tool_model import ToolModel
 
 
@@ -19,8 +20,30 @@ class ToolRepositoryAbstract(ABC):
         server_id: UUID,
         server_name: str,
         tools: list[ToolEntity],
+        embeddings: list[list[float] | None] | None = None,
     ) -> list[ToolEntity]:
-        """Replace the tools stored for a server with the newly discovered ones."""
+        """Replace the tools stored for a server with the newly discovered ones.
+
+        `embeddings`, when given, holds one vector (or None) per tool, in the same order.
+        """
+        pass
+
+    @abstractmethod
+    async def search_by_embedding(self, query_embedding: list[float], *, user_id: UUID, top_k: int) -> list[tuple[ToolEntity, float]]:
+        """The owner's `top_k` searchable Tools nearest to `query_embedding`, with their cosine similarity, best first.
+
+        Searchable: embedded, AVAILABLE, and on an enabled Server.
+        """
+        pass
+
+    @abstractmethod
+    async def list_tools_without_embedding(self, limit: int) -> list[ToolEntity]:
+        """Up to `limit` Tools of any account that have no embedding yet (for the backfill job)."""
+        pass
+
+    @abstractmethod
+    async def set_embeddings(self, embeddings: dict[UUID, list[float]]) -> None:
+        """Store the embedding of each Tool, by Tool id."""
         pass
 
     @abstractmethod
@@ -63,19 +86,55 @@ class PostgresToolRepository(ToolRepositoryAbstract):
         server_id: UUID,
         server_name: str,
         tools: list[ToolEntity],
+        embeddings: list[list[float] | None] | None = None,
     ) -> list[ToolEntity]:
+        if embeddings is not None and len(embeddings) != len(tools):
+            raise ValueError(f"Got {len(embeddings)} embeddings for {len(tools)} tools")
         async with db_module.async_session_factory() as session:
             # Replace the server's tools with the newly discovered ones (each new Tool has a new id).
             await session.execute(delete(ToolModel).where(ToolModel.server_id == str(server_id)))
 
             saved_entities: list[ToolEntity] = []
-            for tool in tools:
+            for index, tool in enumerate(tools):
                 saved = replace(tool, server_id=server_id, server_name=server_name)
-                session.add(ToolModel.from_domain(saved))
+                model = ToolModel.from_domain(saved)
+                model.embedding = embeddings[index] if embeddings is not None else None
+                session.add(model)
                 saved_entities.append(saved)
 
             await session.commit()
             return saved_entities
+
+    async def search_by_embedding(self, query_embedding: list[float], *, user_id: UUID, top_k: int) -> list[tuple[ToolEntity, float]]:
+        async with db_module.async_session_factory() as session:
+            distance = ToolModel.embedding.cosine_distance(query_embedding)
+            stmt = (
+                select(ToolModel, distance.label("distance"))
+                .join(ServerModel, ServerModel.id == ToolModel.server_id)
+                .where(
+                    ToolModel.user_id == str(user_id),
+                    ServerModel.enabled.is_(True),
+                    ToolModel.availability_status == "AVAILABLE",
+                    ToolModel.embedding.is_not(None),
+                )
+                .order_by(distance, ToolModel.id)
+                .limit(top_k)
+            )
+            rows = (await session.execute(stmt)).all()
+            return [(model.to_domain(), 1.0 - float(dist)) for model, dist in rows]
+
+    async def list_tools_without_embedding(self, limit: int) -> list[ToolEntity]:
+        async with db_module.async_session_factory() as session:
+            stmt = select(ToolModel).where(ToolModel.embedding.is_(None)).order_by(ToolModel.id).limit(limit)
+            return [model.to_domain() for model in (await session.execute(stmt)).scalars()]
+
+    async def set_embeddings(self, embeddings: dict[UUID, list[float]]) -> None:
+        if not embeddings:
+            return
+        async with db_module.async_session_factory() as session:
+            for tool_id, vector in embeddings.items():
+                await session.execute(update(ToolModel).where(ToolModel.id == str(tool_id)).values(embedding=vector))
+            await session.commit()
 
     async def delete_server_tools(self, server_id: UUID) -> None:
         async with db_module.async_session_factory() as session:

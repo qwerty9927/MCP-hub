@@ -28,14 +28,6 @@ def tracker(repo) -> SessionTrackerService:
     return SessionTrackerService(repo)
 
 
-async def _principal(email: str, with_key: bool = True) -> Principal:
-    user = await PostgresUserRepository().create(UserEntity(email=email, password_hash="x"))
-    if not with_key:
-        return Principal(user_id=user.id)
-    key = await PostgresApiKeyRepository().create(ApiKeyEntity(user_id=user.id, name="k", key_prefix="mhk_", key_hash=uuid4().hex))
-    return Principal(user_id=user.id, api_key_id=key.id)
-
-
 async def test_same_client_reuses_one_derived_session(tracker, repo):
     principal = await _principal("a@test.local")
 
@@ -157,3 +149,11 @@ async def test_reuse_follows_the_session_timeout_not_the_current_key_value(track
     assert (await repo.get_by_id(first, user_id=base.user_id)).status == SessionStatus.COMPLETED
     new_entity = await repo.find_active_by_fingerprint(base.user_id, client_fingerprint(base, CLIENT))
     assert new_entity.id == replaced and new_entity.idle_timeout_seconds == 60
+
+
+async def _principal(email: str, with_key: bool = True) -> Principal:
+    user = await PostgresUserRepository().create(UserEntity(email=email, password_hash="x"))
+    if not with_key:
+        return Principal(user_id=user.id)
+    key = await PostgresApiKeyRepository().create(ApiKeyEntity(user_id=user.id, name="k", key_prefix="mhk_", key_hash=uuid4().hex))
+    return Principal(user_id=user.id, api_key_id=key.id)

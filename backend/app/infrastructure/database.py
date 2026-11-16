@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncGenerator
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -53,11 +54,12 @@ async def init_db(target_engine: AsyncEngine | None = None) -> None:
     """Initialize database tables."""
     eng = target_engine or engine
     async with eng.begin() as conn:
+        # discovered_tools.embedding needs pgvector; create_all does not create extensions.
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
 
 
 engine = create_database_engine(_settings.DATABASE_URL, _settings.DEBUG)
-
 async_session_factory = async_sessionmaker(
     bind=engine,
     autoflush=False,

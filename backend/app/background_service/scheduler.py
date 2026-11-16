@@ -9,12 +9,19 @@ from datetime import UTC
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
+from app.background_service.embedding_backfill import EmbeddingBackfillService
 from app.background_service.session_sweeper import SessionSweeperService
 from app.core.constants.session_constants import SESSION_SWEEP_CRON, SESSION_SWEEP_JOB_ID, SESSION_SWEEP_MISFIRE_GRACE_SECONDS
+from app.core.constants.tool_search_constants import (
+    EMBEDDING_BACKFILL_INTERVAL_MINUTES,
+    EMBEDDING_BACKFILL_JOB_ID,
+    EMBEDDING_BACKFILL_MISFIRE_GRACE_SECONDS,
+)
 
 
-def create_scheduler(session_sweeper: SessionSweeperService) -> AsyncIOScheduler:
+def create_scheduler(session_sweeper: SessionSweeperService, embedding_backfill: EmbeddingBackfillService) -> AsyncIOScheduler:
     """Build the scheduler with its jobs registered. Not started: call `start()` inside a running event loop."""
     scheduler = AsyncIOScheduler(timezone=UTC)
     scheduler.add_job(
@@ -25,6 +32,16 @@ def create_scheduler(session_sweeper: SessionSweeperService) -> AsyncIOScheduler
         max_instances=1,  # a slow sweep never overlaps the next one
         coalesce=True,  # runs missed while the loop was busy collapse into one
         misfire_grace_time=SESSION_SWEEP_MISFIRE_GRACE_SECONDS,
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        embedding_backfill.backfill_embeddings,
+        trigger=IntervalTrigger(minutes=EMBEDDING_BACKFILL_INTERVAL_MINUTES, timezone=UTC),
+        id=EMBEDDING_BACKFILL_JOB_ID,
+        name="Embed tools that have no embedding",
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=EMBEDDING_BACKFILL_MISFIRE_GRACE_SECONDS,
         replace_existing=True,
     )
     return scheduler
