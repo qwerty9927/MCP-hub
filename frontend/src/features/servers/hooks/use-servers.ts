@@ -82,10 +82,14 @@ export function useConnectServer() {
 
     return useMutation({
         mutationFn: (serverId: string) => serversApi.connect(serverId),
-        onSuccess: (server) => {
-            queryClient.invalidateQueries({ queryKey: SERVERS_QUERY_KEY });
-            queryClient.invalidateQueries({ queryKey: ["tools"] });
-            queryClient.invalidateQueries({ queryKey: ["system-health"] });
+        // Connecting re-discovers the server's tools, giving them new ids. Awaiting the refetch keeps the
+        // mutation pending until the new list is loaded, so the old (stale) rows stay disabled until then.
+        onSuccess: async (server) => {
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: SERVERS_QUERY_KEY }),
+                queryClient.invalidateQueries({ queryKey: ["tools"] }),
+                queryClient.invalidateQueries({ queryKey: ["system-health"] }),
+            ]);
             toast.success(`Connected to "${server.name}". ${server.discovered_tool_count} tools discovered.`);
         },
         onError: (err: AppApiError) => {
@@ -134,10 +138,14 @@ export function useRefreshServerTools() {
 
     return useMutation({
         mutationFn: (serverId: string) => serversApi.refreshTools(serverId),
-        onSuccess: (tools, serverId) => {
-            queryClient.invalidateQueries({ queryKey: SERVERS_QUERY_KEY });
-            queryClient.invalidateQueries({ queryKey: [...SERVERS_QUERY_KEY, serverId, "tools"] });
-            queryClient.invalidateQueries({ queryKey: ["tools"] });
+        // A refresh replaces the server's tools, giving them new ids. Awaiting the refetch keeps the
+        // mutation pending until the new list is loaded, so the old (stale) rows stay disabled until then.
+        onSuccess: async (tools, serverId) => {
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: SERVERS_QUERY_KEY }),
+                queryClient.invalidateQueries({ queryKey: [...SERVERS_QUERY_KEY, serverId, "tools"] }),
+                queryClient.invalidateQueries({ queryKey: ["tools"] }),
+            ]);
             toast.success(`Discovered ${tools.length} tools`);
         },
         onError: (err: AppApiError) => {
