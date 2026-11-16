@@ -16,8 +16,8 @@ class EmbeddingBackfillService:
     """Embeds every stored Tool, of any account, whose embedding is NULL."""
 
     def __init__(self, tool_repository: ToolRepositoryAbstract, embedding_service: EmbeddingServiceAbstract) -> None:
-        self._tools = tool_repository
-        self._embeddings = embedding_service
+        self._tool_repository = tool_repository
+        self._embedding_service = embedding_service
 
     async def backfill_embeddings(self) -> int:
         """Run one backfill, in batches of EMBEDDING_BACKFILL_BATCH; returns how many Tools were embedded.
@@ -26,9 +26,9 @@ class EmbeddingBackfillService:
         """
         embedded = 0
         try:
-            while tools := await self._tools.list_tools_without_embedding(EMBEDDING_BACKFILL_BATCH):
-                vectors = await self._embeddings.embed_documents([tool_embedding_text(tool) for tool in tools])
-                await self._tools.set_embeddings({tool.id: vector for tool, vector in zip(tools, vectors, strict=True)})
+            while tools := await self._tool_repository.list_tools_without_embedding(EMBEDDING_BACKFILL_BATCH):
+                vectors = await self._embedding_service.embed_documents([tool_embedding_text(tool) for tool in tools])
+                await self._tool_repository.set_embeddings({tool.id: vector for tool, vector in zip(tools, vectors, strict=True)})
                 embedded += len(tools)
         except Exception as exc:
             logger.error(f"Could not backfill tool embeddings: {exc}")

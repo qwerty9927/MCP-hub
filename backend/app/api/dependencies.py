@@ -39,12 +39,12 @@ from app.services.tool_catalog import ToolCatalogService
 from app.services.tool_executor import ToolExecutor
 
 # Singleton instances for PostgreSQL repositories and managers
-_server_repo: ServerRepositoryAbstract = PostgresServerRepository()
-_tool_repo: ToolRepositoryAbstract = PostgresToolRepository()
-_execution_repo: ExecutionRepositoryAbstract = PostgresExecutionRepository()
-_session_repo: SessionRepositoryAbstract = PostgresSessionRepository()
-_user_repo: UserRepositoryAbstract = PostgresUserRepository()
-_api_key_repo: ApiKeyRepositoryAbstract = PostgresApiKeyRepository()
+_server_repository: ServerRepositoryAbstract = PostgresServerRepository()
+_tool_repository: ToolRepositoryAbstract = PostgresToolRepository()
+_execution_repository: ExecutionRepositoryAbstract = PostgresExecutionRepository()
+_session_repository: SessionRepositoryAbstract = PostgresSessionRepository()
+_user_repository: UserRepositoryAbstract = PostgresUserRepository()
+_api_key_repository: ApiKeyRepositoryAbstract = PostgresApiKeyRepository()
 _connection_manager = ConnectionManager()
 _settings = get_settings()
 _embedding_service: EmbeddingServiceAbstract = FastEmbedService(
@@ -59,38 +59,38 @@ _bearer_security = HTTPBearer(auto_error=False, description="Console login token
 
 def get_server_repository() -> ServerRepositoryAbstract:
     """Return server repository instance."""
-    return _server_repo
+    return _server_repository
 
 
 def get_tool_repository() -> ToolRepositoryAbstract:
     """Return tool repository instance."""
-    return _tool_repo
+    return _tool_repository
 
 
 def get_execution_repository() -> ExecutionRepositoryAbstract:
     """Return execution repository instance."""
-    return _execution_repo
+    return _execution_repository
 
 
 def get_session_repository() -> SessionRepositoryAbstract:
     """Return session repository instance."""
-    return _session_repo
+    return _session_repository
 
 
 def get_auth_service() -> AuthService:
     """Return the account and API key service."""
-    return AuthService(user_repository=_user_repo, api_key_repository=_api_key_repo)
+    return AuthService(user_repository=_user_repository, api_key_repository=_api_key_repository)
 
 
 async def get_current_principal(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer_security)],
-    auth: Annotated[AuthService, Depends(get_auth_service)],
+    auth_service: Annotated[AuthService, Depends(get_auth_service)],
 ) -> Principal:
     """Resolve the console login token on a REST request to its account, or raise 401."""
     if credentials is None:
         raise UnauthorizedError("Authentication required")
 
-    principal = auth.authenticate_console(credentials.credentials)
+    principal = auth_service.authenticate_console(credentials.credentials)
 
     if principal is None:
         raise UnauthorizedError("Invalid or expired token")
@@ -110,7 +110,7 @@ def get_embedding_service() -> EmbeddingServiceAbstract:
 
 def get_tool_catalog_service() -> ToolCatalogService:
     """Return tool catalog service instance."""
-    return ToolCatalogService(tool_repository=_tool_repo, embedding_service=get_embedding_service())
+    return ToolCatalogService(tool_repository=_tool_repository, embedding_service=get_embedding_service())
 
 
 def get_server_registry_service() -> ServerRegistryService:

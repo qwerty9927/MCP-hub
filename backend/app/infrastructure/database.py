@@ -52,11 +52,11 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 
 async def init_db(target_engine: AsyncEngine | None = None) -> None:
     """Initialize database tables."""
-    eng = target_engine or engine
-    async with eng.begin() as conn:
+    database_engine = target_engine or engine
+    async with database_engine.begin() as connection:
         # discovered_tools.embedding needs pgvector; create_all does not create extensions.
-        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        await conn.run_sync(Base.metadata.create_all)
+        await connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        await connection.run_sync(Base.metadata.create_all)
 
 
 engine = create_database_engine(_settings.DATABASE_URL, _settings.DEBUG)

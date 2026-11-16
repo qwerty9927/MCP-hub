@@ -47,7 +47,7 @@ class SessionTrackerService:
     """Maps each upstream MCP request to the hub Session it belongs to."""
 
     def __init__(self, session_repository: SessionRepositoryAbstract) -> None:
-        self._sessions = session_repository
+        self._session_repository = session_repository
         self._locks: dict[str, asyncio.Lock] = {}
 
     async def resolve(self, principal: Principal, client: ClientIdentity) -> UUID | None:
@@ -67,17 +67,17 @@ class SessionTrackerService:
         lock = self._locks.setdefault(fingerprint, asyncio.Lock())
         async with lock:
             now = datetime.now(UTC)
-            current = await self._sessions.find_active_by_fingerprint(principal.user_id, fingerprint)
+            current = await self._session_repository.find_active_by_fingerprint(principal.user_id, fingerprint)
             if current is not None:
                 # Each Session keeps the timeout it opened with, so changing the key's value only affects later Sessions.
                 if not is_idle(current.last_activity_at, effective_idle_seconds(current.idle_timeout_seconds), now):
                     if now - current.last_activity_at > timedelta(seconds=ACTIVITY_REFRESH_SECONDS):
-                        await self._sessions.update_activity(current.id, now)
+                        await self._session_repository.update_activity(current.id, now)
                     return current.id
-                await self._sessions.update_status(current.id, SessionStatus.COMPLETED, user_id=principal.user_id)
+                await self._session_repository.update_status(current.id, SessionStatus.COMPLETED, user_id=principal.user_id)
 
             session_id = uuid4()
-            new_session = await self._sessions.create(
+            new_session = await self._session_repository.create(
                 SessionEntity(
                     id=session_id,
                     title=f"{client.label or 'MCP client'} ({str(session_id)[:8]})",

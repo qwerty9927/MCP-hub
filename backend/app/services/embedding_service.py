@@ -76,19 +76,19 @@ class FastEmbedService(EmbeddingServiceAbstract):
         return normalize(vector)
 
 
-async def warm_up(service: EmbeddingServiceAbstract) -> None:
+async def warm_up(embedding_service: EmbeddingServiceAbstract) -> None:
     """Load the model now, so the first search is not slow, and fail fast if it returns the wrong dimension.
 
     Any other failure (model not downloadable, say) is logged; search and discovery then retry on use.
     """
     try:
-        await service.embed_query("warmup")
+        await embedding_service.embed_query("warmup")
     except ValueError:
         raise
     except Exception as exc:
         logger.error(f"Could not load the embedding model; SEARCH_TOOLS will fail until it loads: {exc}")
         return
-    logger.info(f"Embedding model ready ({service.dimension} dimensions)")
+    logger.info(f"Embedding model ready ({embedding_service.dimension} dimensions)")
 
 
 def normalize(vector: Any) -> list[float]:

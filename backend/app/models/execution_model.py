@@ -78,7 +78,7 @@ class ExecutionModel(Base):
 
     def to_tool_call_domain(self) -> ToolCallEntity:
         """Convert database model to ToolCallEntity for session explorer."""
-        status_val = (
+        status_value = (
             ToolCallStatus(self.status)
             if self.status in ToolCallStatus._value2member_map_
             else (ToolCallStatus.FAILED if self.is_error else ToolCallStatus.COMPLETED)
@@ -88,7 +88,7 @@ class ExecutionModel(Base):
             session_id=UUID(self.session_id) if self.session_id else None,
             server_name=self.server_name,
             tool_name=self.tool_name,
-            status=status_val,
+            status=status_value,
             started_at=self.started_at or self.executed_at,
             completed_at=self.completed_at,
             duration_ms=self.duration_ms,

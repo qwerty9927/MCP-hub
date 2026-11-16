@@ -28,31 +28,31 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
     status_code=status.HTTP_201_CREATED,
     summary="Create an account",
 )
-async def register(payload: RegisterRequest, auth: Annotated[AuthService, Depends(get_auth_service)]) -> UserResponse:
+async def register(payload: RegisterRequest, auth_service: Annotated[AuthService, Depends(get_auth_service)]) -> UserResponse:
     """Self sign-up. Returns 403 when the hub has sign-up disabled."""
-    return await auth.register(payload)
+    return await auth_service.register(payload)
 
 
 @router.post("/login", response_model=TokenResponse, summary="Log in and receive a console token")
-async def login(payload: LoginRequest, auth: Annotated[AuthService, Depends(get_auth_service)]) -> TokenResponse:
+async def login(payload: LoginRequest, auth_service: Annotated[AuthService, Depends(get_auth_service)]) -> TokenResponse:
     """Exchange email and password for a short-lived JWT used by the admin console and REST API."""
-    return await auth.login(payload)
+    return await auth_service.login(payload)
 
 
 @router.get("/me", response_model=UserResponse, summary="Get the signed-in account")
 async def me(
     principal: Annotated[Principal, Depends(get_current_principal)],
-    auth: Annotated[AuthService, Depends(get_auth_service)],
+    auth_service: Annotated[AuthService, Depends(get_auth_service)],
 ) -> UserResponse:
-    return await auth.get_user(principal.user_id)
+    return await auth_service.get_user(principal.user_id)
 
 
 @router.get("/api-keys", response_model=list[ApiKeyResponse], summary="List the account's API keys")
 async def list_api_keys(
     principal: Annotated[Principal, Depends(get_current_principal)],
-    auth: Annotated[AuthService, Depends(get_auth_service)],
+    auth_service: Annotated[AuthService, Depends(get_auth_service)],
 ) -> list[ApiKeyResponse]:
-    return await auth.list_api_keys(principal.user_id)
+    return await auth_service.list_api_keys(principal.user_id)
 
 
 @router.post(
@@ -64,10 +64,10 @@ async def list_api_keys(
 async def create_api_key(
     payload: ApiKeyCreateRequest,
     principal: Annotated[Principal, Depends(get_current_principal)],
-    auth: Annotated[AuthService, Depends(get_auth_service)],
+    auth_service: Annotated[AuthService, Depends(get_auth_service)],
 ) -> ApiKeyCreatedResponse:
     """The full key is in this response only; the hub keeps a hash."""
-    return await auth.create_api_key(principal.user_id, payload)
+    return await auth_service.create_api_key(principal.user_id, payload)
 
 
 @router.patch("/api-keys/{key_id}", response_model=ApiKeyResponse, summary="Change an API key's Session idle timeout")
@@ -75,16 +75,16 @@ async def update_api_key(
     key_id: UUID,
     payload: ApiKeyUpdateRequest,
     principal: Annotated[Principal, Depends(get_current_principal)],
-    auth: Annotated[AuthService, Depends(get_auth_service)],
+    auth_service: Annotated[AuthService, Depends(get_auth_service)],
 ) -> ApiKeyResponse:
     """Set (or, with null, reset to the default) how long a Session opened with this key may sit idle. Not the key's expiry."""
-    return await auth.update_api_key(principal.user_id, key_id, payload)
+    return await auth_service.update_api_key(principal.user_id, key_id, payload)
 
 
 @router.delete("/api-keys/{key_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Revoke an API key")
 async def revoke_api_key(
     key_id: UUID,
     principal: Annotated[Principal, Depends(get_current_principal)],
-    auth: Annotated[AuthService, Depends(get_auth_service)],
+    auth_service: Annotated[AuthService, Depends(get_auth_service)],
 ) -> None:
-    await auth.revoke_api_key(principal.user_id, key_id)
+    await auth_service.revoke_api_key(principal.user_id, key_id)

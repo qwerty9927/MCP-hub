@@ -98,16 +98,16 @@ def create_app() -> FastAPI:
     # Custom Exception Handlers
     @app.exception_handler(AppError)
     async def app_exception_handler(request: Request, exc: AppError) -> JSONResponse:
-        corr_id = get_correlation_id()
+        correlation_id = get_correlation_id()
         error_response = ErrorResponse(
             error=ErrorDetail(
                 code=str(exc.status_code),
                 message=exc.message,
                 details=exc.details,
-                correlation_id=corr_id,
+                correlation_id=correlation_id,
             )
         )
-        headers = {"X-Correlation-ID": corr_id}
+        headers = {"X-Correlation-ID": correlation_id}
         if exc.status_code == status.HTTP_401_UNAUTHORIZED:
             headers["WWW-Authenticate"] = "Bearer"
         return JSONResponse(
@@ -118,61 +118,61 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
-        corr_id = get_correlation_id()
+        correlation_id = get_correlation_id()
         errors = [
             {
-                "loc": list(err.get("loc", [])),
-                "msg": err.get("msg", ""),
-                "type": err.get("type", ""),
+                "loc": list(error.get("loc", [])),
+                "msg": error.get("msg", ""),
+                "type": error.get("type", ""),
             }
-            for err in exc.errors()
+            for error in exc.errors()
         ]
         error_response = ErrorResponse(
             error=ErrorDetail(
                 code="ValidationError",
                 message="Request validation failed",
                 details=errors,
-                correlation_id=corr_id,
+                correlation_id=correlation_id,
             )
         )
         return JSONResponse(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             content=error_response.model_dump(),
-            headers={"X-Correlation-ID": corr_id},
+            headers={"X-Correlation-ID": correlation_id},
         )
 
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
-        corr_id = get_correlation_id()
+        correlation_id = get_correlation_id()
         error_response = ErrorResponse(
             error=ErrorDetail(
                 code=f"HTTP_{exc.status_code}",
                 message=str(exc.detail),
-                correlation_id=corr_id,
+                correlation_id=correlation_id,
             )
         )
         return JSONResponse(
             status_code=exc.status_code,
             content=error_response.model_dump(),
-            headers={"X-Correlation-ID": corr_id},
+            headers={"X-Correlation-ID": correlation_id},
         )
 
     @app.exception_handler(Exception)
     async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-        corr_id = get_correlation_id()
+        correlation_id = get_correlation_id()
         logger.error(f"Unhandled server error: {exc}", exc_info=True)
         error_response = ErrorResponse(
             error=ErrorDetail(
                 code="InternalServerError",
                 message="An unexpected internal error occurred. Please try again later.",
-                details={"correlation_id": corr_id},
-                correlation_id=corr_id,
+                details={"correlation_id": correlation_id},
+                correlation_id=correlation_id,
             )
         )
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content=error_response.model_dump(),
-            headers={"X-Correlation-ID": corr_id},
+            headers={"X-Correlation-ID": correlation_id},
         )
 
     # Mount System probes at Root (/health, /ready, /metrics)

@@ -23,7 +23,7 @@ class ToolCatalogService:
 
     def __init__(self, tool_repository: ToolRepositoryAbstract, embedding_service: EmbeddingServiceAbstract) -> None:
         self._tool_repository = tool_repository
-        self._embeddings = embedding_service
+        self._embedding_service = embedding_service
 
     async def refresh_server_tools(
         self,
@@ -67,7 +67,7 @@ class ToolCatalogService:
 
     async def search(self, queries: list[str], *, user_id: UUID, top_k: int) -> list[list[tuple[ToolEntity, float]]]:
         """For each query, the owner's `top_k` searchable Tools by cosine similarity, best first (ADR-0006)."""
-        vectors = await asyncio.gather(*(self._embeddings.embed_query(query) for query in queries))
+        vectors = await asyncio.gather(*(self._embedding_service.embed_query(query) for query in queries))
         return [await self._tool_repository.search_by_embedding(vector, user_id=user_id, top_k=top_k) for vector in vectors]
 
     async def remove_server_tools(self, server_id: UUID) -> None:
@@ -99,16 +99,16 @@ class ToolCatalogService:
 
         read_items = [
             ToolResponse(
-                id=t.id,
-                name=t.name,
-                description=t.description,
-                input_schema=t.input_schema,
-                server_id=t.server_id,
-                server_name=t.server_name,
-                availability_status=t.availability_status,
-                last_discovered_at=t.last_discovered_at,
+                id=tool.id,
+                name=tool.name,
+                description=tool.description,
+                input_schema=tool.input_schema,
+                server_id=tool.server_id,
+                server_name=tool.server_name,
+                availability_status=tool.availability_status,
+                last_discovered_at=tool.last_discovered_at,
             )
-            for t in items
+            for tool in items
         ]
 
         total_pages = math.ceil(total / page_size) if total > 0 else 0
@@ -154,9 +154,9 @@ class ToolCatalogService:
         if tool is not None:
             return tool
 
-        msg = f"Tool '{tool_id_or_name}' not found on server '{server_id}'" if server_id else f"Tool '{tool_id_or_name}' not found"
+        message = f"Tool '{tool_id_or_name}' not found on server '{server_id}'" if server_id else f"Tool '{tool_id_or_name}' not found"
         raise NotFoundError(
-            msg,
+            message,
             details={
                 "tool_name": tool_id_or_name,
                 "server_id": str(server_id) if server_id else None,
@@ -166,7 +166,7 @@ class ToolCatalogService:
     async def _embed_tools(self, tools: list[ToolEntity]) -> list[list[float] | None]:
         """One embedding per Tool; all None when embedding fails, so discovery never fails because of search."""
         try:
-            return list(await self._embeddings.embed_documents([tool_embedding_text(tool) for tool in tools]))
+            return list(await self._embedding_service.embed_documents([tool_embedding_text(tool) for tool in tools]))
         except Exception as exc:
             logger.warning(f"Could not embed {len(tools)} tools; they are not searchable until the backfill embeds them: {exc}")
             return [None] * len(tools)

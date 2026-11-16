@@ -103,11 +103,11 @@ class PostgresServerRepository(ServerRepositoryAbstract):
             if enabled is not None:
                 stmt = stmt.where(ServerModel.enabled == enabled)
             if transport is not None:
-                transport_val = transport.value if hasattr(transport, "value") else str(transport)
-                stmt = stmt.where(ServerModel.transport == transport_val)
+                transport_value = transport.value if hasattr(transport, "value") else str(transport)
+                stmt = stmt.where(ServerModel.transport == transport_value)
             if health_status is not None:
-                health_val = health_status.value if hasattr(health_status, "value") else str(health_status)
-                stmt = stmt.where(ServerModel.health_status == health_val)
+                health_value = health_status.value if hasattr(health_status, "value") else str(health_status)
+                stmt = stmt.where(ServerModel.health_status == health_value)
             if search:
                 term = f"%{search.lower()}%"
                 stmt = stmt.where(func.lower(ServerModel.name).like(term) | func.lower(ServerModel.description).like(term))
@@ -127,7 +127,7 @@ class PostgresServerRepository(ServerRepositoryAbstract):
 
             result = await session.execute(stmt)
             models = result.scalars().all()
-            return [m.to_domain() for m in models], total
+            return [model.to_domain() for model in models], total
 
     async def update(self, server: ServerEntity) -> ServerEntity:
         async with db_module.async_session_factory() as session:

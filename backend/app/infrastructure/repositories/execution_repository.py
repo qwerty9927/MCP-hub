@@ -116,7 +116,7 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
 
             result = await session.execute(stmt)
             models = result.scalars().all()
-            return [m.to_domain() for m in models], total
+            return [model.to_domain() for model in models], total
 
     async def list_by_session(
         self,
@@ -196,7 +196,7 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
 
             result = await session.execute(stmt)
             models = result.scalars().all()
-            return [m.to_tool_call_domain() for m in models], total
+            return [model.to_tool_call_domain() for model in models], total
 
     async def get_tool_call(self, session_id: UUID, call_id: UUID) -> ToolCallEntity | None:
         async with db_module.async_session_factory() as session:

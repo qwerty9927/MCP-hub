@@ -312,7 +312,7 @@ def _content_blocks(result: mcp_types.CallToolResult) -> list[dict[str, Any]]:
 
 
 def _tool_error_message(blocks: list[dict[str, Any]]) -> str:
-    texts = [b["text"] for b in blocks if b.get("type") == "text" and b.get("text")]
+    texts = [block["text"] for block in blocks if block.get("type") == "text" and block.get("text")]
     return "\n".join(texts) if texts else TOOL_ERROR_FALLBACK_MESSAGE
 
 

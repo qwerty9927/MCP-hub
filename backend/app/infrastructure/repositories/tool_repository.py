@@ -121,7 +121,7 @@ class PostgresToolRepository(ToolRepositoryAbstract):
                 .limit(top_k)
             )
             rows = (await session.execute(stmt)).all()
-            return [(model.to_domain(), 1.0 - float(dist)) for model, dist in rows]
+            return [(model.to_domain(), 1.0 - float(distance)) for model, distance in rows]
 
     async def list_tools_without_embedding(self, limit: int) -> list[ToolEntity]:
         async with db_module.async_session_factory() as session:
@@ -211,4 +211,4 @@ class PostgresToolRepository(ToolRepositoryAbstract):
 
             result = await session.execute(stmt)
             models = result.scalars().all()
-            return [m.to_domain() for m in models], total
+            return [model.to_domain() for model in models], total

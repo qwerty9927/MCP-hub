@@ -10,8 +10,8 @@ def format_mcp_error(exc: BaseException) -> str:
     # Handle McpError from MCP SDK
     if hasattr(current, "error") and hasattr(current.error, "message"):
         code = getattr(current.error, "code", None)
-        code_str = f" [code {code}]" if code else ""
-        return f"{current.error.message}{code_str}"
+        code_suffix = f" [code {code}]" if code else ""
+        return f"{current.error.message}{code_suffix}"
 
-    msg = str(current).strip()
-    return msg if msg else type(current).__name__
+    message = str(current).strip()
+    return message if message else type(current).__name__
