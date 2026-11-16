@@ -20,13 +20,6 @@ export function HealthBadge({ status, className }: HealthBadgeProps) {
                     {normalized === "AVAILABLE" ? "Available" : "Healthy"}
                 </Badge>
             );
-        case "CONNECTING":
-            return (
-                <Badge variant="warning" className={cn("gap-1.5 font-medium px-2 py-0.5", className)}>
-                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
-                    Connecting
-                </Badge>
-            );
         case "UNHEALTHY":
         case "UNAVAILABLE":
             return (

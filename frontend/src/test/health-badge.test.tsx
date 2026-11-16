@@ -24,11 +24,6 @@ describe("HealthBadge Component", () => {
         expect(screen.getByText("Disconnected")).toBeInTheDocument();
     });
 
-    it("renders Connecting status correctly", () => {
-        render(<HealthBadge status="CONNECTING" />);
-        expect(screen.getByText("Connecting")).toBeInTheDocument();
-    });
-
     it("renders Unknown status gracefully", () => {
         render(<HealthBadge status="UNKNOWN" />);
         expect(screen.getByText("UNKNOWN")).toBeInTheDocument();

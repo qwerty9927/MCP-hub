@@ -41,9 +41,7 @@ export function ToolCallItem({ call, isSelected = false, onSelect, showServerNam
                             ? "bg-destructive/10 text-destructive"
                             : call.status === "rejected"
                               ? "bg-orange-500/10 text-orange-600 dark:text-orange-400"
-                              : call.status === "running"
-                                ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                                : "bg-primary/10 text-primary"
+                              : "bg-primary/10 text-primary"
                     )}
                 >
                     <Wrench className="h-4 w-4" />
