@@ -12,17 +12,25 @@ from mcp.client.stdio import stdio_client
 from mcp.client.streamable_http import create_mcp_http_client, streamable_http_client
 
 from app.core.config import Settings, get_settings
-from app.core.enums.server_enum import TransportType
+from app.core.enums.server_enum import ServerAuthType, TransportType
 from app.core.exceptions import (
     BadGatewayError,
     BadRequestError,
     GatewayTimeoutError,
     InternalServerError,
+    OAuthReauthorizationRequiredError,
 )
 from app.core.logging import logger
 from app.domain.server_entity import ServerEntity
 from app.helpers.errors import format_mcp_error
 from app.helpers.security import sanitize_environment, validate_http_url_resolved, validate_stdio_command
+from app.infrastructure.oauth.client_provider import (
+    DbTokenStorage,
+    HubOAuthClientProvider,
+    build_client_metadata,
+    find_oauth_error,
+)
+from app.infrastructure.repositories.oauth_credential_repository import OAuthCredentialRepositoryAbstract
 
 # A session verified (connected or pinged) this recently is reused without another ping.
 SESSION_PING_INTERVAL_SECONDS = 10.0
@@ -40,10 +48,12 @@ class SessionWorker:
         server: ServerEntity,
         settings: Settings,
         semaphore: asyncio.Semaphore,
+        oauth_credentials: OAuthCredentialRepositoryAbstract | None = None,
     ) -> None:
         self.server = server
         self.settings = settings
         self.semaphore = semaphore
+        self.oauth_credentials = oauth_credentials
         self.session: ClientSession | None = None
         self.ready_event = asyncio.Event()
         self.stop_event = asyncio.Event()
@@ -71,6 +81,9 @@ class SessionWorker:
 
         if self.error:
             await self.stop()
+            oauth_error = find_oauth_error(self.error) if self.server.auth_type == ServerAuthType.OAUTH else None
+            if oauth_error is not None:
+                raise OAuthReauthorizationRequiredError(str(self.server.id), str(oauth_error)) from self.error
             error_message = format_mcp_error(self.error)
             raise BadGatewayError(
                 f"Failed to connect to server '{self.server.id}': {error_message}",
@@ -128,8 +141,11 @@ class SessionWorker:
                     await validate_http_url_resolved(self.server.http_config.url)
                     logger.info(f"Connecting streamable-http client for '{self.server.name}' at {self.server.http_config.url}")
                     http_client = None
-                    if self.server.http_config.headers:
-                        http_client = await stack.enter_async_context(create_mcp_http_client(headers=self.server.http_config.headers))
+                    auth = self._oauth_auth() if self.server.auth_type == ServerAuthType.OAUTH else None
+                    if self.server.http_config.headers or auth is not None:
+                        http_client = await stack.enter_async_context(
+                            create_mcp_http_client(headers=self.server.http_config.headers or None, auth=auth)
+                        )
                     read_stream, write_stream = await stack.enter_async_context(
                         streamable_http_client(self.server.http_config.url, http_client=http_client)
                     )
@@ -159,11 +175,24 @@ class SessionWorker:
             self.is_alive = False
             self.session = None
 
+    def _oauth_auth(self) -> HubOAuthClientProvider:
+        """Auth for an OAuth server: stored tokens, refreshed when expired. With no redirect handler, a token
+        that cannot be refreshed raises OAuthFlowError, surfaced as OAuthReauthorizationRequiredError."""
+        if self.oauth_credentials is None:
+            raise ValueError("OAuth credentials storage is not configured")
+        assert self.server.http_config is not None
+        return HubOAuthClientProvider(
+            server_url=self.server.http_config.url,
+            client_metadata=build_client_metadata(self.settings, provider=None),
+            storage=DbTokenStorage(self.server.id, self.oauth_credentials),
+        )
+
 
 class ConnectionManager:
     """Manages MCP client connections across stdio and streamable-http transports."""
 
-    def __init__(self) -> None:
+    def __init__(self, oauth_credentials: OAuthCredentialRepositoryAbstract | None = None) -> None:
+        self._oauth_credentials = oauth_credentials
         self._workers: dict[UUID, SessionWorker] = {}
         # One lock per Server, so a slow connect to one Server never blocks the others.
         self._locks: dict[UUID, asyncio.Lock] = {}
@@ -198,7 +227,7 @@ class ConnectionManager:
 
             # Create new worker
             semaphore = asyncio.Semaphore(self.settings.MAX_CONCURRENT_EXECUTIONS_PER_SERVER)
-            worker = SessionWorker(server=server, settings=self.settings, semaphore=semaphore)
+            worker = SessionWorker(server=server, settings=self.settings, semaphore=semaphore, oauth_credentials=self._oauth_credentials)
             session = await worker.start(timeout=timeout)
             worker.last_verified_at = time.monotonic()
             self._workers[server.id] = worker
@@ -223,7 +252,7 @@ class ConnectionManager:
 
         # Create an ephemeral worker for test to avoid interfering with persistent state
         semaphore = asyncio.Semaphore(1)
-        worker = SessionWorker(server=server, settings=self.settings, semaphore=semaphore)
+        worker = SessionWorker(server=server, settings=self.settings, semaphore=semaphore, oauth_credentials=self._oauth_credentials)
 
         try:
             session = await worker.start(timeout=connect_timeout)

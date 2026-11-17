@@ -280,6 +280,28 @@ Returns array of `ToolResponse` items.
 
 ---
 
+### 2.10 Connect a Hosted Server with OAuth (ADR-0008)
+
+**List providers** — `GET /api/v1/oauth/providers` (login token)
+
+```json
+[
+  {
+    "id": "linear", "name": "Linear", "description": "Issues, projects and cycles", "category": "Project management",
+    "mcp_url": "https://mcp.linear.app/mcp", "docs_url": "https://linear.app/docs/mcp", "logo": null,
+    "available": true, "setup_hint": null, "connected_count": 0
+  }
+]
+```
+
+`available` is false for a provider that needs an OAuth app not yet in `OAUTH_CLIENTS`; `setup_hint` says what to configure.
+
+**Start** — `POST /api/v1/oauth/connect` with `{"provider_id": "linear", "name": "linear-work"}` (`name` optional; defaults to the provider id, then `-2`, `-3`… if taken). Returns `{"authorization_url": "https://…", "state": "…", "server_id": null}`. Open `authorization_url` in a popup. Errors: 404 unknown provider, 400 provider needs setup, 409 name taken, 502 discovery or registration failed, 504 provider did not answer.
+
+**Callback** — `GET /api/v1/oauth/callback?code&state` (public, the authorization server's redirect target; the single-use state identifies the sign-in). Redirects (303) to `{FRONTEND_BASE_URL}/oauth/complete?status=success&server_id=<uuid>` or `?status=error&error=<message>`. On success the Server exists with `auth_type: "oauth"`, is connected and has its Tools synced.
+
+**Sign in again** — `POST /api/v1/servers/{server_id}/oauth/reconnect` returns a new `authorization_url` for a Server whose `health_status` is `NEEDS_AUTH` (owner only, 404 otherwise). Connecting such a Server fails with 502 and `details.reason = "oauth_reauthorization_required"`.
+
 ## 3. Tool Discovery & Execution Endpoints
 
 ### 3.1 Unified Tool Catalog
