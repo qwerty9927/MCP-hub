@@ -116,6 +116,15 @@ describe("Server detail tool search", () => {
         expect(screen.queryByText(/^Showing/)).not.toBeInTheDocument();
     });
 
+    it("caps each description at 5 lines and keeps the full text on hover", async () => {
+        await renderPage();
+
+        const description = await screen.findByText("Merge a Pull Request into the base branch");
+        expect(description).toHaveClass("line-clamp-5");
+        expect(description).toHaveAttribute("title", "Merge a Pull Request into the base branch");
+        expect(screen.getByText("No description")).not.toHaveAttribute("title");
+    });
+
     it("keeps tools whose name or description contains the text, ignoring case", async () => {
         const user = userEvent.setup();
         await renderPage();

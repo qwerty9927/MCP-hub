@@ -529,7 +529,10 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                                                                                 : "text-muted-foreground text-xs max-w-md"
                                                                         }
                                                                     >
-                                                                        {tool.description || "No description"}
+                                                                        {/* At most 5 lines; the full text is on hover and on the tool's page */}
+                                                                        <p className="line-clamp-5" title={tool.description ?? undefined}>
+                                                                            {tool.description || "No description"}
+                                                                        </p>
                                                                     </TableCell>
                                                                     <TableCell className={hidden ? "text-xs opacity-50" : "text-xs"}>
                                                                         <span className="font-mono bg-muted px-2 py-0.5 rounded">
