@@ -84,6 +84,7 @@ async def test_session_repository_crud_and_metrics(account_id):
         ExecutionEntity(
             id=exec_1_id,
             server_id=server_id,
+            user_id=account_id,
             server_name="demo-math",
             tool_name="add",
             arguments={"a": 1, "b": 2},
@@ -100,6 +101,7 @@ async def test_session_repository_crud_and_metrics(account_id):
         ExecutionEntity(
             id=exec_2_id,
             server_id=server_id,
+            user_id=account_id,
             server_name="demo-math",
             tool_name="multiply",
             arguments={"a": 3, "b": 4},
@@ -116,6 +118,7 @@ async def test_session_repository_crud_and_metrics(account_id):
         ExecutionEntity(
             id=exec_3_id,
             server_id=server_id,
+            user_id=account_id,
             server_name="demo-math",
             tool_name="divide",
             arguments={"a": 10, "b": 0},
@@ -132,6 +135,7 @@ async def test_session_repository_crud_and_metrics(account_id):
         ExecutionEntity(
             id=uuid4(),
             server_id=server_id,
+            user_id=account_id,
             server_name="demo-math",
             tool_name="add",
             arguments={"a": "not-a-number"},
@@ -197,6 +201,7 @@ async def test_execution_repo_list_by_session_sorting_and_filtering(account_id):
         ExecutionEntity(
             id=uuid4(),
             server_id=server_id,
+            user_id=account_id,
             server_name="sorting-server",
             tool_name="first_call",
             arguments={},
@@ -212,6 +217,7 @@ async def test_execution_repo_list_by_session_sorting_and_filtering(account_id):
         ExecutionEntity(
             id=uuid4(),
             server_id=server_id,
+            user_id=account_id,
             server_name="sorting-server",
             tool_name="second_call",
             arguments={},
@@ -227,6 +233,7 @@ async def test_execution_repo_list_by_session_sorting_and_filtering(account_id):
         ExecutionEntity(
             id=uuid4(),
             server_id=server_id,
+            user_id=account_id,
             server_name="sorting-server",
             tool_name="third_call",
             arguments={},

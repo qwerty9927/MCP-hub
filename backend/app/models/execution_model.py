@@ -19,12 +19,11 @@ class ExecutionModel(Base):
     __tablename__ = "tool_executions"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, server_default=text("gen_random_uuid()::text"))
-    server_id: Mapped[str] = mapped_column(
-        String(36),
-        ForeignKey("mcp_servers.id", ondelete="CASCADE"),
-        index=True,
-        nullable=False,
-    )
+    # No foreign key on purpose: an Execution keeps its Server's id after the Server is deleted, so history
+    # still says which Server ran it (server_name keeps the name); the console shows that Server as deleted.
+    server_id: Mapped[str] = mapped_column(String(36), index=True, nullable=False)
+    # The owner, stored on the Execution so history survives deleting its Server.
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
     server_name: Mapped[str] = mapped_column(String(100), nullable=False)
     tool_name: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
     arguments: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
@@ -54,7 +53,6 @@ class ExecutionModel(Base):
     )
 
     # Relationships
-    server = relationship("ServerModel", back_populates="executions")
     session = relationship("SessionModel", back_populates="executions")
 
     def to_domain(self) -> ExecutionEntity:
@@ -62,6 +60,7 @@ class ExecutionModel(Base):
         return ExecutionEntity(
             id=UUID(self.id),
             server_id=UUID(self.server_id),
+            user_id=UUID(self.user_id),
             server_name=self.server_name,
             tool_name=self.tool_name,
             arguments=self.arguments,
@@ -103,6 +102,7 @@ class ExecutionModel(Base):
         return cls(
             id=str(entity.id),
             server_id=str(entity.server_id),
+            user_id=str(entity.user_id),
             server_name=entity.server_name,
             tool_name=entity.tool_name,
             arguments=entity.arguments,

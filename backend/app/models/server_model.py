@@ -48,7 +48,7 @@ class ServerModel(Base):
 
     # Relationships to tools and executions
     tools = relationship("ToolModel", back_populates="server", cascade="all, delete-orphan")
-    executions = relationship("ExecutionModel", back_populates="server", cascade="all, delete-orphan")
+    # Executions are not related here: they outlive their Server (ADR-0002 history), keyed by server_id alone.
 
     def to_domain(self) -> ServerEntity:
         """Convert database model to domain entity."""

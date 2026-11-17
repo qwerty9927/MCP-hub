@@ -159,6 +159,7 @@ async def test_execution_repository_crud(account_id):
     record = ExecutionEntity(
         id=exec_id,
         server_id=server_id,
+        user_id=account_id,
         server_name="test-server",
         tool_name="add",
         arguments={"a": 1, "b": 2},
@@ -190,6 +191,7 @@ async def test_execution_repository_crud(account_id):
         ExecutionEntity(
             id=uuid4(),
             server_id=server_id,
+            user_id=account_id,
             server_name="test-server",
             tool_name="add",
             arguments={"a": "x"},

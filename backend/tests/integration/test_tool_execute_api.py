@@ -101,3 +101,23 @@ async def test_downstream_failure_is_502(async_client, server):
 
     assert res.status_code == 502
     assert "timed out" in res.json()["error"]["message"]
+
+
+async def test_execution_history_outlives_its_server(async_client, other_user_client, server):
+    """Deleting a Server keeps its Executions for the owner, still pointing at the deleted Server's id."""
+    execution_id = (await execute(async_client, server.id, "add", {"a": 1, "b": 2})).json()["execution_id"]
+
+    assert (await async_client.delete(f"/api/v1/servers/{server.id}")).status_code == 204
+
+    detail = await async_client.get(f"/api/v1/executions/{execution_id}")
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["server_id"] == str(server.id)
+    assert detail.json()["server_name"] == "Math Server"
+    # The id is kept, but the Server itself is gone: the console shows it as deleted.
+    assert (await async_client.get(f"/api/v1/servers/{server.id}")).status_code == 404
+    listed = (await async_client.get("/api/v1/executions")).json()["items"]
+    assert [item["id"] for item in listed] == [execution_id]
+
+    # Still private to its owner.
+    assert (await other_user_client.get(f"/api/v1/executions/{execution_id}")).status_code == 404
+    assert (await other_user_client.get("/api/v1/executions")).json()["items"] == []
