@@ -402,7 +402,7 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                                                 placeholder="Search tools"
                                                 value={toolSearch}
                                                 onChange={(event) => setToolSearch(event.target.value)}
-                                                className="h-9 pl-8 pr-8"
+                                                className="h-9 pl-8 pr-8 [&::-webkit-search-cancel-button]:appearance-none"
                                             />
                                             {toolSearch && (
                                                 <button
