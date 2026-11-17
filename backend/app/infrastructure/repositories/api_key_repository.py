@@ -23,6 +23,11 @@ class ApiKeyRepositoryAbstract(ABC):
         pass
 
     @abstractmethod
+    async def get_active(self, user_id: UUID, key_id: UUID) -> ApiKeyEntity | None:
+        """The owner's key, unless revoked; None for another account's key or an unknown one."""
+        pass
+
+    @abstractmethod
     async def list_by_user(self, user_id: UUID) -> list[ApiKeyEntity]:
         """Return the account's keys, newest first, including revoked ones."""
 
@@ -52,6 +57,16 @@ class PostgresApiKeyRepository(ApiKeyRepositoryAbstract):
         async with db_module.async_session_factory() as session:
             result = await session.execute(select(ApiKeyModel).where(ApiKeyModel.key_hash == key_hash))
             model = result.scalar_one_or_none()
+            return model.to_domain() if model else None
+
+    async def get_active(self, user_id: UUID, key_id: UUID) -> ApiKeyEntity | None:
+        async with db_module.async_session_factory() as session:
+            stmt = select(ApiKeyModel).where(
+                ApiKeyModel.id == str(key_id),
+                ApiKeyModel.user_id == str(user_id),
+                ApiKeyModel.revoked_at.is_(None),
+            )
+            model = (await session.execute(stmt)).scalar_one_or_none()
             return model.to_domain() if model else None
 
     async def list_by_user(self, user_id: UUID) -> list[ApiKeyEntity]:

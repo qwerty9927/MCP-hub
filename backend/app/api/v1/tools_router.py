@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies import get_current_principal, get_server_registry_service, get_tool_catalog_service, get_tool_executor_service
 from app.core.enums.execution_enum import ExecutionOutcomeKind, RejectionReason
-from app.core.exceptions import AppError, BadGatewayError, BadRequestError, ConflictError, NotFoundError, ValidationError
+from app.core.exceptions import AppError, BadGatewayError, BadRequestError, ConflictError, ForbiddenError, NotFoundError, ValidationError
 from app.core.logging import get_correlation_id
 from app.domain.principal_entity import Principal
 from app.schemas.common_schema import PaginatedResponse
@@ -21,6 +21,7 @@ router = APIRouter(tags=["Tools"])
 _REJECTION_ERRORS: dict[RejectionReason, type[AppError]] = {
     RejectionReason.UNKNOWN_TOOL: NotFoundError,
     RejectionReason.SERVER_DISABLED: BadRequestError,
+    RejectionReason.TOOL_DISABLED: ForbiddenError,
     RejectionReason.TOOL_UNAVAILABLE: ConflictError,
     RejectionReason.INVALID_ARGUMENTS: ValidationError,
 }

@@ -2,11 +2,12 @@ from abc import ABC, abstractmethod
 from dataclasses import replace
 from uuid import UUID
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, exists, func, select, update
 
 import app.infrastructure.database as db_module
 from app.domain.tool_entity import ToolEntity
 from app.helpers.validation import is_uuid
+from app.models.api_key_disabled_tool_model import ApiKeyDisabledToolModel
 from app.models.server_model import ServerModel
 from app.models.tool_model import ToolModel
 
@@ -29,10 +30,12 @@ class ToolRepositoryAbstract(ABC):
         pass
 
     @abstractmethod
-    async def search_by_embedding(self, query_embedding: list[float], *, user_id: UUID, top_k: int) -> list[tuple[ToolEntity, float]]:
+    async def search_by_embedding(
+        self, query_embedding: list[float], *, user_id: UUID, top_k: int, api_key_id: UUID | None = None
+    ) -> list[tuple[ToolEntity, float]]:
         """The owner's `top_k` searchable Tools nearest to `query_embedding`, with their cosine similarity, best first.
 
-        Searchable: embedded, AVAILABLE, and on an enabled Server.
+        Searchable: embedded, AVAILABLE, on an enabled Server, and, when `api_key_id` is given, not hidden from that key.
         """
         pass
 
@@ -105,23 +108,34 @@ class PostgresToolRepository(ToolRepositoryAbstract):
             await session.commit()
             return saved_entities
 
-    async def search_by_embedding(self, query_embedding: list[float], *, user_id: UUID, top_k: int) -> list[tuple[ToolEntity, float]]:
+    async def search_by_embedding(
+        self, query_embedding: list[float], *, user_id: UUID, top_k: int, api_key_id: UUID | None = None
+    ) -> list[tuple[ToolEntity, float]]:
         async with db_module.async_session_factory() as session:
             distance = ToolModel.embedding.cosine_distance(query_embedding)
+            conditions = [
+                ToolModel.user_id == str(user_id),
+                ServerModel.enabled.is_(True),
+                ToolModel.availability_status == "AVAILABLE",
+                ToolModel.embedding.is_not(None),
+            ]
+            if api_key_id is not None:
+                # ADR-0007: a tool hidden from the calling key is not searchable with it
+                hidden = select(ApiKeyDisabledToolModel.tool_name).where(
+                    ApiKeyDisabledToolModel.api_key_id == str(api_key_id),
+                    ApiKeyDisabledToolModel.server_id == ToolModel.server_id,
+                    ApiKeyDisabledToolModel.tool_name == ToolModel.name,
+                )
+                conditions.append(~exists(hidden))
             stmt = (
                 select(ToolModel, distance.label("distance"))
                 .join(ServerModel, ServerModel.id == ToolModel.server_id)
-                .where(
-                    ToolModel.user_id == str(user_id),
-                    ServerModel.enabled.is_(True),
-                    ToolModel.availability_status == "AVAILABLE",
-                    ToolModel.embedding.is_not(None),
-                )
+                .where(*conditions)
                 .order_by(distance, ToolModel.id)
                 .limit(top_k)
             )
             rows = (await session.execute(stmt)).all()
-            return [(model.to_domain(), 1.0 - float(distance)) for model, distance in rows]
+            return [(model.to_domain(), 1.0 - float(cosine_distance)) for model, cosine_distance in rows]
 
     async def list_tools_without_embedding(self, limit: int) -> list[ToolEntity]:
         async with db_module.async_session_factory() as session:

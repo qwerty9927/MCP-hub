@@ -18,6 +18,7 @@ from app.api.dependencies import (
     get_mcp_server,
     get_session_sweeper_service,
 )
+from app.api.v1.api_key_tools_router import router as api_key_tools_router
 from app.api.v1.auth_router import router as auth_router
 from app.api.v1.executions_router import router as executions_router
 from app.api.v1.servers_router import router as servers_router
@@ -183,6 +184,7 @@ def create_app() -> FastAPI:
 
     v1_router = APIRouter(prefix=settings.API_V1_STR)
     v1_router.include_router(auth_router)
+    v1_router.include_router(api_key_tools_router)
     v1_router.include_router(servers_router)
     v1_router.include_router(tools_router)
     v1_router.include_router(executions_router)

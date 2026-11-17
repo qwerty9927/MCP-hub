@@ -202,7 +202,9 @@ async def test_handle_call_tool_search(mcp_server, mock_tool_catalog):
     assert data["tools"][0]["tool_slug"] == "math_server__calculate"
     assert data["tools"][0]["server_id"] == str(srv_id)
     assert data["tools"][0]["similarity"] == 0.87
-    mock_tool_catalog.search.assert_awaited_once_with(["math calculate"], user_id=PRINCIPAL.user_id, top_k=5)
+    mock_tool_catalog.search.assert_awaited_once_with(
+        ["math calculate"], user_id=PRINCIPAL.user_id, top_k=5, api_key_id=PRINCIPAL.api_key_id
+    )
 
 
 @pytest.mark.asyncio
@@ -228,7 +230,9 @@ async def test_handle_call_tool_multi_execute(mcp_server, mock_tool_executor, mo
     assert res.is_error is False
     data = json.loads(res.content[0].text)
     assert data["results"] == [{"tool_slug": slug, "status": "success", "data": "42", "error": None}]
-    mock_tool_executor.execute.assert_awaited_once_with(slug, {"a": 20, "b": 22}, user_id=PRINCIPAL.user_id, session_id="sess-multi")
+    mock_tool_executor.execute.assert_awaited_once_with(
+        slug, {"a": 20, "b": 22}, user_id=PRINCIPAL.user_id, session_id="sess-multi", api_key_id=PRINCIPAL.api_key_id
+    )
 
 
 @pytest.mark.asyncio

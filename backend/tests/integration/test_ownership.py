@@ -37,7 +37,8 @@ async def owned(async_client, user_id):
             session_id=session.id,
         )
     )
-    return {"server": server_id, "tool": tool.id, "session": session.id, "execution": execution.id}
+    api_key = (await async_client.post("/api/v1/auth/api-keys", json={"name": "owned"})).json()["id"]
+    return {"server": server_id, "tool": tool.id, "session": session.id, "execution": execution.id, "api_key": api_key}
 
 
 async def test_owner_sees_their_resources(async_client, owned):
@@ -58,6 +59,8 @@ async def test_owner_sees_their_resources(async_client, owned):
         ("post", "/api/v1/servers/{server}/disconnect"),
         ("post", "/api/v1/servers/{server}/test-connection"),
         ("post", "/api/v1/servers/{server}/refresh-tools"),
+        ("get", "/api/v1/auth/api-keys/{api_key}/servers/{server}/tools"),
+        ("patch", "/api/v1/auth/api-keys/{api_key}/servers/{server}/tools/add"),
         ("get", "/api/v1/servers/{server}/tools"),
         ("post", "/api/v1/servers/{server}/tools/add/execute"),
         ("get", "/api/v1/tools/{tool}"),

@@ -243,7 +243,7 @@ class MCPServer:
         try:
 
             async def search(queries: list[str], top_k: int) -> list[list[tuple[ToolEntity, float]]]:
-                return await self.tool_catalog.search(queries, user_id=principal.user_id, top_k=top_k)
+                return await self.tool_catalog.search(queries, user_id=principal.user_id, top_k=top_k, api_key_id=principal.api_key_id)
 
             result_dict = await handle_search_tools(arguments=arguments or {}, search=search)
             return CallToolResult(
@@ -291,6 +291,7 @@ class MCPServer:
                 executor=self.tool_executor,
                 user_id=principal.user_id,
                 session_id=session_id,
+                api_key_id=principal.api_key_id,
             )
             return CallToolResult(
                 is_error=False,

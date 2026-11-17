@@ -23,6 +23,7 @@ from app.infrastructure.repositories.session_repository import (
     PostgresSessionRepository,
     SessionRepositoryAbstract,
 )
+from app.infrastructure.repositories.tool_access_repository import PostgresToolAccessRepository, ToolAccessRepositoryAbstract
 from app.infrastructure.repositories.tool_repository import (
     PostgresToolRepository,
     ToolRepositoryAbstract,
@@ -35,6 +36,7 @@ from app.services.embedding_service import EmbeddingServiceAbstract, FastEmbedSe
 from app.services.server_registry import ServerRegistryService
 from app.services.session_explorer import SessionExplorerService
 from app.services.session_tracker import SessionTrackerService
+from app.services.tool_access_service import ToolAccessService
 from app.services.tool_catalog import ToolCatalogService
 from app.services.tool_executor import ToolExecutor
 
@@ -45,6 +47,7 @@ _execution_repository: ExecutionRepositoryAbstract = PostgresExecutionRepository
 _session_repository: SessionRepositoryAbstract = PostgresSessionRepository()
 _user_repository: UserRepositoryAbstract = PostgresUserRepository()
 _api_key_repository: ApiKeyRepositoryAbstract = PostgresApiKeyRepository()
+_tool_access_repository: ToolAccessRepositoryAbstract = PostgresToolAccessRepository()
 _connection_manager = ConnectionManager()
 _settings = get_settings()
 _embedding_service: EmbeddingServiceAbstract = FastEmbedService(
@@ -60,6 +63,11 @@ _bearer_security = HTTPBearer(auto_error=False, description="Console login token
 def get_server_repository() -> ServerRepositoryAbstract:
     """Return server repository instance."""
     return _server_repository
+
+
+def get_tool_access_repository() -> ToolAccessRepositoryAbstract:
+    """Return the per-API-key tool visibility repository (ADR-0007)."""
+    return _tool_access_repository
 
 
 def get_tool_repository() -> ToolRepositoryAbstract:
@@ -108,6 +116,16 @@ def get_embedding_service() -> EmbeddingServiceAbstract:
     return _embedding_service
 
 
+def get_tool_access_service() -> ToolAccessService:
+    """Return the per-API-key tool visibility service (ADR-0007)."""
+    return ToolAccessService(
+        api_key_repository=_api_key_repository,
+        server_registry=get_server_registry_service(),
+        tool_repository=get_tool_repository(),
+        tool_access_repository=get_tool_access_repository(),
+    )
+
+
 def get_tool_catalog_service() -> ToolCatalogService:
     """Return tool catalog service instance."""
     return ToolCatalogService(tool_repository=_tool_repository, embedding_service=get_embedding_service())
@@ -126,6 +144,7 @@ def get_tool_executor_service() -> ToolExecutor:
         tool_catalog=get_tool_catalog_service(),
         execution_repository=get_execution_repository(),
         session_repository=get_session_repository(),
+        tool_access_repository=get_tool_access_repository(),
     )
 
 

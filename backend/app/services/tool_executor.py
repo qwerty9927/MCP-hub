@@ -25,6 +25,7 @@ from app.helpers.errors import format_mcp_error
 from app.helpers.validation import validate_tool_arguments
 from app.infrastructure.repositories.execution_repository import ExecutionRepositoryAbstract
 from app.infrastructure.repositories.session_repository import SessionRepositoryAbstract
+from app.infrastructure.repositories.tool_access_repository import ToolAccessRepositoryAbstract
 from app.services.connection_manager import ConnectionManager
 from app.services.server_registry import ServerRegistryService
 from app.services.tool_catalog import ToolCatalogService
@@ -67,12 +68,14 @@ class ToolExecutor:
         tool_catalog: ToolCatalogService,
         execution_repository: ExecutionRepositoryAbstract,
         session_repository: SessionRepositoryAbstract | None = None,
+        tool_access_repository: ToolAccessRepositoryAbstract | None = None,
     ) -> None:
         self._server_registry = server_registry
         self._connection_manager = connection_manager
         self._tool_catalog = tool_catalog
         self._execution_repository = execution_repository
         self._session_repository = session_repository
+        self._tool_access_repository = tool_access_repository
 
     async def execute(
         self,
@@ -83,11 +86,13 @@ class ToolExecutor:
         server_id: UUID | None = None,
         session_id: UUID | None = None,
         timeout: float | None = None,
+        api_key_id: UUID | None = None,
     ) -> ExecutionOutcome:
         """Execute the owner's Tool named by `tool_reference` (on `server_id`, when given) and return its Outcome.
 
         A Tool on a Server owned by another account does not resolve, so it is the same Outcome as an unknown Tool.
         `session_id` must be one of the owner's Sessions; anything else raises NotFoundError before any work.
+        With `api_key_id` (calls through /mcp), a Tool hidden from that key is Rejected (ADR-0007).
 
         Expected outcomes (unknown Tool, disabled Server, unavailable Tool, invalid arguments, downstream
         errors and faults) are returned, never raised. Only faults in the hub's own infrastructure raise,
@@ -126,7 +131,7 @@ class ToolExecutor:
                 error_message=unresolved.message,
             )
 
-        rejection = self._rejection_for(server, tool, arguments)
+        rejection = await self._rejection_for(server, tool, arguments, api_key_id)
         if rejection is not None:
             reason, message = rejection
             outcome = ExecutionOutcome(
@@ -182,10 +187,17 @@ class ToolExecutor:
         except NotFoundError:
             return None
 
-    @staticmethod
-    def _rejection_for(server: ServerEntity, tool: ToolEntity, arguments: dict[str, Any]) -> tuple[RejectionReason, str] | None:
+    async def _rejection_for(
+        self, server: ServerEntity, tool: ToolEntity, arguments: dict[str, Any], api_key_id: UUID | None
+    ) -> tuple[RejectionReason, str] | None:
         if not server.enabled:
             return RejectionReason.SERVER_DISABLED, _server_disabled_message(server)
+        if (
+            api_key_id is not None
+            and self._tool_access_repository is not None
+            and await self._tool_access_repository.is_disabled(api_key_id, server.id, tool.name)
+        ):
+            return RejectionReason.TOOL_DISABLED, f"Tool '{tool.name}' on server '{server.name}' is not enabled for this API key"
         if tool.availability_status != "AVAILABLE":
             return (
                 RejectionReason.TOOL_UNAVAILABLE,

@@ -65,10 +65,18 @@ class ToolCatalogService:
         logger.info(f"Refreshed tool catalog for server '{server.name}' ({len(saved)} tools discovered)")
         return saved
 
-    async def search(self, queries: list[str], *, user_id: UUID, top_k: int) -> list[list[tuple[ToolEntity, float]]]:
-        """For each query, the owner's `top_k` searchable Tools by cosine similarity, best first (ADR-0006)."""
+    async def search(
+        self, queries: list[str], *, user_id: UUID, top_k: int, api_key_id: UUID | None = None
+    ) -> list[list[tuple[ToolEntity, float]]]:
+        """For each query, the owner's `top_k` searchable Tools by cosine similarity, best first (ADR-0006).
+
+        With `api_key_id`, Tools hidden from that key are left out (ADR-0007).
+        """
         vectors = await asyncio.gather(*(self._embedding_service.embed_query(query) for query in queries))
-        return [await self._tool_repository.search_by_embedding(vector, user_id=user_id, top_k=top_k) for vector in vectors]
+        return [
+            await self._tool_repository.search_by_embedding(vector, user_id=user_id, top_k=top_k, api_key_id=api_key_id)
+            for vector in vectors
+        ]
 
     async def remove_server_tools(self, server_id: UUID) -> None:
         """Remove tools associated with a server when deleted or disabled."""

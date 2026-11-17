@@ -20,4 +20,5 @@ Unknown Tool References are excluded on purpose. Every Execution keeps a non-nul
 
 ## Consequences
 - `ToolCallStatus` gains `rejected`. The frontend's `ToolCallStatus` type, the Session filter and the status badges must handle it.
+- A Tool hidden from the calling API key (ADR-0007) is a Rejected Execution with reason `tool_disabled`.
 - Execution counts and failure rates now include rejected attempts, so dashboards that equate "not completed" with "failed" have to tell them apart.
