@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { serversApi } from "@/lib/api";
-import { ServerCreate, ServerFilterParams, ServerUpdate, ToolFilterParams } from "@/types";
+import { ServerCreate, ServerFilterParams, ServerUpdate } from "@/types";
 import { AppApiError } from "@/lib/errors";
 
 export const SERVERS_QUERY_KEY = ["servers"];
@@ -21,10 +21,11 @@ export function useServer(serverId: string) {
     });
 }
 
-export function useServerTools(serverId: string, params?: ToolFilterParams) {
+/** Every tool of the server (all pages), so the tools tab can count and search the full list. */
+export function useServerTools(serverId: string) {
     return useQuery({
-        queryKey: [...SERVERS_QUERY_KEY, serverId, "tools", params],
-        queryFn: ({ signal }) => serversApi.getTools(serverId, params, signal),
+        queryKey: [...SERVERS_QUERY_KEY, serverId, "tools"],
+        queryFn: async ({ signal }) => ({ items: await serversApi.getAllTools(serverId, signal) }),
         enabled: Boolean(serverId),
     });
 }
