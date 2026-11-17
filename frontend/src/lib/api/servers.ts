@@ -10,6 +10,9 @@ import {
     ToolRead,
 } from "@/types";
 
+/** The API's largest allowed page size for tool lists. */
+export const TOOLS_PAGE_SIZE = 100;
+
 export const serversApi = {
     list: async (params?: ServerFilterParams, signal?: AbortSignal): Promise<PaginatedResponse<ServerRead>> => {
         return apiClient<PaginatedResponse<ServerRead>>({
@@ -86,5 +89,17 @@ export const serversApi = {
             params,
             signal,
         });
+    },
+
+    /** Every tool of the server, fetched page by page (the API returns at most TOOLS_PAGE_SIZE per page). */
+    getAllTools: async (serverId: string, signal?: AbortSignal): Promise<ToolRead[]> => {
+        const tools: ToolRead[] = [];
+        for (let page = 1; ; page += 1) {
+            const result = await serversApi.getTools(serverId, { page, page_size: TOOLS_PAGE_SIZE }, signal);
+            tools.push(...result.items);
+            if (result.items.length === 0 || tools.length >= result.total) {
+                return tools;
+            }
+        }
     },
 };
