@@ -39,6 +39,7 @@ const KEY_TOOLS: ApiKeyTool[] = TOOLS.map((tool) => ({ tool_id: tool.id, name: t
 vi.mock("next/navigation", () => ({
     useRouter: () => ({ push: vi.fn() }),
     usePathname: () => `/servers/${SERVER_ID}`,
+    useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock("@/features/executions/hooks/use-executions", () => ({

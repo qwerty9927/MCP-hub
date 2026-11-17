@@ -138,6 +138,7 @@ async def test_session_explorer_sensitive_masking(async_client: AsyncClient, use
         ExecutionEntity(
             id=call_id,
             server_id=server_id,
+            user_id=user_id,
             server_name="auth-server",
             tool_name="authenticate",
             arguments={

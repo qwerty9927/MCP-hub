@@ -63,6 +63,29 @@ class Settings(BaseSettings):
     EMBEDDING_DIMENSION: int
     EMBEDDING_CACHE_DIR: str  # relative paths are resolved against the backend directory
 
+    # OAuth connections to hosted MCP servers (ADR-0008)
+    OAUTH_ENCRYPTION_KEY: str  # Fernet key encrypting stored OAuth tokens and client credentials
+    PUBLIC_API_BASE_URL: str  # where browsers reach this API; the OAuth callback is built from it
+    FRONTEND_BASE_URL: str  # where the console runs; the callback hands the result back to it
+    OAUTH_CLIENTS: dict[str, dict[str, str]]  # provider id -> {client_id, client_secret} for providers without DCR
+    OAUTH_FLOW_TIMEOUT_SECONDS: int  # how long a sign-in may stay open before it is abandoned
+
+    @field_validator("OAUTH_ENCRYPTION_KEY")
+    @classmethod
+    def _oauth_key_is_fernet(cls, value: str) -> str:
+        from cryptography.fernet import Fernet
+
+        try:
+            Fernet(value.encode())
+        except ValueError as exc:
+            raise ValueError("OAUTH_ENCRYPTION_KEY must be a Fernet key (Fernet.generate_key())") from exc
+        return value
+
+    @field_validator("PUBLIC_API_BASE_URL", "FRONTEND_BASE_URL")
+    @classmethod
+    def _strip_trailing_slash(cls, value: str) -> str:
+        return value.rstrip("/")
+
     @field_validator("JWT_SECRET")
     @classmethod
     def _jwt_secret_is_long_enough(cls, value: str) -> str:

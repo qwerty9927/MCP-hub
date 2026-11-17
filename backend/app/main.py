@@ -16,11 +16,13 @@ from app.api.dependencies import (
     get_embedding_backfill_service,
     get_embedding_service,
     get_mcp_server,
+    get_oauth_flow_registry,
     get_session_sweeper_service,
 )
 from app.api.v1.api_key_tools_router import router as api_key_tools_router
 from app.api.v1.auth_router import router as auth_router
 from app.api.v1.executions_router import router as executions_router
+from app.api.v1.oauth_router import router as oauth_router
 from app.api.v1.servers_router import router as servers_router
 from app.api.v1.sessions_router import router as sessions_router
 from app.api.v1.system_router import router as system_router
@@ -61,6 +63,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.info("Background scheduler shut down.")
 
     logger.info("Initiating graceful shutdown...")
+    await get_oauth_flow_registry().shutdown()
     connection_manager = get_connection_manager()
     await connection_manager.shutdown()
     logger.info("Graceful shutdown complete.")
@@ -186,6 +189,7 @@ def create_app() -> FastAPI:
     v1_router.include_router(auth_router)
     v1_router.include_router(api_key_tools_router)
     v1_router.include_router(servers_router)
+    v1_router.include_router(oauth_router)
     v1_router.include_router(tools_router)
     v1_router.include_router(executions_router)
     v1_router.include_router(sessions_router)

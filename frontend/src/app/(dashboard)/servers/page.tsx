@@ -1,18 +1,19 @@
 "use client";
 
-import React, { useState } from "react";
-import Link from "next/link";
-import { Plus, Server as ServerIcon } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Server as ServerIcon } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/common/PageHeader";
-import { Button } from "@/components/ui/button";
 import { ServerFilterParams } from "@/types";
 import { useServers } from "@/features/servers/hooks/use-servers";
 import { ServerListTable } from "@/features/servers/components/ServerListTable";
 import { ServerFilterBar } from "@/features/servers/components/ServerFilterBar";
+import { RegisterServerButton } from "@/features/servers/components/RegisterServerButton";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorAlert } from "@/components/common/ErrorAlert";
 import { PaginationControl } from "@/components/common/PaginationControl";
 import { TableSkeleton } from "@/components/common/TableSkeleton";
+import { describeOAuthError } from "@/features/servers/hooks/use-oauth";
 
 export default function ServersPage() {
     const [filters, setFilters] = useState<ServerFilterParams>({
@@ -24,6 +25,17 @@ export default function ServersPage() {
 
     const { data, isLoading, isError, error, refetch } = useServers(filters);
 
+    // A sign-in finished in this tab (popup blocked) and failed: /oauth/complete redirects here with the error.
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const oauthError = params.get("oauth_error");
+        if (!oauthError) return;
+        toast.error(`Sign-in failed: ${describeOAuthError(oauthError)}`);
+        params.delete("oauth_error");
+        const rest = params.toString();
+        window.history.replaceState(null, "", window.location.pathname + (rest ? `?${rest}` : ""));
+    }, []);
+
     const servers = data?.items || [];
     const total = data?.total || 0;
     const totalPages = data?.total_pages || 1;
@@ -33,14 +45,7 @@ export default function ServersPage() {
             <PageHeader
                 title="MCP Servers"
                 description="Register and manage Model Context Protocol servers connected via stdio or streamable-http."
-                actions={
-                    <Button asChild className="gap-2">
-                        <Link href="/servers/new">
-                            <Plus className="h-4 w-4" />
-                            Register Server
-                        </Link>
-                    </Button>
-                }
+                actions={<RegisterServerButton />}
             />
 
             <ServerFilterBar filters={filters} onChange={setFilters} />
@@ -68,14 +73,7 @@ export default function ServersPage() {
                             ? "No servers match the selected filter criteria. Try adjusting your search."
                             : "No MCP servers have been registered yet. Add your first server to discover tools."
                     }
-                    action={
-                        <Button asChild>
-                            <Link href="/servers/new">
-                                <Plus className="mr-2 h-4 w-4" />
-                                Register New Server
-                            </Link>
-                        </Button>
-                    }
+                    action={<RegisterServerButton label="Register New Server" />}
                 />
             ) : (
                 <>

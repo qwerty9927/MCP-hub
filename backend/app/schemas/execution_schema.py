@@ -11,7 +11,7 @@ class ExecutionResponse(BaseModel):
     """Record of a tool execution."""
 
     id: UUID
-    server_id: UUID
+    server_id: UUID = Field(..., description="The server that ran it; it may since have been deleted")
     server_name: str
     tool_name: str
     arguments: dict[str, Any] = Field(default_factory=dict)

@@ -11,7 +11,8 @@ class ExecutionEntity:
     """Core domain entity representing a tool execution record."""
 
     id: UUID
-    server_id: UUID
+    server_id: UUID  # kept after the Server is deleted
+    user_id: UUID  # the owner; history is scoped by it, so it survives deleting the Server
     server_name: str
     tool_name: str
     arguments: dict[str, Any]

@@ -10,10 +10,16 @@ from app.background_service.session_sweeper import SessionSweeperService
 from app.core.config import get_settings
 from app.core.exceptions import UnauthorizedError
 from app.domain.principal_entity import Principal
+from app.helpers.crypto import SecretCipher
+from app.infrastructure.oauth.provider_catalog import get_provider_catalog
 from app.infrastructure.repositories.api_key_repository import ApiKeyRepositoryAbstract, PostgresApiKeyRepository
 from app.infrastructure.repositories.execution_repository import (
     ExecutionRepositoryAbstract,
     PostgresExecutionRepository,
+)
+from app.infrastructure.repositories.oauth_credential_repository import (
+    OAuthCredentialRepositoryAbstract,
+    PostgresOAuthCredentialRepository,
 )
 from app.infrastructure.repositories.server_repository import (
     PostgresServerRepository,
@@ -33,6 +39,7 @@ from app.mcp.mcp_server import MCPServer
 from app.services.auth_service import AuthService
 from app.services.connection_manager import ConnectionManager
 from app.services.embedding_service import EmbeddingServiceAbstract, FastEmbedService
+from app.services.oauth_service import OAuthFlowRegistry, OAuthService
 from app.services.server_registry import ServerRegistryService
 from app.services.session_explorer import SessionExplorerService
 from app.services.session_tracker import SessionTrackerService
@@ -48,8 +55,12 @@ _session_repository: SessionRepositoryAbstract = PostgresSessionRepository()
 _user_repository: UserRepositoryAbstract = PostgresUserRepository()
 _api_key_repository: ApiKeyRepositoryAbstract = PostgresApiKeyRepository()
 _tool_access_repository: ToolAccessRepositoryAbstract = PostgresToolAccessRepository()
-_connection_manager = ConnectionManager()
 _settings = get_settings()
+_oauth_credential_repository: OAuthCredentialRepositoryAbstract = PostgresOAuthCredentialRepository(
+    SecretCipher(_settings.OAUTH_ENCRYPTION_KEY)
+)
+_oauth_flow_registry = OAuthFlowRegistry()
+_connection_manager = ConnectionManager(oauth_credentials=_oauth_credential_repository)
 _embedding_service: EmbeddingServiceAbstract = FastEmbedService(
     model_name=_settings.EMBEDDING_MODEL,
     dimension=_settings.EMBEDDING_DIMENSION,
@@ -104,6 +115,24 @@ async def get_current_principal(
         raise UnauthorizedError("Invalid or expired token")
 
     return principal
+
+
+def get_oauth_flow_registry() -> OAuthFlowRegistry:
+    """Return the process-wide registry of OAuth sign-ins in progress (ADR-0008)."""
+    return _oauth_flow_registry
+
+
+def get_oauth_service() -> OAuthService:
+    """Return the service that connects hosted MCP servers with OAuth (ADR-0008)."""
+    return OAuthService(
+        settings=_settings,
+        catalog=get_provider_catalog(),
+        registry=_oauth_flow_registry,
+        server_registry=get_server_registry_service(),
+        credentials=_oauth_credential_repository,
+        connection_manager=_connection_manager,
+        tool_catalog=get_tool_catalog_service(),
+    )
 
 
 def get_connection_manager() -> ConnectionManager:

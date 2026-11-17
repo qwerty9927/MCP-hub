@@ -82,6 +82,7 @@ export function ServerFilterBar({ filters, onChange }: ServerFilterBarProps) {
                         <SelectItem value="HEALTHY">Healthy</SelectItem>
                         <SelectItem value="UNHEALTHY">Unhealthy</SelectItem>
                         <SelectItem value="DISCONNECTED">Disconnected</SelectItem>
+                        <SelectItem value="NEEDS_AUTH">Needs sign-in</SelectItem>
                         <SelectItem value="UNKNOWN">Unknown</SelectItem>
                     </SelectContent>
                 </Select>

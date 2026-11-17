@@ -31,7 +31,7 @@ class FakeWorker:
     started: list[str] = []
     stopped: list[str] = []
 
-    def __init__(self, server: ServerEntity, settings: object, semaphore: asyncio.Semaphore) -> None:
+    def __init__(self, server: ServerEntity, settings: object, semaphore: asyncio.Semaphore, oauth_credentials: object = None) -> None:
         self.server = server
         self.semaphore = semaphore
         self.session: FakeSession | None = None

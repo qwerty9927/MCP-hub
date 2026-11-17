@@ -4,7 +4,7 @@ import math
 from datetime import UTC, datetime
 from uuid import UUID
 
-from app.core.enums.server_enum import ServerHealthStatus, TransportType
+from app.core.enums.server_enum import ServerAuthType, ServerHealthStatus, TransportType
 from app.core.exceptions import ConflictError, NotFoundError
 from app.core.logging import logger
 from app.domain.server_entity import ServerEntity
@@ -23,7 +23,14 @@ class ServerRegistryService:
     def __init__(self, server_repository: ServerRepositoryAbstract) -> None:
         self.server_repository = server_repository
 
-    async def create_server(self, data: ServerCreateRequest, *, user_id: UUID) -> ServerResponse:
+    async def create_server(
+        self,
+        data: ServerCreateRequest,
+        *,
+        user_id: UUID,
+        auth_type: ServerAuthType = ServerAuthType.NONE,
+        oauth_provider_id: str | None = None,
+    ) -> ServerResponse:
         """Register a new MCP server configuration owned by `user_id`."""
         existing = await self.server_repository.get_by_name(data.name, user_id=user_id)
         if existing:
@@ -39,6 +46,8 @@ class ServerRegistryService:
             stdio_config=data.stdio_config,
             http_config=data.http_config,
             enabled=data.enabled,
+            auth_type=auth_type,
+            oauth_provider_id=oauth_provider_id,
             user_id=user_id,
             health_status=ServerHealthStatus.UNKNOWN,
         )
@@ -46,6 +55,15 @@ class ServerRegistryService:
         saved = await self.server_repository.create(server)
         logger.info(f"Registered MCP server '{saved.name}' (id: {saved.id}, transport: {saved.transport})")
         return ServerResponse.from_domain(saved)
+
+    async def list_server_entities(self, *, user_id: UUID) -> list[ServerEntity]:
+        """Every server the account owns."""
+        items, _ = await self.server_repository.list(page=1, page_size=10_000, user_id=user_id)
+        return items
+
+    async def name_is_taken(self, name: str, *, user_id: UUID) -> bool:
+        """Whether the account already has a server called `name` (case-insensitive)."""
+        return await self.server_repository.get_by_name(name, user_id=user_id) is not None
 
     async def get_server(self, server_id: UUID, *, user_id: UUID) -> ServerResponse:
         """Retrieve the owner's server by ID or raise NotFoundError."""

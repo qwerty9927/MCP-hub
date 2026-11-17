@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.core.enums.server_enum import ServerHealthStatus, TransportType
+from app.core.enums.server_enum import ServerAuthType, ServerHealthStatus, TransportType
 from app.helpers.security import mask_sensitive_headers, validate_http_url, validate_stdio_command
 from app.schemas.connection_schema import ConnectionConfigResponse, HttpConfig, StdioConfig
 
@@ -71,6 +71,8 @@ class ServerResponse(BaseModel):
     transport: TransportType
     connection_config: ConnectionConfigResponse
     enabled: bool
+    auth_type: ServerAuthType = ServerAuthType.NONE
+    oauth_provider_id: str | None = None
     health_status: ServerHealthStatus
     last_connected_at: datetime | None = None
     last_health_check_at: datetime | None = None
@@ -101,6 +103,8 @@ class ServerResponse(BaseModel):
                 transport=transport,
                 connection_config=config_read,
                 enabled=server["enabled"],
+                auth_type=server.get("auth_type", ServerAuthType.NONE),
+                oauth_provider_id=server.get("oauth_provider_id"),
                 health_status=server["health_status"],
                 last_connected_at=server.get("last_connected_at"),
                 last_health_check_at=server.get("last_health_check_at"),
@@ -125,6 +129,8 @@ class ServerResponse(BaseModel):
             transport=server.transport,
             connection_config=config_read,
             enabled=server.enabled,
+            auth_type=getattr(server, "auth_type", ServerAuthType.NONE),
+            oauth_provider_id=getattr(server, "oauth_provider_id", None),
             health_status=server.health_status,
             last_connected_at=server.last_connected_at,
             last_health_check_at=server.last_health_check_at,

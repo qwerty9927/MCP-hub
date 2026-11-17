@@ -1,10 +1,11 @@
 import React, { Suspense } from "react";
 import Link from "next/link";
-import { Plus, Terminal } from "lucide-react";
+import { Terminal } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { OverviewDashboard } from "@/features/overview/components/OverviewMetrics";
 import { CardGridSkeleton } from "@/components/common/CardGridSkeleton";
+import { RegisterServerButton } from "@/features/servers/components/RegisterServerButton";
 
 export default function OverviewPage() {
     return (
@@ -20,12 +21,7 @@ export default function OverviewPage() {
                                 Playground
                             </Link>
                         </Button>
-                        <Button asChild size="sm" className="gap-1.5">
-                            <Link href="/servers/new">
-                                <Plus className="h-4 w-4" />
-                                Register Server
-                            </Link>
-                        </Button>
+                        <RegisterServerButton size="sm" />
                     </div>
                 }
             />

@@ -2,12 +2,13 @@
 
 import React from "react";
 import Link from "next/link";
-import { Server, Wrench, Activity, History, Clock, Radio, ExternalLink, Plus, Play } from "lucide-react";
+import { Server, Wrench, Activity, History, Clock, Radio, ExternalLink, Play } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { systemApi, serversApi, executionsApi, toolsApi } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { HealthBadge } from "@/components/common/HealthBadge";
+import { RegisterServerButton } from "@/features/servers/components/RegisterServerButton";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ListSkeleton } from "@/components/common/ListSkeleton";
 import { ToolCallStatusBadge } from "@/components/common/ToolCallStatusBadge";
@@ -175,12 +176,7 @@ export function OverviewDashboard() {
                             <div className="flex flex-col items-center justify-center p-8 text-center text-muted-foreground">
                                 <Server className="h-8 w-8 opacity-40 mb-2" />
                                 <p className="text-sm">No MCP servers registered</p>
-                                <Button asChild size="sm" className="mt-3 gap-1.5">
-                                    <Link href="/servers/new">
-                                        <Plus className="h-3.5 w-3.5" />
-                                        Register First Server
-                                    </Link>
-                                </Button>
+                                <RegisterServerButton size="sm" label="Register First Server" className="mt-3" />
                             </div>
                         ) : (
                             <div className="space-y-3">

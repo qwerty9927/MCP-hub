@@ -5,7 +5,11 @@
 
 export type TransportType = "stdio" | "streamable-http";
 
-export type ServerHealthStatus = "UNKNOWN" | "HEALTHY" | "UNHEALTHY" | "DISCONNECTED";
+/** `NEEDS_AUTH`: an OAuth server whose tokens can no longer be refreshed; the user must sign in again. */
+export type ServerHealthStatus = "UNKNOWN" | "HEALTHY" | "UNHEALTHY" | "DISCONNECTED" | "NEEDS_AUTH";
+
+/** How the hub authenticates to the server: `oauth` = connected through a provider sign-in. */
+export type ServerAuthType = "none" | "oauth";
 
 export interface StdioConfig {
     command: string;
@@ -36,6 +40,9 @@ export interface ServerRead {
     last_connected_at?: string | null;
     last_health_check_at?: string | null;
     discovered_tool_count: number;
+    /** Optional so older responses (and fixtures) without it read as `none`. */
+    auth_type?: ServerAuthType;
+    oauth_provider_id?: string | null;
     created_at: string;
     updated_at: string;
 }
@@ -292,4 +299,43 @@ export interface ApiKeyTool {
 export interface ApiKeyToolVisibility {
     tool_name: string;
     enabled: boolean;
+}
+
+// --- OAuth provider connections ---
+
+/** A hosted MCP server from the backend's provider catalog that can be connected with an OAuth sign-in. */
+export interface OAuthProvider {
+    id: string;
+    name: string;
+    description: string;
+    category: string;
+    mcp_url: string;
+    docs_url: string;
+    logo?: string | null;
+    /** False when the provider needs a pre-registered OAuth client the admin hasn't configured. */
+    available: boolean;
+    /** The setting that configures the provider's OAuth client, when it needs one. */
+    client_env?: string | null;
+    /** How many servers this user has already connected through this provider. */
+    connected_count: number;
+}
+
+export interface OAuthConnectRequest {
+    provider_id: string;
+    name?: string;
+}
+
+export interface OAuthAuthorizationResponse {
+    /** Null when the server needed no sign-in: it is already registered as `server_id`. */
+    authorization_url: string | null;
+    state: string | null;
+    server_id?: string | null;
+}
+
+/** Posted by `/oauth/complete` (the popup) to the window that opened it. */
+export interface OAuthCompleteMessage {
+    type: "mcp-hub-oauth";
+    status: "success" | "error";
+    server_id?: string | null;
+    error?: string | null;
 }

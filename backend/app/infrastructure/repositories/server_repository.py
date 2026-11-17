@@ -144,6 +144,8 @@ class PostgresServerRepository(ServerRepositoryAbstract):
                 model.stdio_config = server.stdio_config.model_dump() if server.stdio_config else None
                 model.http_config = server.http_config.model_dump() if server.http_config else None
                 model.enabled = server.enabled
+                model.auth_type = str(server.auth_type)
+                model.oauth_provider_id = server.oauth_provider_id
                 model.health_status = server.health_status.value if hasattr(server.health_status, "value") else str(server.health_status)
                 model.last_connected_at = server.last_connected_at
                 model.last_health_check_at = server.last_health_check_at

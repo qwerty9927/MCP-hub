@@ -7,7 +7,7 @@ from uuid import UUID
 from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.enums.server_enum import ServerHealthStatus, TransportType
+from app.core.enums.server_enum import ServerAuthType, ServerHealthStatus, TransportType
 from app.domain.server_entity import ServerEntity
 from app.models.base_model import Base
 from app.schemas.connection_schema import HttpConfig, StdioConfig
@@ -26,6 +26,8 @@ class ServerModel(Base):
     stdio_config: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     http_config: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    auth_type: Mapped[str] = mapped_column(String(20), default="none", server_default="none", nullable=False)
+    oauth_provider_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     health_status: Mapped[str] = mapped_column(String(20), default="UNKNOWN", nullable=False)
     last_connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_health_check_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -46,7 +48,7 @@ class ServerModel(Base):
 
     # Relationships to tools and executions
     tools = relationship("ToolModel", back_populates="server", cascade="all, delete-orphan")
-    executions = relationship("ExecutionModel", back_populates="server", cascade="all, delete-orphan")
+    # Executions are not related here: they outlive their Server (ADR-0002 history), keyed by server_id alone.
 
     def to_domain(self) -> ServerEntity:
         """Convert database model to domain entity."""
@@ -58,6 +60,8 @@ class ServerModel(Base):
             stdio_config=StdioConfig(**self.stdio_config) if self.stdio_config else None,
             http_config=HttpConfig(**self.http_config) if self.http_config else None,
             enabled=self.enabled,
+            auth_type=ServerAuthType(self.auth_type),
+            oauth_provider_id=self.oauth_provider_id,
             user_id=UUID(self.user_id),
             health_status=ServerHealthStatus(self.health_status),
             last_connected_at=self.last_connected_at,
@@ -78,6 +82,8 @@ class ServerModel(Base):
             stdio_config=entity.stdio_config.model_dump() if entity.stdio_config else None,
             http_config=entity.http_config.model_dump() if entity.http_config else None,
             enabled=entity.enabled,
+            auth_type=str(entity.auth_type),
+            oauth_provider_id=entity.oauth_provider_id,
             user_id=str(entity.user_id),
             health_status=entity.health_status.value if hasattr(entity.health_status, "value") else str(entity.health_status),
             last_connected_at=entity.last_connected_at,

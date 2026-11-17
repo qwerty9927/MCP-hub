@@ -11,7 +11,6 @@ import app.infrastructure.database as db_module
 from app.domain.execution_entity import ExecutionEntity
 from app.domain.session_entity import ToolCallEntity
 from app.models.execution_model import ExecutionModel
-from app.models.server_model import ServerModel
 
 
 class ExecutionRepositoryAbstract(ABC):
@@ -212,5 +211,5 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
 
 
 def _owned(stmt: Select, user_id: UUID) -> Select:
-    """Limit an Execution query to Servers owned by `user_id`."""
-    return stmt.join(ServerModel, ServerModel.id == ExecutionModel.server_id).where(ServerModel.user_id == str(user_id))
+    """Limit an Execution query to `user_id`'s Executions, including those whose Server was deleted."""
+    return stmt.where(ExecutionModel.user_id == str(user_id))

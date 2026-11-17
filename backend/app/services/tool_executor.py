@@ -50,6 +50,7 @@ class ExecutionOutcome:
     rejection_reason: RejectionReason | None = None
     execution_id: UUID | None = None  # None when no Execution was recorded (unknown Tool Reference)
     server_id: UUID | None = None
+    user_id: UUID | None = None  # the Server's owner, recorded on the Execution
     server_name: str | None = None
     tool_name: str | None = None
     content: list[dict[str, Any]] = field(default_factory=list)
@@ -141,6 +142,7 @@ class ToolExecutor:
                 executed_at=executed_at,
                 execution_id=uuid4(),
                 server_id=server.id,
+                user_id=server.user_id,
                 server_name=server.name,
                 tool_name=tool.name,
                 error_message=message,
@@ -225,6 +227,7 @@ class ToolExecutor:
             executed_at=executed_at,
             execution_id=uuid4(),
             server_id=server.id,
+            user_id=server.user_id,
             server_name=server.name,
             tool_name=tool.name,
         )
@@ -258,7 +261,7 @@ class ToolExecutor:
         started_at: datetime,
     ) -> None:
         """Persist the Execution; a failed write is logged, never surfaced (the call may have had side effects)."""
-        assert outcome.execution_id is not None and outcome.server_id is not None
+        assert outcome.execution_id is not None and outcome.server_id is not None and outcome.user_id is not None
         completed_at = datetime.now(UTC)
         response: dict[str, Any] | None = None
         if outcome.kind in (ExecutionOutcomeKind.SUCCEEDED, ExecutionOutcomeKind.TOOL_ERROR):
@@ -269,6 +272,7 @@ class ToolExecutor:
         record = ExecutionEntity(
             id=outcome.execution_id,
             server_id=outcome.server_id,
+            user_id=outcome.user_id,
             server_name=outcome.server_name or "",
             tool_name=outcome.tool_name or "",
             arguments=arguments,

@@ -1,0 +1,60 @@
+{
+    "providers": [
+        {
+            "id": "linear",
+            "name": "Linear",
+            "description": "Issues, projects and cycles",
+            "category": "Project management",
+            "mcp_url": "https://mcp.linear.app/mcp",
+            "docs_url": "https://linear.app/docs/mcp"
+        },
+        {
+            "id": "notion",
+            "name": "Notion",
+            "description": "Pages, databases and comments",
+            "category": "Productivity",
+            "mcp_url": "https://mcp.notion.com/mcp",
+            "docs_url": "https://developers.notion.com/docs/mcp"
+        },
+        {
+            "id": "atlassian",
+            "name": "Atlassian",
+            "description": "Jira issues and Confluence pages",
+            "category": "Project management",
+            "mcp_url": "https://mcp.atlassian.com/v2/mcp",
+            "docs_url": "https://support.atlassian.com/rovo/docs/getting-started-with-the-atlassian-remote-mcp-server/"
+        },
+        {
+            "id": "sentry",
+            "name": "Sentry",
+            "description": "Errors, issues and releases",
+            "category": "Monitoring",
+            "mcp_url": "https://mcp.sentry.dev/mcp",
+            "docs_url": "https://docs.sentry.io/product/sentry-mcp/"
+        },
+        {
+            "id": "vercel",
+            "name": "Vercel",
+            "description": "Projects, deployments and logs",
+            "category": "Developer tools",
+            "mcp_url": "https://mcp.vercel.com",
+            "docs_url": "https://vercel.com/docs/mcp/vercel-mcp"
+        },
+        {
+            "id": "supabase",
+            "name": "Supabase",
+            "description": "Databases, tables and edge functions",
+            "category": "Developer tools",
+            "mcp_url": "https://mcp.supabase.com/mcp",
+            "docs_url": "https://supabase.com/docs/guides/getting-started/mcp"
+        },
+        {
+            "id": "stripe",
+            "name": "Stripe",
+            "description": "Customers, payments and invoices",
+            "category": "Payments",
+            "mcp_url": "https://mcp.stripe.com",
+            "docs_url": "https://docs.stripe.com/mcp"
+        }
+    ]
+}

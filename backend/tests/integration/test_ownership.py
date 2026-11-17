@@ -28,6 +28,7 @@ async def owned(async_client, user_id):
         ExecutionEntity(
             id=uuid4(),
             server_id=server_id,
+            user_id=user_id,
             server_name="math",
             tool_name="add",
             arguments={},
