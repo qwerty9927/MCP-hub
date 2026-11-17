@@ -2,6 +2,7 @@
 
 import React, { use, useState } from "react";
 import Link from "next/link";
+import { historyServerHref } from "@/lib/server-links";
 import { ArrowLeft, Clock, Server, Wrench, Play, XCircle, Copy, Check, FileCode2, Terminal } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -143,7 +144,7 @@ export default function ExecutionDetailPage({ params }: ExecutionDetailPageProps
                     <div className="mt-2 flex items-center gap-1.5">
                         <Server className="h-4 w-4 text-primary" />
                         <Link
-                            href={`/servers/${execution.server_id}`}
+                            href={historyServerHref(execution.server_id, execution.server_name)}
                             className="text-sm font-medium hover:underline text-foreground truncate"
                         >
                             {execution.server_name}

@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import { historyServerHref } from "@/lib/server-links";
 import { ExecutionRecord } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -49,7 +50,10 @@ export function ExecutionListTable({ executions }: ExecutionListTableProps) {
                                 </TableCell>
 
                                 <TableCell>
-                                    <Link href={`/servers/${exec.server_id}`} className="text-xs hover:underline text-muted-foreground">
+                                    <Link
+                                        href={historyServerHref(exec.server_id, exec.server_name)}
+                                        className="text-xs hover:underline text-muted-foreground"
+                                    >
                                         {exec.server_name}
                                     </Link>
                                 </TableCell>

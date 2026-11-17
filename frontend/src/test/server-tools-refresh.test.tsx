@@ -11,6 +11,7 @@ const state = { refreshPending: false, connectPending: false };
 vi.mock("next/navigation", () => ({
     useRouter: () => ({ push: vi.fn() }),
     usePathname: () => `/servers/${SERVER_ID}`,
+    useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock("@/features/auth/hooks/use-auth", () => ({

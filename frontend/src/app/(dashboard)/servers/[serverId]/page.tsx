@@ -2,7 +2,7 @@
 
 import React, { use, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
     ArrowLeft,
     Activity,
@@ -47,6 +47,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ErrorAlert } from "@/components/common/ErrorAlert";
+import { DeletedServerNotice } from "@/features/servers/components/DeletedServerNotice";
+import { readHistoryOrigin } from "@/lib/server-links";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TableSkeleton } from "@/components/common/TableSkeleton";
@@ -82,6 +84,8 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
     const [toolSearch, setToolSearch] = useState("");
 
     const { data: server, isLoading, isError, error, refetch } = useServer(serverId);
+    // Execution history keeps a deleted server's id; opened from there, a 404 means the server was deleted.
+    const historyOrigin = readHistoryOrigin(useSearchParams());
     const { data: toolsData, isLoading: toolsLoading } = useServerTools(serverId);
     const { data: executionsData, isLoading: executionsLoading } = useExecutions({
         server_id: serverId,
@@ -154,6 +158,10 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                 <TableSkeleton columns={["Tool Name", "Description", "Parameters", "Action"]} rowCount={4} showPagination={false} />
             </div>
         );
+    }
+
+    if (isError && historyOrigin.fromHistory && (error as { status?: number } | null)?.status === 404) {
+        return <DeletedServerNotice serverName={historyOrigin.serverName} />;
     }
 
     if (isError || !server) {
