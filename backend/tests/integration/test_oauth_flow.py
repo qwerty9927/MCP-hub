@@ -12,6 +12,7 @@ import app.infrastructure.database as db_module
 from app.api.dependencies import get_oauth_service
 from app.infrastructure.oauth.provider_catalog import OAuthProvider, OAuthProviderCatalog
 from app.main import app
+from app.models.server_model import ServerModel
 from app.models.server_oauth_credential_model import ServerOAuthCredentialModel
 from tests.fake_oauth_server import FakeOAuthMcpServer
 
@@ -198,3 +199,23 @@ async def test_explicit_name_conflict_is_refused(async_client: AsyncClient, cata
     await connect(async_client, name="mine")
     res = await async_client.post("/api/v1/oauth/connect", json={"provider_id": "fake", "name": "mine"})
     assert res.status_code == 409
+
+
+async def test_reconnect_moves_the_server_to_the_providers_current_url(async_client: AsyncClient, catalog, oauth_server):
+    """A provider's URL can change in the catalog (Atlassian /v1 -> /v2). Signing in again gets tokens for the current URL,
+    so the server must be moved there too, or the hub would present them to the old one."""
+    server_id = (await connect(async_client))["server_id"]
+    await async_client.post(f"/api/v1/servers/{server_id}/disconnect")
+    async with db_module.async_session_factory() as session:
+        model = await session.get(ServerModel, server_id)
+        model.http_config = {"url": f"{oauth_server.base_url}/old-mcp", "headers": {}}
+        await session.commit()
+
+    again = await async_client.post(f"/api/v1/servers/{server_id}/oauth/reconnect")
+    assert again.status_code == 200, again.text
+    result = complete_params(await sign_in(async_client, again.json()["authorization_url"]))
+    assert result == {"status": "success", "server_id": server_id}
+
+    server = (await async_client.get(f"/api/v1/servers/{server_id}")).json()
+    assert server["connection_config"]["url"] == oauth_server.mcp_url
+    assert server["health_status"] == "HEALTHY"

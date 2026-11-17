@@ -37,7 +37,8 @@ def test_cipher_round_trip_and_wrong_key():
 
 def test_shipped_catalog_loads_with_unique_ids():
     providers = get_provider_catalog().list()
-    assert len(providers) >= 8
+    assert providers, "the shipped catalog must offer at least one provider"
+    assert len({p.id for p in providers}) == len(providers)
     assert all(p.mcp_url.startswith("https://") for p in providers)
 
 

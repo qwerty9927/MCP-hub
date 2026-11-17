@@ -38,13 +38,14 @@ from app.infrastructure.oauth.provider_catalog import OAuthProvider, OAuthProvid
 from app.infrastructure.repositories.oauth_credential_repository import OAuthCredentialRepositoryAbstract
 from app.schemas.connection_schema import HttpConfig
 from app.schemas.oauth_schema import OAuthConnectResponse, OAuthProviderResponse
-from app.schemas.server_schema import ServerCreateRequest
+from app.schemas.server_schema import ServerCreateRequest, ServerUpdateRequest
 from app.services.connection_manager import ConnectionManager
 from app.services.server_registry import ServerRegistryService
 from app.services.tool_catalog import ToolCatalogService
 
 # How long `start` waits for the authorization URL (discovery + registration) before giving up.
-START_TIMEOUT_SECONDS = 20.0
+# The console's connect request waits longer (OAUTH_START_TIMEOUT_MS in frontend/src/lib/api/oauth.ts).
+START_TIMEOUT_SECONDS = 40.0
 # How long the callback waits for the code exchange, session and tool sync to finish.
 COMPLETE_TIMEOUT_SECONDS = 60.0
 
@@ -244,6 +245,7 @@ class OAuthService:
         if flow.existing_server_id is not None:
             server_id = flow.existing_server_id
             await self.connection_manager.disconnect(server_id)
+            await self._point_at_provider_url(server_id, flow)
         else:
             created = await self.server_registry.create_server(
                 ServerCreateRequest(
@@ -272,6 +274,20 @@ class OAuthService:
             logger.warning(f"First tool sync for OAuth server {server_id} failed: {exc}")
             await self.server_registry.update_health(server_id, ServerHealthStatus.UNHEALTHY, user_id=flow.user_id)
         return OAuthFlowResult(server_id=server_id)
+
+    async def _point_at_provider_url(self, server_id: UUID, flow: PendingFlow) -> None:
+        """The new tokens are issued for the provider's current URL (RFC 8707 resource), which may have changed in the
+        catalog since the server was created: move the server to it so the hub presents them where they are valid."""
+        server = await self.server_registry.get_server_entity(server_id, user_id=flow.user_id)
+        current = server.http_config
+        if current is not None and current.url == flow.provider.mcp_url:
+            return
+        await self.server_registry.update_server(
+            server_id,
+            ServerUpdateRequest(http_config=HttpConfig(url=flow.provider.mcp_url, headers=current.headers if current else {})),
+            user_id=flow.user_id,
+        )
+        logger.info(f"OAuth server {server_id} moved to {flow.provider.mcp_url} on reconnect")
 
     def _available_provider(self, provider_id: str) -> OAuthProvider:
         provider = self.catalog.get(provider_id)
