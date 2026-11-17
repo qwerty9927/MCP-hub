@@ -280,3 +280,16 @@ export interface ApiKeyRead {
 export interface ApiKeyCreated extends ApiKeyRead {
     key: string;
 }
+
+/** A server's tool as one API key sees it. Tools are visible by default; `enabled: false` hides it from that key. */
+export interface ApiKeyTool {
+    tool_id: string;
+    name: string;
+    description: string | null;
+    enabled: boolean;
+}
+
+export interface ApiKeyToolVisibility {
+    tool_name: string;
+    enabled: boolean;
+}

@@ -13,6 +13,15 @@ vi.mock("next/navigation", () => ({
     usePathname: () => `/servers/${SERVER_ID}`,
 }));
 
+vi.mock("@/features/auth/hooks/use-auth", () => ({
+    useApiKeys: () => ({ data: [], isLoading: false }),
+}));
+
+vi.mock("@/features/servers/hooks/use-api-key-tools", () => ({
+    useApiKeyServerTools: () => ({ data: undefined, isLoading: false }),
+    useSetApiKeyToolEnabled: () => mutation(),
+}));
+
 vi.mock("@/features/executions/hooks/use-executions", () => ({
     useExecutions: () => ({ data: { items: [] }, isLoading: false }),
 }));
