@@ -28,6 +28,13 @@ export function HealthBadge({ status, className }: HealthBadgeProps) {
                     {normalized === "UNAVAILABLE" ? "Unavailable" : "Unhealthy"}
                 </Badge>
             );
+        case "NEEDS_AUTH":
+            return (
+                <Badge variant="warning" className={cn("gap-1.5 font-medium px-2 py-0.5", className)}>
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                    Sign in again
+                </Badge>
+            );
         case "DISCONNECTED":
             return (
                 <Badge variant="secondary" className={cn("gap-1.5 font-medium px-2 py-0.5 text-muted-foreground", className)}>

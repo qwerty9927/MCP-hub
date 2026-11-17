@@ -22,14 +22,13 @@ import {
     Layers,
     History,
     AlertTriangle,
-    Search,
-    X,
+    KeyRound,
 } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { HealthBadge } from "@/components/common/HealthBadge";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/common/SearchInput";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -66,6 +65,7 @@ import { useApiKeyServerTools, useSetApiKeyToolEnabled } from "@/features/server
 import { useApiKeys } from "@/features/auth/hooks/use-auth";
 import { useExecutions } from "@/features/executions/hooks/use-executions";
 import { ServerTestResponse } from "@/types";
+import { OAuthReconnectButton } from "@/features/servers/components/OAuthReconnectButton";
 
 interface ServerDetailPageProps {
     params: Promise<{ serverId: string }>;
@@ -201,6 +201,10 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                 description={server.description || "No description provided."}
                 actions={
                     <div className="flex flex-wrap items-center gap-2">
+                        {server.auth_type === "oauth" && (
+                            <OAuthReconnectButton server={server} disabled={isActionLoading} variant="outline" />
+                        )}
+
                         <Button variant="outline" size="sm" onClick={handleTestConnection} disabled={isActionLoading} className="gap-1.5">
                             {testMutation.isPending ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -339,6 +343,30 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                 </div>
             )}
 
+            {/* OAuth sign-in expired */}
+            {server.health_status === "NEEDS_AUTH" && (
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-amber-700 dark:text-amber-400">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+                        <KeyRound className="h-5 w-5 mt-0.5 shrink-0" />
+                        <div className="flex-1 space-y-1">
+                            <h4 className="font-semibold text-sm">Sign in again</h4>
+                            <p className="text-sm opacity-90">
+                                The hub can no longer refresh this server&rsquo;s sign-in. Reconnect to authorize it again; its tools stay
+                                unavailable until then.
+                            </p>
+                        </div>
+                        {server.auth_type === "oauth" && (
+                            <OAuthReconnectButton
+                                server={server}
+                                disabled={isActionLoading}
+                                variant="outline"
+                                className="shrink-0 border-amber-500/40 bg-transparent text-amber-700 hover:bg-amber-500/20 dark:text-amber-400"
+                            />
+                        )}
+                    </div>
+                </div>
+            )}
+
             {/* Detailed Information Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TabsList className="grid w-full grid-cols-4 max-w-xl">
@@ -394,27 +422,13 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                             ) : (
                                 <div className="space-y-4">
                                     <div className="flex flex-wrap items-center gap-3">
-                                        <div className="relative w-full sm:w-[280px]">
-                                            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                                            <Input
-                                                type="search"
-                                                aria-label="Search tools"
-                                                placeholder="Search tools"
-                                                value={toolSearch}
-                                                onChange={(event) => setToolSearch(event.target.value)}
-                                                className="h-9 pl-8 pr-8 [&::-webkit-search-cancel-button]:appearance-none"
-                                            />
-                                            {toolSearch && (
-                                                <button
-                                                    type="button"
-                                                    aria-label="Clear tool search"
-                                                    onClick={() => setToolSearch("")}
-                                                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
-                                                >
-                                                    <X className="h-4 w-4" />
-                                                </button>
-                                            )}
-                                        </div>
+                                        <SearchInput
+                                            label="Search tools"
+                                            clearLabel="Clear tool search"
+                                            value={toolSearch}
+                                            onValueChange={setToolSearch}
+                                            className="sm:w-[280px]"
+                                        />
                                         <Label htmlFor="visibility-api-key" className="text-sm">
                                             Visibility for API key
                                         </Label>
