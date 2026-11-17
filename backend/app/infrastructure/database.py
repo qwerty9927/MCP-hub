@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.core.config import get_settings
+from app.models.api_key_disabled_tool_model import ApiKeyDisabledToolModel  # noqa: F401 - metadata discovery
 from app.models.api_key_model import ApiKeyModel  # noqa: F401 - metadata discovery
 from app.models.base_model import Base
 from app.models.execution_model import ExecutionModel  # noqa: F401 - metadata discovery

@@ -28,6 +28,7 @@ class StubExecutor:
     def __init__(self, outcomes: dict[str, ExecutionOutcome | Exception]) -> None:
         self.outcomes = outcomes
         self.calls: list[tuple[str, dict[str, Any], str | None]] = []
+        self.api_key_ids: list = []
 
     async def execute(
         self,
@@ -37,7 +38,9 @@ class StubExecutor:
         user_id=USER_ID,
         session_id: str | None = None,
         timeout: float | None = None,
+        api_key_id=None,
     ):
+        self.api_key_ids.append(api_key_id)
         self.calls.append((tool_reference, arguments, session_id))
         result = self.outcomes[tool_reference]
         if isinstance(result, Exception):

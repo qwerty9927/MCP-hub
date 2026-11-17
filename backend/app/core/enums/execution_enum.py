@@ -17,5 +17,6 @@ class RejectionReason(StrEnum):
 
     UNKNOWN_TOOL = "unknown_tool"
     SERVER_DISABLED = "server_disabled"
+    TOOL_DISABLED = "tool_disabled"  # hidden from the calling API key (ADR-0007)
     TOOL_UNAVAILABLE = "tool_unavailable"
     INVALID_ARGUMENTS = "invalid_arguments"

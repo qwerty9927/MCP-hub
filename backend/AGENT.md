@@ -214,6 +214,7 @@ Strict unidirectional dependency flow:
     3. Normalize queries without PII or long values.
     4. Use English verbs (`list`, `get`, `search`, `create`, `update`, `delete`, `send`).
   - Ranking is vector similarity in pgvector (ADR-0006): each query is embedded by `EmbeddingServiceAbstract` (`app/services/embedding_service.py`, local fastembed model) and `ToolRepositoryAbstract.search_by_embedding` returns the caller's `top_k` nearest Tools on enabled Servers by cosine distance, with their `similarity`.
+  - Per-API-key visibility (ADR-0007): `/mcp` passes `principal.api_key_id` to `ToolCatalogService.search` and `ToolExecutor.execute`. Tools hidden from that key (`api_key_disabled_tools`, keyed by server and tool name) are left out of the search and rejected on execution (`RejectionReason.TOOL_DISABLED`). Console calls pass no key and are not limited.
   - Tools are embedded from `tool_embedding_text` when their Server is discovered; a failed embedding stores NULL and `EmbeddingBackfillService` (`app/background_service/embedding_backfill.py`, job `backfill-tool-embeddings`, run at startup and every 10 minutes) fills it in. Settings: `EMBEDDING_MODEL`, `EMBEDDING_DIMENSION` (must match the `discovered_tools.embedding` column), `EMBEDDING_CACHE_DIR`. Tests use `tests/fake_embeddings.py` (set in `conftest`), never the real model; the one real-model test runs only with `RUN_SLOW=1`.
   - Automatically excludes `META_TOOL_NAMES` from discovery candidates to avoid self-recursion.
   - Deduplicates matches across queries preserving ranking order.

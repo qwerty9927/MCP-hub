@@ -75,8 +75,12 @@ All listing endpoints return records wrapped in this envelope:
 | `POST` | `/auth/api-keys` | token | `{"name", "session_idle_minutes"?}` | `201` same fields plus `"key"`, the full key, **returned only here**; `422` when `session_idle_minutes` is outside 1–1440 |
 | `PATCH` | `/auth/api-keys/{id}` | token | `{"session_idle_minutes"}` (`null` = default) | `200` the key; `404` unknown, revoked, or another account's; `422` out of range |
 | `DELETE` | `/auth/api-keys/{id}` | token | | `204`; `404` unknown or already revoked |
+| `GET` | `/auth/api-keys/{id}/servers/{server_id}/tools` | token | | `200` list of `{"tool_id", "name", "description", "enabled"}`: the server's tools and whether this key can use each; `404` unknown, revoked or another account's key or server |
+| `PATCH` | `/auth/api-keys/{id}/servers/{server_id}/tools/{tool_name}` | token | `{"enabled"}` | `200` `{"tool_name", "enabled"}`; `404` as above, or no such tool on the server; `422` other fields |
 
 `session_idle_minutes` is **not** the key's expiry. A Session opened with the key (on its first tool call) is marked `completed` after that many minutes without a tool call; `null` means the default of 30. Each Session keeps the value it opened with, so a change applies to Sessions opened afterwards. A background job completes idle Sessions every minute (ADR-0005).
+
+**Tool visibility per key (ADR-0007).** Every key sees every tool until one is hidden from it. A hidden tool is left out of that key's `SEARCH_TOOLS` results, and running it with that key is rejected (`tool_disabled`). The setting is stored by server and tool name, so it survives re-discovery (which gives tools new ids). Console calls are not limited by any key.
 
 The console token is a JWT that expires after `ACCESS_TOKEN_EXPIRE_MINUTES`. API keys start with `mhk_` and do not expire until revoked.
 
@@ -550,7 +554,7 @@ To support LLM agents orchestrating tools across many servers without exhausting
   2. **Hidden Prerequisites:** Proactively query for missing identifiers/prerequisites (e.g. user lookup before invitation).
   3. **No PII:** Keep queries normalized and free of UUIDs or personal data.
   4. **English Verbs:** Use standard API action verbs (`list`, `get`, `search`, `create`, `update`, `delete`, `send`).
-- **Behavior:** Each query is embedded and matched by cosine similarity (pgvector) against the embeddings of the caller's Tools on enabled Servers (built from tool name, server name, description and parameters). Returns the `top_k` nearest Tools per query, best first; excludes meta-tools and deduplicates across queries. `similarity` is the cosine similarity (higher is closer).
+- **Behavior:** Each query is embedded and matched by cosine similarity (pgvector) against the embeddings of the caller's Tools on enabled Servers (built from tool name, server name, description and parameters). Returns the `top_k` nearest Tools per query, best first; excludes meta-tools and tools hidden from the calling API key (ADR-0007), and deduplicates across queries. `similarity` is the cosine similarity (higher is closer).
 - **Response Format (`CallToolResult` text content):**
   ```json
   {
@@ -582,7 +586,7 @@ To support LLM agents orchestrating tools across many servers without exhausting
   1. **Strict Schema Compliance:** Provide exact namespaced `tool_slug` and arguments conforming to target tool schema.
   2. **Parallel vs. Sequential Chaining:** Group independent calls concurrently; if Tool B depends on Tool A's output, execute Tool A first, inspect output, then call Tool B in the next turn.
   3. **Partial Failure Isolation:** Inspect each item's `status` (`"success" | "validation_error" | "error"`). Retry only items returning `"validation_error"`.
-- **Behavior:** Concurrent execution via `asyncio.gather` through `ToolExecutor` (the Execution module). Fully isolates errors per tool call (partial failures do not abort sibling calls). Guarantees audit logging and blocks recursive meta-tool calls.
+- **Behavior:** Concurrent execution via `asyncio.gather` through `ToolExecutor` (the Execution module). Fully isolates errors per tool call (partial failures do not abort sibling calls). A tool hidden from the calling API key comes back as `status: "error"` and is recorded as a rejected execution (`tool_disabled`). Guarantees audit logging and blocks recursive meta-tool calls.
 - **Response Format (`CallToolResult` text content):**
   ```json
   {

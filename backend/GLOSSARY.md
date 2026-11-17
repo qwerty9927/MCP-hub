@@ -35,6 +35,9 @@ A person signed up to the hub. Every Server, Tool, Execution and Session belongs
 ### API Key
 A revocable credential an upstream MCP client uses to call `/mcp` on behalf of an Account. Shown once when generated; the hub stores only its hash. API keys open `/mcp` only, never the REST API. A key may carry a **Session Idle Timeout** (minutes, default 30): how long a Session opened with it may go without a tool call before it is completed. This is not the key's expiry.
 
+### Tool Visibility (per API Key)
+Whether an API Key can find a Tool with `SEARCH_TOOLS` and run it. Every key sees every Tool until the owner hides one from it; hidden Tools are stored by Server and Tool name, so the setting survives re-discovery. Running a hidden Tool with that key is a Rejected Execution (`tool_disabled`). Console (login-token) calls are not limited by it (ADR-0007).
+
 ### Principal
 The authenticated caller of a request: an Account, plus the API Key it presented (none for a console login token).
 

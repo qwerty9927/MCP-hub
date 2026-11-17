@@ -1,5 +1,14 @@
 import { apiClient } from "../api-client";
-import { ApiKeyCreated, ApiKeyRead, LoginRequest, RegisterRequest, TokenResponse, UserRead } from "@/types";
+import {
+    ApiKeyCreated,
+    ApiKeyRead,
+    ApiKeyTool,
+    ApiKeyToolVisibility,
+    LoginRequest,
+    RegisterRequest,
+    TokenResponse,
+    UserRead,
+} from "@/types";
 
 export const authApi = {
     register: async (payload: RegisterRequest): Promise<UserRead> => {
@@ -31,5 +40,21 @@ export const authApi = {
     },
     revokeApiKey: async (keyId: string): Promise<void> => {
         return apiClient<void>({ url: `/auth/api-keys/${keyId}`, method: "DELETE" });
+    },
+    /** A server's tools with whether each is visible to this key. */
+    listServerTools: async (keyId: string, serverId: string, signal?: AbortSignal): Promise<ApiKeyTool[]> => {
+        return apiClient<ApiKeyTool[]>({
+            url: `/auth/api-keys/${keyId}/servers/${serverId}/tools`,
+            method: "GET",
+            signal,
+        });
+    },
+    /** Show (enabled) or hide a tool from this key's SEARCH_TOOLS and block running it. */
+    setToolEnabled: async (keyId: string, serverId: string, toolName: string, enabled: boolean): Promise<ApiKeyToolVisibility> => {
+        return apiClient<ApiKeyToolVisibility>({
+            url: `/auth/api-keys/${keyId}/servers/${serverId}/tools/${encodeURIComponent(toolName)}`,
+            method: "PATCH",
+            data: { enabled },
+        });
     },
 };

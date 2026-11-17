@@ -30,6 +30,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -56,6 +59,8 @@ import {
     useServerTools,
     useTestServerConnection,
 } from "@/features/servers/hooks/use-servers";
+import { useApiKeyServerTools, useSetApiKeyToolEnabled } from "@/features/servers/hooks/use-api-key-tools";
+import { useApiKeys } from "@/features/auth/hooks/use-auth";
 import { useExecutions } from "@/features/executions/hooks/use-executions";
 import { ServerTestResponse } from "@/types";
 
@@ -70,6 +75,7 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
     const [deleteOpen, setDeleteOpen] = useState(false);
     const [testResult, setTestResult] = useState<ServerTestResponse | null>(null);
     const [activeTab, setActiveTab] = useState("tools");
+    const [visibilityKeyId, setVisibilityKeyId] = useState<string | null>(null);
 
     const { data: server, isLoading, isError, error, refetch } = useServer(serverId);
     const { data: toolsData, isLoading: toolsLoading } = useServerTools(serverId);
@@ -84,6 +90,14 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
     const testMutation = useTestServerConnection();
     const refreshToolsMutation = useRefreshServerTools();
     const deleteMutation = useDeleteServer();
+
+    // Per-API-key tool visibility. Revoked keys can't call /mcp, so they aren't offered.
+    const { data: apiKeys, isLoading: apiKeysLoading } = useApiKeys();
+    const activeApiKeys = (apiKeys ?? []).filter((key) => !key.revoked_at);
+    const visibilityKey = activeApiKeys.find((key) => key.id === visibilityKeyId) ?? null;
+    const { data: keyTools, isLoading: keyToolsLoading } = useApiKeyServerTools(visibilityKey?.id ?? null, serverId);
+    const setToolEnabledMutation = useSetApiKeyToolEnabled(visibilityKey?.id ?? null, serverId);
+    const keyToolEnabled = new Map((keyTools ?? []).map((tool) => [tool.name, tool.enabled]));
 
     const handleTestConnection = async () => {
         try {
@@ -362,73 +376,145 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                                     }
                                 />
                             ) : (
-                                <div className="relative" aria-busy={toolsRefreshing}>
-                                    {toolsRefreshing && (
+                                <div className="space-y-4">
+                                    <div className="flex flex-wrap items-center gap-3">
+                                        <Label htmlFor="visibility-api-key" className="text-sm">
+                                            Visibility for API key
+                                        </Label>
+                                        {!apiKeysLoading && activeApiKeys.length === 0 ? (
+                                            <p className="text-sm text-muted-foreground">
+                                                No API keys yet.{" "}
+                                                <Link href="/settings" className="text-primary hover:underline">
+                                                    Create one on the API keys page
+                                                </Link>{" "}
+                                                to choose which tools it can see.
+                                            </p>
+                                        ) : (
+                                            <Select
+                                                value={visibilityKey?.id ?? "none"}
+                                                onValueChange={(value) => setVisibilityKeyId(value === "none" ? null : value)}
+                                                disabled={apiKeysLoading}
+                                            >
+                                                <SelectTrigger id="visibility-api-key" className="h-9 w-[240px]">
+                                                    <SelectValue placeholder="No key selected" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="none">No key selected</SelectItem>
+                                                    {activeApiKeys.map((key) => (
+                                                        <SelectItem key={key.id} value={key.id}>
+                                                            {key.name}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        )}
+                                    </div>
+                                    <div className="relative" aria-busy={toolsRefreshing}>
+                                        {toolsRefreshing && (
+                                            <div
+                                                role="status"
+                                                className="absolute inset-0 z-10 flex items-center justify-center gap-2 text-sm font-medium text-foreground"
+                                            >
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                Refreshing tools…
+                                            </div>
+                                        )}
                                         <div
-                                            role="status"
-                                            className="absolute inset-0 z-10 flex items-center justify-center gap-2 text-sm font-medium text-foreground"
+                                            data-testid="server-tools-table"
+                                            inert={toolsRefreshing}
+                                            className={
+                                                toolsRefreshing
+                                                    ? "rounded-md border border-border opacity-40 pointer-events-none select-none transition-opacity"
+                                                    : "rounded-md border border-border transition-opacity"
+                                            }
                                         >
-                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                            Refreshing tools…
-                                        </div>
-                                    )}
-                                    <div
-                                        data-testid="server-tools-table"
-                                        inert={toolsRefreshing}
-                                        className={
-                                            toolsRefreshing
-                                                ? "rounded-md border border-border opacity-40 pointer-events-none select-none transition-opacity"
-                                                : "rounded-md border border-border transition-opacity"
-                                        }
-                                    >
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead>Tool Name</TableHead>
-                                                    <TableHead>Description</TableHead>
-                                                    <TableHead>Parameters</TableHead>
-                                                    <TableHead className="text-right">Action</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {tools.map((tool) => {
-                                                    const requiredParams = tool.input_schema?.required?.length || 0;
-                                                    const totalProps = Object.keys(tool.input_schema?.properties || {}).length;
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow>
+                                                        <TableHead>Tool Name</TableHead>
+                                                        <TableHead>Description</TableHead>
+                                                        <TableHead>Parameters</TableHead>
+                                                        <TableHead className="text-right">Action</TableHead>
+                                                        {visibilityKey && <TableHead className="text-right">Visible</TableHead>}
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {tools.map((tool) => {
+                                                        const requiredParams = tool.input_schema?.required?.length || 0;
+                                                        const totalProps = Object.keys(tool.input_schema?.properties || {}).length;
+                                                        // Tools are visible by default; only an explicit `false` hides one.
+                                                        const hidden = visibilityKey !== null && keyToolEnabled.get(tool.name) === false;
 
-                                                    return (
-                                                        <TableRow key={tool.id}>
-                                                            <TableCell className="font-mono font-medium">
-                                                                <Link
-                                                                    href={`/tools/${encodeURIComponent(tool.id)}`}
-                                                                    className="hover:underline text-foreground hover:text-primary transition-colors"
+                                                        return (
+                                                            <TableRow key={tool.id} data-hidden={hidden || undefined}>
+                                                                <TableCell
+                                                                    className={
+                                                                        hidden
+                                                                            ? "font-mono font-medium opacity-50"
+                                                                            : "font-mono font-medium"
+                                                                    }
                                                                 >
-                                                                    {tool.name}
-                                                                </Link>
-                                                            </TableCell>
-                                                            <TableCell className="text-muted-foreground text-xs max-w-md">
-                                                                {tool.description || "No description"}
-                                                            </TableCell>
-                                                            <TableCell className="text-xs">
-                                                                <span className="font-mono bg-muted px-2 py-0.5 rounded">
-                                                                    {totalProps} props ({requiredParams} required)
-                                                                </span>
-                                                            </TableCell>
-                                                            <TableCell className="text-right">
-                                                                <Button asChild size="sm" variant="outline">
                                                                     <Link
-                                                                        href={`/playground?server=${server.id}&tool=${encodeURIComponent(
-                                                                            tool.name
-                                                                        )}`}
+                                                                        href={`/tools/${encodeURIComponent(tool.id)}`}
+                                                                        className="hover:underline text-foreground hover:text-primary transition-colors"
                                                                     >
-                                                                        Run in Playground
+                                                                        {tool.name}
                                                                     </Link>
-                                                                </Button>
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    );
-                                                })}
-                                            </TableBody>
-                                        </Table>
+                                                                    {hidden && (
+                                                                        <Badge
+                                                                            variant="secondary"
+                                                                            className="ml-2 font-sans text-xs font-medium"
+                                                                        >
+                                                                            Hidden for this key
+                                                                        </Badge>
+                                                                    )}
+                                                                </TableCell>
+                                                                <TableCell
+                                                                    className={
+                                                                        hidden
+                                                                            ? "text-muted-foreground text-xs max-w-md opacity-50"
+                                                                            : "text-muted-foreground text-xs max-w-md"
+                                                                    }
+                                                                >
+                                                                    {tool.description || "No description"}
+                                                                </TableCell>
+                                                                <TableCell className={hidden ? "text-xs opacity-50" : "text-xs"}>
+                                                                    <span className="font-mono bg-muted px-2 py-0.5 rounded">
+                                                                        {totalProps} props ({requiredParams} required)
+                                                                    </span>
+                                                                </TableCell>
+                                                                <TableCell className="text-right">
+                                                                    <Button asChild size="sm" variant="outline">
+                                                                        <Link
+                                                                            href={`/playground?server=${server.id}&tool=${encodeURIComponent(
+                                                                                tool.name
+                                                                            )}`}
+                                                                        >
+                                                                            Run in Playground
+                                                                        </Link>
+                                                                    </Button>
+                                                                </TableCell>
+                                                                {visibilityKey && (
+                                                                    <TableCell className="text-right">
+                                                                        <Switch
+                                                                            aria-label={`Visible to ${visibilityKey.name}`}
+                                                                            checked={!hidden}
+                                                                            disabled={keyToolsLoading || toolsRefreshing}
+                                                                            onCheckedChange={(checked) =>
+                                                                                setToolEnabledMutation.mutate({
+                                                                                    toolName: tool.name,
+                                                                                    enabled: checked,
+                                                                                })
+                                                                            }
+                                                                        />
+                                                                    </TableCell>
+                                                                )}
+                                                            </TableRow>
+                                                        );
+                                                    })}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
                                     </div>
                                 </div>
                             )}
