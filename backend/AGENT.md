@@ -65,91 +65,125 @@
 ```text
 backend/
 ├── AGENT.md                             # You are here
+├── GLOSSARY.md                          # Canonical domain vocabulary
 ├── pyproject.toml                       # Project metadata, dependencies, Ruff & Pytest config
 ├── alembic.ini                          # Alembic migration configuration
 ├── Dockerfile                           # Multi-stage production container build
-├── docker-compose.yml                   # Local container orchestration
+├── docker-compose.yml                   # Local container orchestration (Postgres + pgvector)
 ├── .env.example                         # Reference environment variables
 ├── app/
-│   │   ├── main.py                      # FastAPI factory, ASGI middlewares, lifespan hooks (starts the scheduler)
-│   │   ├── background_service/          # Scheduled background jobs (APScheduler, ADR-0005)
-│   │   │   ├── scheduler.py             # create_scheduler(): AsyncIOScheduler + job registration
-│   │   │   └── session_sweeper.py       # SessionSweeperService: completes idle Sessions (cron job complete-idle-sessions)
-│   │   ├── api/
-│   │   │   ├── dependencies.py          # Centralized dependency injection providers
-│   │   │   └── v1/                      # API Routers (/auth, /servers, /tools, /executions, /system, /sessions)
-│   │   │       ├── executions_router.py # Execution audit log endpoints
-│   │   │       ├── servers_router.py    # MCP Server registration & lifecycle
-│   │   │       ├── sessions_router.py   # MCP Client session management endpoints
-│   │   │       ├── system_router.py     # Liveness, readiness, and telemetry
-│   │   │       └── tools_router.py      # Tool discovery & execution router
-│   │   ├── core/
-│   │   │   ├── config.py                # Settings loaded strictly from .env (no in-code defaults)
-│   │   │   ├── constants/               # Application constants partitioned by domain
-│   │   │   │   ├── meta_tools.py        # Meta-tool identifiers (SEARCH_TOOLS, MULTI_EXECUTE_TOOLS)
-│   │   │   │   └── session_constants.py # Session idle defaults/bounds, sweep job id and cron schedule
-│   │   │   ├── enums/                   # Core enumerations partitioned by domain (no __init__.py)
-│   │   │   │   ├── execution_enum.py    # ExecutionOutcomeKind, RejectionReason
-│   │   │   │   ├── server_enum.py       # TransportType, ServerHealthStatus
-│   │   │   │   └── session_enum.py      # SessionStatus, ToolCallStatus (incl. `rejected`)
-│   │   │   ├── exceptions.py            # Domain exception hierarchy (derived from AppError)
-│   │   │   └── logging.py               # Structured correlation-ID logging & contextvars
-│   │   ├── domain/                      # Domain entities partitioned by entity responsibility
-│   │   │   ├── execution_entity.py      # ExecutionEntity dataclass
-│   │   │   ├── server_entity.py         # ServerEntity dataclass
-│   │   │   ├── session_entity.py        # SessionEntity dataclass
-│   │   │   └── tool_entity.py           # ToolEntity dataclass
-│   │   ├── helpers/                     # Reusable utilities partitioned by responsibility
-│   │   │   ├── errors.py                # MCP error & ExceptionGroup unwrapping (format_mcp_error)
-│   │   │   ├── security.py              # Shell injection, SSRF, env sanitization, header masking
-│   │   │   ├── session_idle.py          # Session idle-timeout arithmetic (effective timeout, is_idle)
-│   │   │   ├── text.py                  # Slugification & string manipulation (slugify)
-│   │   │   └── validation.py            # Tool arguments JSON-schema validation
-│   │   ├── infrastructure/
-│   │   │   ├── database.py              # Async SQLAlchemy engine, session maker, connection pooling
-│   │   │   └── repositories/            # Domain repository modules (interfaces, Postgres implementations)
-│   │   │       ├── execution_repository.py # ExecutionRepositoryAbstract, PostgresExecutionRepository
-│   │   │       ├── server_repository.py    # ServerRepositoryAbstract, PostgresServerRepository
-│   │   │       ├── session_repository.py   # SessionRepositoryAbstract, PostgresSessionRepository
-│   │   │       └── tool_repository.py      # ToolRepositoryAbstract, PostgresToolRepository
-│   │   ├── mcp/                         # Upstream MCP protocol extensions & meta-tools
-│   │   │   ├── mcp_proxy_asgi.py        # Streamable HTTP ASGI proxy application
-│   │   │   ├── mcp_server.py            # MCPServer exposing the hub over stateless Streamable HTTP (/mcp)
-│   │   │   ├── multi_execute_tools.py   # MULTI_EXECUTE_TOOLS parallel dispatcher & failure isolator
-│   │   │   └── search_tools.py          # SEARCH_TOOLS discovery handler & relevance scoring
-│   │   ├── middlewares/                 # ASGI middleware components
-│   │   │   └── correlation.py           # CorrelationAndLoggingMiddleware (request tracing)
-│   │   ├── models/                      # SQLAlchemy 2.0 ORM models
-│   │   │   ├── base_model.py            # Base declarative class
-│   │   │   ├── execution_model.py       # ExecutionModel ORM mapping
-│   │   │   ├── server_model.py          # ServerModel ORM mapping
-│   │   │   ├── session_model.py         # SessionModel ORM mapping
-│   │   │   └── tool_model.py            # ToolModel ORM mapping
-│   │   ├── schemas/                     # Pydantic v2 request/response schemas
-│   │   │   ├── common_schema.py         # Paginated envelopes & Error responses
-│   │   │   ├── connection_schema.py     # Stdio & HTTP transport connection schemas
-│   │   │   ├── execution_schema.py      # Execution audit models
-│   │   │   ├── server_schema.py         # Server models & validation
-│   │   │   ├── session_schema.py        # Session explorer models
-│   │   │   ├── system_schema.py         # Health & metrics models
-│   │   │   └── tool_schema.py           # Tool discovery & execution schemas
-│   │   └── services/                    # Business logic & orchestrators
-│   │       ├── connection_manager.py    # Downstream MCP client session lifecycle (SessionWorker)
-│   │       ├── server_registry.py       # Server CRUD, uniqueness validation, status management
-│   │       ├── auth_service.py          # Accounts, console JWT login, API keys, bearer token -> Principal
-│   │       ├── session_explorer.py      # Session discovery and execution history
-│   │       ├── session_tracker.py       # Maps each /mcp request to a derived hub Session (ADR-0003, ADR-0004)
-│   │       ├── tool_catalog.py          # Tool index over discovered_tools (no in-memory cache), Tool Reference resolution
-│   │       └── tool_executor.py         # Execution module: resolve Tool Reference, check, validate, call, audit (ADR-0002)
-├── demo_server/                         # Standalone downstream demo MCP servers for E2E tests
+│   ├── main.py                          # FastAPI factory, ASGI middlewares, lifespan hooks (starts the scheduler)
+│   ├── background_service/              # Scheduled background jobs (APScheduler, ADR-0005, ADR-0006)
+│   │   ├── scheduler.py                 # create_scheduler(): AsyncIOScheduler + job registration
+│   │   ├── session_sweeper.py           # SessionSweeperService: completes idle Sessions (cron job complete-idle-sessions)
+│   │   └── embedding_backfill.py        # EmbeddingBackfillService: embeds Tools stored without one (job backfill-tool-embeddings)
+│   ├── api/
+│   │   ├── dependencies.py              # Centralized dependency injection providers, get_current_principal
+│   │   └── v1/                          # API Routers
+│   │       ├── auth_router.py           # /auth: register, login, me, API keys
+│   │       ├── api_key_tools_router.py  # /auth/api-keys/{id}/servers/{id}/tools: per-key tool visibility (ADR-0007)
+│   │       ├── executions_router.py     # Execution audit log endpoints
+│   │       ├── oauth_router.py          # /oauth/providers, /oauth/connect, /oauth/callback, /servers/{id}/oauth/reconnect (ADR-0008)
+│   │       ├── servers_router.py        # MCP Server registration & lifecycle
+│   │       ├── sessions_router.py       # MCP Client session explorer endpoints
+│   │       ├── system_router.py         # Liveness, readiness, and telemetry
+│   │       └── tools_router.py          # Tool discovery & execution router
+│   ├── core/
+│   │   ├── config.py                    # Settings loaded strictly from .env (no in-code defaults)
+│   │   ├── constants/                   # Application constants partitioned by domain
+│   │   │   ├── meta_tools.py            # Meta-tool identifiers (SEARCH_TOOLS, MULTI_EXECUTE_TOOLS)
+│   │   │   ├── session_constants.py     # Session idle defaults/bounds, sweep job id and cron schedule
+│   │   │   └── tool_search_constants.py # Embedding backfill job id, batch size and interval
+│   │   ├── enums/                       # Core enumerations partitioned by domain (no __init__.py)
+│   │   │   ├── execution_enum.py        # ExecutionOutcomeKind, RejectionReason
+│   │   │   ├── server_enum.py           # TransportType, ServerHealthStatus (incl. NEEDS_AUTH), ServerAuthType
+│   │   │   └── session_enum.py          # SessionStatus, ToolCallStatus (incl. `rejected`)
+│   │   ├── exceptions.py                # Domain exception hierarchy (derived from AppError)
+│   │   └── logging.py                   # Structured correlation-ID logging & contextvars
+│   ├── domain/                          # Domain entities partitioned by entity responsibility
+│   │   ├── api_key_entity.py            # ApiKeyEntity dataclass
+│   │   ├── execution_entity.py          # ExecutionEntity dataclass
+│   │   ├── principal_entity.py          # Principal: the authenticated caller (account + API key)
+│   │   ├── server_entity.py             # ServerEntity dataclass
+│   │   ├── session_entity.py            # SessionEntity, SessionDetailEntity, ToolCallEntity
+│   │   ├── tool_entity.py               # ToolEntity dataclass
+│   │   └── user_entity.py               # UserEntity dataclass
+│   ├── helpers/                         # Reusable utilities partitioned by responsibility
+│   │   ├── crypto.py                    # SecretCipher: Fernet encryption of stored OAuth credentials
+│   │   ├── errors.py                    # MCP error & ExceptionGroup unwrapping (format_mcp_error)
+│   │   ├── passwords.py                 # Password hashing and verification
+│   │   ├── security.py                  # Shell injection, SSRF (incl. DNS resolution), env sanitization, header masking
+│   │   ├── session_idle.py              # Session idle-timeout arithmetic (effective timeout, is_idle)
+│   │   ├── text.py                      # Slugification & string manipulation (slugify)
+│   │   ├── tokens.py                    # Console JWTs, API key generation and hashing (`mhk_` prefix)
+│   │   └── validation.py                # Tool arguments JSON-schema validation
+│   ├── infrastructure/
+│   │   ├── database.py                  # Async SQLAlchemy engine, session maker, connection pooling
+│   │   ├── oauth/                       # OAuth connections to hosted MCP servers (ADR-0008)
+│   │   │   ├── client_provider.py       # HubOAuthClientProvider, DbTokenStorage/MemoryTokenStorage, client metadata
+│   │   │   ├── provider_catalog.py      # OAuthProviderCatalog loaded from the JSON catalog
+│   │   │   └── oauth_providers.json     # Curated providers the console offers
+│   │   └── repositories/                # Domain repository modules (interfaces, Postgres implementations)
+│   │       ├── api_key_repository.py    # ApiKeyRepositoryAbstract, PostgresApiKeyRepository
+│   │       ├── execution_repository.py  # ExecutionRepositoryAbstract, PostgresExecutionRepository
+│   │       ├── oauth_credential_repository.py # Encrypted OAuth client registration and tokens per server
+│   │       ├── server_repository.py     # ServerRepositoryAbstract, PostgresServerRepository
+│   │       ├── session_repository.py    # SessionRepositoryAbstract, PostgresSessionRepository
+│   │       ├── tool_access_repository.py # Tools hidden from an API key (api_key_disabled_tools)
+│   │       ├── tool_repository.py       # ToolRepositoryAbstract, PostgresToolRepository (incl. search_by_embedding)
+│   │       └── user_repository.py       # UserRepositoryAbstract, PostgresUserRepository
+│   ├── mcp/                             # Upstream MCP protocol extensions & meta-tools
+│   │   ├── mcp_proxy_asgi.py            # ASGI proxy: authenticates x-api-key, refuses non-POST, hands off to the SDK
+│   │   ├── mcp_server.py                # MCPServer exposing the hub over stateless Streamable HTTP (/mcp)
+│   │   ├── multi_execute_tools.py       # MULTI_EXECUTE_TOOLS parallel dispatcher & failure isolator
+│   │   └── search_tools.py              # SEARCH_TOOLS discovery handler (vector search through the tool catalog)
+│   ├── middlewares/                     # ASGI middleware components
+│   │   └── correlation.py               # CorrelationAndLoggingMiddleware (request tracing)
+│   ├── models/                          # SQLAlchemy 2.0 ORM models
+│   │   ├── api_key_disabled_tool_model.py # Tools hidden from one API key (ADR-0007)
+│   │   ├── api_key_model.py             # ApiKeyModel ORM mapping (hash only)
+│   │   ├── base_model.py                # Base declarative class
+│   │   ├── execution_model.py           # ExecutionModel ORM mapping (no FK to mcp_servers: kept after delete)
+│   │   ├── server_model.py              # ServerModel ORM mapping
+│   │   ├── server_oauth_credential_model.py # Fernet-encrypted OAuth credentials of one server
+│   │   ├── session_model.py             # SessionModel ORM mapping
+│   │   ├── tool_model.py                # ToolModel ORM mapping (pgvector embedding column)
+│   │   └── user_model.py                # UserModel ORM mapping
+│   ├── schemas/                         # Pydantic v2 request/response schemas
+│   │   ├── auth_schema.py               # Register/login, tokens, API keys
+│   │   ├── common_schema.py             # Paginated envelopes & Error responses
+│   │   ├── connection_schema.py         # Stdio & HTTP transport connection schemas
+│   │   ├── execution_schema.py          # Execution audit models
+│   │   ├── oauth_schema.py              # OAuth providers and connect responses
+│   │   ├── server_schema.py             # Server models & validation
+│   │   ├── session_schema.py            # Session explorer models
+│   │   ├── system_schema.py             # Health & metrics models
+│   │   ├── tool_access_schema.py        # Per-API-key tool visibility models
+│   │   └── tool_schema.py               # Tool discovery & execution schemas
+│   └── services/                        # Business logic & orchestrators
+│       ├── auth_service.py              # Accounts, console JWT login, API keys, bearer token -> Principal
+│       ├── connection_manager.py        # Downstream MCP client session lifecycle (SessionWorker)
+│       ├── embedding_service.py         # EmbeddingServiceAbstract, FastEmbedService, tool_embedding_text
+│       ├── oauth_service.py             # OAuthService + OAuthFlowRegistry: sign-ins that end in a connected server
+│       ├── server_registry.py           # Server CRUD, uniqueness validation, status management
+│       ├── session_explorer.py          # Session discovery and execution history
+│       ├── session_tracker.py           # Maps each /mcp request to a derived hub Session (ADR-0003, ADR-0004)
+│       ├── tool_access_service.py       # Per-API-key tool visibility (ADR-0007)
+│       ├── tool_catalog.py              # Tool index over discovered_tools (no in-memory cache), Tool Reference resolution
+│       └── tool_executor.py             # Execution module: resolve Tool Reference, check, validate, call, audit (ADR-0002)
+├── demo_server/                         # Standalone downstream demo MCP servers (server.py math, server_b.py text)
+├── docs/                                # api-contract.md, ADRs (docs/adr/), Postman collection & environment
 ├── migrations/                          # Alembic schema revision scripts
 └── tests/
-    ├── conftest.py                      # Pytest async fixtures, test DB cleanup, async_client
+    ├── conftest.py                      # Pytest async fixtures, test DB setup/cleanup, signed-in clients
+    ├── fake_downstream.py               # In-memory stand-in for a downstream Server, at the ConnectionManager seam
+    ├── fake_embeddings.py               # FakeEmbeddingService (tests never load the real model)
+    ├── fake_oauth_server.py             # OAuth-protected MCP server built from the SDK's auth server
     ├── unit/                            # Fast unit tests (services, helpers, catalog, meta-tools)
     │   ├── test_search_tools.py         # SEARCH_TOOLS discovery & ranking tests
     │   ├── test_multi_execute_tools.py  # MULTI_EXECUTE_TOOLS parallel dispatch & isolation tests
     │   └── ...
-    ├── integration/                     # Multi-server aggregation, E2E gateway, database CRUD
+    ├── integration/                     # Multi-server aggregation, E2E gateway, OAuth flow, database CRUD
     └── security/                        # SSRF, command injection, executable allowlist tests
 ```
 
@@ -266,11 +300,9 @@ Strict unidirectional dependency flow:
 
 - **Runner**: `pytest` with `pytest-asyncio` in auto mode (`asyncio_mode = "auto"`).
 - **Test Isolation**: Every test automatically runs the `cleanup_dependencies` fixture in `tests/conftest.py`, which:
-  1. Initializes the database schema (`init_db()`).
-  2. Shuts down active connections in `_connection_manager`.
-   The suite deletes every row in the database it targets: always export `TEST_DATABASE_URL` (conftest no longer falls back to `DATABASE_URL`).
-  3. Purges all rows from `discovered_tools`, `tool_executions`, and `mcp_servers`.
-  4. Clears MCP gateway session mappings.
+  1. Shuts down active connections in `_connection_manager` after the test.
+  2. Purges all rows from `discovered_tools`, `tool_executions`, `mcp_sessions`, `mcp_servers`, `api_keys` and `users` (other tables go with them by cascade).
+  The schema is created once per run (`init_db()` in a session-scoped fixture). The suite deletes every row in the database it targets: always export `TEST_DATABASE_URL` (conftest no longer falls back to `DATABASE_URL`).
 - **Test Client**: `async_client` is signed in as a default account (`user_id` fixture gives its ID; `account_id` creates a bare account for repository-level tests); `other_user_client` is a second account; `anon_client` has no credentials.
 - **Test Categories**:
   - `tests/unit/`: Test individual services, repositories (`test_repository.py`), and helpers.
