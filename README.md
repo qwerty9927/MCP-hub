@@ -1,5 +1,8 @@
 # MCP Hub
 
+[![Backend CI](https://github.com/qwerty9927/MCP-hub/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/qwerty9927/MCP-hub/actions/workflows/backend-ci.yml)
+[![Frontend CI](https://github.com/qwerty9927/MCP-hub/actions/workflows/frontend-ci.yml/badge.svg)](https://github.com/qwerty9927/MCP-hub/actions/workflows/frontend-ci.yml)
+
 Centralized platform for Model Context Protocol (MCP) server management, tool cataloging, and unified REST API invocation.
 
 - **Backend:** [`backend/`](backend/) — FastAPI modular monolith with official MCP 2.x SDK, multi-transport support (`stdio`, `streamable-http`), security controls, and full test suite.
@@ -45,3 +48,14 @@ pnpm test        # Vitest unit and component test suite
 pnpm build       # Optimized Next.js production build
 pnpm test:e2e    # Playwright end-to-end tests
 ```
+
+---
+
+## Continuous Integration
+
+GitHub Actions runs on every pull request and on pushes to `main`, for the side that changed:
+
+- **Backend CI** ([`.github/workflows/backend-ci.yml`](.github/workflows/backend-ci.yml)): `ruff check`, `ruff format --check`, Alembic migrations against an empty database, and the full `pytest` suite on Postgres with pgvector.
+- **Frontend CI** ([`.github/workflows/frontend-ci.yml`](.github/workflows/frontend-ci.yml)): `pnpm typecheck`, `pnpm format:check`, `pnpm test` and `pnpm build`.
+
+The Playwright e2e specs are not run in CI yet.

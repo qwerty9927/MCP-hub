@@ -10,6 +10,7 @@
         "start": "next start",
         "typecheck": "tsc --noEmit",
         "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\" \"*.{ts,mjs,json}\"",
+        "format:check": "prettier --check \"src/**/*.{ts,tsx,css,json}\" \"*.{ts,mjs,json}\"",
         "test": "vitest run",
         "test:watch": "vitest",
         "test:e2e": "playwright test"
