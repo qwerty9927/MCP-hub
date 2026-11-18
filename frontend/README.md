@@ -36,6 +36,8 @@ frontend/
 │   │   ├── page.tsx                       # Redirects to /overview
 │   │   ├── globals.css                    # Tailwind & Design tokens
 │   │   ├── providers.tsx                  # QueryClient, ThemeProvider, Toaster
+│   │   ├── (auth)/                        # login/ and register/ pages (no dashboard shell)
+│   │   ├── oauth/complete/page.tsx        # OAuth callback landing: posts the result to the opener or redirects
 │   │   └── (dashboard)/
 │   │       ├── layout.tsx                 # DashboardShell wrapper
 │   │       ├── overview/page.tsx          # Real-time metrics, server health & recent runs
@@ -52,21 +54,28 @@ frontend/
 │   │       ├── executions/
 │   │       │   ├── page.tsx               # Execution history & audit logs
 │   │       │   └── [executionId]/page.tsx # Single execution argument & result view
-│   │       └── settings/page.tsx          # Backend URL, probes, and auth tokens
+│   │       ├── sessions/
+│   │       │   ├── page.tsx               # Session explorer: agent sessions with status filters
+│   │       │   └── [sessionId]/page.tsx   # Session overview and tool-call timeline
+│   │       └── settings/page.tsx          # Backend probes and API keys for MCP clients
 │   ├── components/
-│   │   ├── layout/                        # Sidebar, Header, DashboardShell
+│   │   ├── layout/                        # Sidebar, Header, DashboardShell, AuthGuard
 │   │   ├── common/                        # HealthBadge, PageHeader, EmptyState, ErrorAlert, Pagination
 │   │   └── ui/                            # shadcn/ui primitives (button, card, dialog, table, etc.)
 │   ├── features/
+│   │   ├── auth/                          # LoginForm, RegisterForm, ApiKeysCard, use-auth hooks
 │   │   ├── overview/                      # Overview metrics components
-│   │   ├── servers/                       # ServerForm, ServerListTable, FilterBar, hooks
+│   │   ├── servers/                       # ServerForm, RegisterServerDialog, OAuth connect/reconnect, DeletedServerNotice, hooks
+│   │   ├── sessions/                      # Session tables, filters, tool-call timeline & detail drawer, hooks
 │   │   ├── tools/                         # ToolListTable, ToolFilterBar, hooks
 │   │   ├── playground/                    # SchemaForm, ToolPlayground, output viewer
-│   │   ├── executions/                    # ExecutionListTable, ExecutionFilterBar, hooks
-│   │   └── settings/                      # Diagnostic and appearance settings
+│   │   └── executions/                    # ExecutionListTable, ExecutionFilterBar, hooks
 │   ├── lib/
 │   │   ├── api-client.ts                  # Centralized Axios instance with correlation IDs
-│   │   ├── api/                           # Typed API client modules (servers, tools, execs, system)
+│   │   ├── api/                           # Typed API modules (auth, servers, oauth, tools, executions, sessions, system)
+│   │   ├── auth-token.ts                  # Console token in sessionStorage, login redirect helpers
+│   │   ├── oauth-complete.ts              # Reads the OAuth callback result
+│   │   ├── server-links.ts                # Links to servers from history (which may be deleted)
 │   │   ├── errors.ts                      # AppApiError normalized error hierarchy
 │   │   └── utils.ts                       # Formatters (duration, dates) & cn class utility
 │   ├── schemas/                           # Zod validation schemas
@@ -137,28 +146,40 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## 5. Backend API Endpoints Consumed
 
-The frontend integrates directly with the MCP Hub REST API:
+The frontend integrates directly with the MCP Hub REST API (full contract: `backend/docs/api-contract.md`). Every call except register and login sends the console token as `Authorization: Bearer <token>`.
+
+### Accounts & API Keys
+- `POST /api/v1/auth/register`, `POST /api/v1/auth/login` — Create an account; sign in for a console token.
+- `GET /api/v1/auth/me` — The signed-in account (`AuthGuard` waits for it).
+- `GET|POST /api/v1/auth/api-keys`, `PATCH|DELETE /api/v1/auth/api-keys/{key_id}` — API keys for MCP clients and their Session idle timeout.
+- `GET /api/v1/auth/api-keys/{key_id}/servers/{server_id}/tools`, `PATCH .../tools/{tool_name}` — Which of a server's tools a key can see and run.
 
 ### MCP Server Management
 - `GET /api/v1/servers` — List servers with search, filtering (`transport`, `health_status`, `enabled`), sorting, and pagination.
 - `GET /api/v1/servers/{server_id}` — Get single server configuration and health status.
 - `POST /api/v1/servers` — Register a new server (`stdio` or `streamable-http`).
 - `PATCH /api/v1/servers/{server_id}` — Update server configuration, descriptions, or toggle execution status.
-- `DELETE /api/v1/servers/{server_id}` — Delete server, release active sessions, and purge tools.
+- `DELETE /api/v1/servers/{server_id}` — Delete server, release active sessions, and purge tools (its execution history is kept).
 - `POST /api/v1/servers/{server_id}/connect` — Initialize MCP client session and perform tool discovery.
 - `POST /api/v1/servers/{server_id}/disconnect` — Gracefully terminate client connection session.
 - `POST /api/v1/servers/{server_id}/test-connection` — Run ephemeral ping check and tool discovery returning latency and tool count.
 - `POST /api/v1/servers/{server_id}/refresh-tools` — Re-query server for tools and update catalog.
 - `GET /api/v1/servers/{server_id}/tools` — Get tools discovered strictly for the specified server.
 
+### OAuth Connections
+- `GET /api/v1/oauth/providers` — Hosted providers that connect with a sign-in, with availability and connection count.
+- `POST /api/v1/oauth/connect` — Start a sign-in; returns the authorization URL opened in the popup.
+- `POST /api/v1/servers/{server_id}/oauth/reconnect` — Sign in again to a server whose tokens expired (`NEEDS_AUTH`).
+
 ### Tool Catalog & Execution
 - `GET /api/v1/tools` — Unified tool catalog across all servers with search, server filter, and availability filter.
-- `GET /api/v1/tools/{tool_id}` — Retrieve schema and metadata for a tool by qualified ID (`{server_id}:{tool_name}`).
+- `GET /api/v1/tools/{tool_id}` — Retrieve schema and metadata for a tool by its UUID (ids change when a server is re-discovered).
 - `POST /api/v1/servers/{server_id}/tools/{tool_name}/execute` — Validate arguments and invoke tool via backend.
 
-### Execution History
-- `GET /api/v1/executions` — List execution history with filters for `tool_name`, `server_id`, `is_error`, and pagination.
-- `GET /api/v1/executions/{execution_id}` — Get full audit record for a single execution including arguments and execution timing.
+### Execution History & Sessions
+- `GET /api/v1/executions` — List execution history with filters for `tool_name`, `server_id`, `is_error`, `status`, and pagination.
+- `GET /api/v1/executions/{execution_id}` — Full audit record for a single execution, including arguments, response and timing.
+- `GET /api/v1/sessions`, `GET /api/v1/sessions/{session_id}`, `GET /api/v1/sessions/{session_id}/tool-calls` — Session explorer.
 
 ### Telemetry & Probes
 - `GET /api/v1/system/health` — Liveness probe (`status`, `version`, `timestamp`).
@@ -167,19 +188,11 @@ The frontend integrates directly with the MCP Hub REST API:
 
 ---
 
-## 6. Analysis of Backend Capabilities & Integration Requirements
+## 6. Known Gaps
 
-During the inspection of the FastAPI backend and implementation of the dashboard, the following observations and enhancement points were identified:
-
-1. **Authentication & Authorization:**
-   - **Current State:** The backend routes are currently unauthenticated (open access).
-   - **Frontend Readiness:** The API client includes request interceptors that automatically check and attach `Authorization: Bearer <token>` from volatile session storage (`sessionStorage.getItem("mcp_auth_token")`). When backend auth is introduced (e.g. JWT or API keys), the frontend requires zero refactoring.
-2. **Batch / Bulk Actions:**
-   - The backend does not currently provide batch connect, disconnect, or delete endpoints. The frontend executes these per-server.
-3. **Execution Latency Aggregation:**
-   - The backend provides total executions in `/metrics`, but does not provide backend-calculated percentiles (p50, p95, p99) or historical latency timeseries. The frontend derives average execution latency from recent execution records.
-4. **Tool Execution Logs Output:**
-   - The backend `ExecutionRecord` schema stores `arguments`, `is_error`, `error_message`, and `duration_ms`. The full result content is returned on initial execution response (`ToolExecuteResponse`). If persisted output history is desired in the backend database, the backend schema could optionally retain sanitized output summaries.
+1. **Token refresh:** console tokens expire with no refresh token; an expired token sends the user back to the login page.
+2. **Batch / Bulk Actions:** the backend does not provide batch connect, disconnect, or delete endpoints. The frontend executes these per-server.
+3. **Execution Latency Aggregation:** the backend provides total executions in `/metrics`, but no percentiles (p50, p95, p99) or latency timeseries. The frontend derives average execution latency from recent execution records.
 
 ---
 

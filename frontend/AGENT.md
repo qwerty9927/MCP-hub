@@ -63,12 +63,15 @@
 frontend/
 ├── src/
 │   ├── app/                            # Next.js 15 App Router
+│   │   ├── (auth)/                     # Login and register pages
+│   │   ├── oauth/complete/             # OAuth callback landing page (posts the result to the opener)
 │   │   ├── (dashboard)/                # Dashboard route group (DashboardShell layout)
 │   │   │   ├── executions/             # Execution history listing & detail log views
 │   │   │   ├── overview/               # Health metrics and platform status dashboard
 │   │   │   ├── playground/             # Interactive MCP tool invocation playground
 │   │   │   ├── servers/                # Server management (listing, new, edit, detail)
-│   │   │   ├── settings/               # System and endpoint connection settings
+│   │   │   ├── sessions/               # Session explorer (list & tool-call timeline)
+│   │   │   ├── settings/               # Probes and API keys for MCP clients
 │   │   │   ├── tools/                  # Unified tool catalog & schema breakdown views
 │   │   │   └── layout.tsx              # Shell layout wrapping all dashboard pages
 │   │   ├── globals.css                 # Tailwind base styles and CSS variables
@@ -77,17 +80,22 @@ frontend/
 │   │   └── providers.tsx               # Client wrapper: QueryClient, NextThemes, Toaster
 │   ├── components/                     # Reusable UI components
 │   │   ├── common/                     # Domain-agnostic UI (HealthBadge, PageHeader, ErrorAlert)
-│   │   ├── layout/                     # App shell, Top Header, and Navigation Sidebar
+│   │   ├── layout/                     # App shell, Top Header, Navigation Sidebar, AuthGuard
 │   │   └── ui/                         # shadcn/ui Radix primitives (button, dialog, table, tabs, etc.)
 │   ├── features/                       # Domain-driven feature modules
+│   │   ├── auth/                       # Login/register forms, ApiKeysCard, use-auth hooks
 │   │   ├── executions/                 # Execution tables, filters, and useExecutions hook
 │   │   ├── overview/                   # Overview metrics dashboard component
 │   │   ├── playground/                 # SchemaForm dynamic input builder & ToolPlayground
-│   │   ├── servers/                    # ServerForm, ServerListTable, and useServers hooks
+│   │   ├── servers/                    # ServerForm, RegisterServerDialog, OAuth connect (use-oauth), per-key tool visibility
+│   │   ├── sessions/                   # Session tables, filters, tool-call timeline, useSessions hooks
 │   │   └── tools/                      # ToolListTable, ToolFilterBar, and useTools hooks
 │   ├── lib/                            # Shared utilities and backend clients
-│   │   ├── api/                        # Typed domain API modules (servers, tools, executions, system)
-│   │   ├── api-client.ts               # Axios client instance with X-Correlation-ID & error mapping
+│   │   ├── api/                        # Typed domain API modules (auth, servers, oauth, tools, executions, sessions, system)
+│   │   ├── api-client.ts               # Axios client: X-Correlation-ID, bearer token, 401 -> /login, error mapping
+│   │   ├── auth-token.ts               # Console token in sessionStorage, loginPath/safeNextPath
+│   │   ├── oauth-complete.ts           # Reads the OAuth callback result
+│   │   ├── server-links.ts             # Links from history to servers that may be deleted
 │   │   ├── errors.ts                   # AppApiError class and error normalizer
 │   │   └── utils.ts                    # cn() class merger, formatDate(), formatDuration()
 │   ├── schemas/                        # Zod form validation schemas (server.schema.ts)
@@ -120,7 +128,7 @@ frontend/
         // ...
     }
     ```
-  - When decoding URL-encoded params (e.g. server-qualified tool IDs like `uuid:tool_name`), use safe decoding:
+  - When decoding URL-encoded params (e.g. `toolId` on the tool detail page), use safe decoding:
     ```tsx
     let decodedId = toolId;
     try {
