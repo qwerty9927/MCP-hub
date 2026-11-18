@@ -3,8 +3,6 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com)
 [![MCP SDK](https://img.shields.io/badge/MCP%20SDK-2.3+-orange.svg)](https://modelcontextprotocol.io)
-[![Tests Passing](https://img.shields.io/badge/tests-72%20passed-brightgreen.svg)]()
-[![Coverage 86%](https://img.shields.io/badge/coverage-86%25-green.svg)]()
 
 A production-oriented backend for an **MCP Hub** that centrally orchestrates multiple **Model Context Protocol (MCP)** servers, exposes their tools through a unified REST API, and functions as a full-featured **MCP Gateway** exposing aggregated tools over standard Streamable HTTP (`/mcp`).
 
@@ -70,11 +68,11 @@ flowchart TD
 ### Architectural Highlights
 
 1. **MCP Gateway (Hub as Server)**: The hub acts as both an MCP client (connecting downstream) and an MCP server exposing aggregated tools through a single Streamable HTTP endpoint (`/mcp`). Downstream tools are dynamically discovered, namespaced (`{server_slug}__{tool_name}`), collision-proofed, and forwarded with full fidelity.
-2. **SessionWorker Isolation**: MCP client sessions use AnyIO cancel scopes internally. To prevent cross-task cancel scope errors in asynchronous web servers, each active MCP connection runs inside a dedicated `SessionWorker` task. The worker enters and exits its `AsyncExitStack` within the same task while concurrently processing requests via asyncio queues and synchronization primitives.
+2. **SessionWorker Isolation**: MCP client sessions use AnyIO cancel scopes internally. To prevent cross-task cancel scope errors in asynchronous web servers, each active MCP connection runs inside a dedicated `SessionWorker` task. The worker enters and exits its `AsyncExitStack` within the same task and holds the session open until it is told to stop; tool calls use that session under a per-server concurrency limit (`MAX_CONCURRENT_EXECUTIONS_PER_SERVER`).
 3. **Multi-Transport Support**: First-class support for both `stdio` (subprocess pipelines) and `streamable-http` (HTTP streaming endpoints) using the official `mcp` 2.x SDK.
-4. **Unified Tool Catalog**: Tools discovered from heterogeneous MCP servers are indexed into a consolidated catalog with persistent PostgreSQL storage and caching. Every tool has a UUID id (new on each re-discovery) and an embedding for semantic search; cross-server naming collisions are resolved by the server in the REST path (`/servers/{server_id}/tools/{tool_name}`) and by namespaced slugs (`{server_slug}__{tool_name}`) in the MCP Gateway.
+4. **Unified Tool Catalog**: Tools discovered from heterogeneous MCP servers are indexed into a consolidated catalog stored in PostgreSQL and read from the database on every lookup (no in-memory cache). Every tool has a UUID id (new on each re-discovery) and an embedding for semantic search; cross-server naming collisions are resolved by the server in the REST path (`/servers/{server_id}/tools/{tool_name}`) and by namespaced slugs (`{server_slug}__{tool_name}`) in the MCP Gateway.
 5. **Defense-in-Depth Security**:
-   - Stdio commands restricted to an approved executable allowlist (`python`, `uv`, `node`, `npx`, `docker`).
+   - Stdio commands restricted to the executables listed in `ALLOWED_STDIO_EXECUTABLES`.
    - Command injection defense and argument validation.
    - SSRF protection rejecting private IP ranges, loopback, and cloud metadata endpoints (`169.254.169.254`).
    - Automatic masking of sensitive headers and credentials in API outputs.
@@ -83,6 +81,8 @@ flowchart TD
    Exposes two native meta-tools on `/mcp` designed for autonomous upstream agents:
    - `SEARCH_TOOLS`: Semantic discovery: queries and tools are embedded by a local fastembed model and ranked by cosine similarity in pgvector (ADR-0006). Excludes meta-tools to prevent recursion and returns deduplicated candidate tools, best match first, with their `similarity`.
    - `MULTI_EXECUTE_TOOLS`: Parallel dispatcher executing multiple tool calls concurrently via `asyncio.gather` through `ToolExecutor` (the Execution module). Provides per-tool failure isolation (a failed downstream call does not fail sibling executions) while strictly preserving AnyIO cancel scopes, JSON schema validation, and database audit logging.
+7. **Accounts and API Keys**: Every Server, Tool, Execution and Session belongs to one account, and another account's resource is a 404. The REST API accepts only console login tokens (JWT); `/mcp` accepts only API keys (`x-api-key`). Each key can hide individual Tools (ADR-0007) and sets the idle timeout of the Sessions it opens (ADR-0005).
+8. **OAuth Connections**: Hosted MCP servers that need OAuth are connected from a curated provider catalog. The MCP SDK runs discovery, client registration, PKCE and refresh; tokens are stored Fernet-encrypted, and a server whose tokens can no longer be refreshed is marked `NEEDS_AUTH` until the owner signs in again (ADR-0008).
 
 ---
 
@@ -91,83 +91,29 @@ flowchart TD
 ```text
 backend/
 ├── app/
-│   ├── main.py                          # FastAPI application factory & lifespan
-│   ├── api/
-│   │   ├── dependencies.py              # Dependency injection providers
-│   │   └── v1/
-│   │       ├── executions_router.py     # Execution audit log endpoints
-│   │       ├── servers_router.py        # MCP Server registration & lifecycle
-│   │       ├── sessions_router.py       # MCP Client session management endpoints
-│   │       ├── system_router.py         # Liveness, readiness, and telemetry
-│   │       └── tools_router.py          # Tool discovery & execution router
-│   ├── core/
-│   │   ├── config.py                    # Pydantic v2 application settings
-│   │   ├── constants/
-│   │   │   └── meta_tools.py            # Meta-tool names & sets (SEARCH_TOOLS, MULTI_EXECUTE_TOOLS)
-│   │   ├── enums/
-│   │   │   ├── server_enum.py           # ServerHealthStatus, TransportType
-│   │   │   └── session_enum.py          # SessionStatus, ToolCallStatus
-│   │   ├── logging.py                   # Structured correlation-ID logging
-│   │   └── exceptions.py                # Domain exception hierarchy
-│   ├── helpers/
-│   │   ├── errors.py                    # MCP error & ExceptionGroup unwrapping
-│   │   ├── security.py                  # Command, URL & environment sanitization
-│   │   ├── text.py                      # String & slugification utilities
-│   │   └── validation.py                # JSON schema & tool argument validation
-│   ├── domain/
-│   │   ├── execution_entity.py          # ExecutionEntity dataclass
-│   │   ├── server_entity.py             # ServerEntity dataclass
-│   │   ├── session_entity.py            # SessionEntity dataclass
-│   │   └── tool_entity.py               # ToolEntity dataclass
-│   ├── middlewares/
-│   │   └── correlation.py               # Pure ASGI correlation ID & request logger
-│   ├── models/
-│   │   ├── base_model.py                # Base declarative model class
-│   │   ├── execution_model.py           # ExecutionModel ORM mapping
-│   │   ├── server_model.py              # ServerModel ORM mapping
-│   │   ├── session_model.py             # SessionModel ORM mapping
-│   │   └── tool_model.py                # ToolModel ORM mapping
-│   ├── schemas/
-│   │   ├── common_schema.py             # Paginated envelopes & Error responses
-│   │   ├── connection_schema.py         # Stdio & HTTP transport connection schemas
-│   │   ├── execution_schema.py          # Execution audit models
-│   │   ├── server_schema.py             # Server models & validation
-│   │   ├── session_schema.py            # Session explorer models
-│   │   ├── system_schema.py             # Health & metrics models
-│   │   └── tool_schema.py               # Tool discovery & execution schemas
-│   ├── services/
-│   │   ├── connection_manager.py        # Process & stream session orchestration
-│   │   ├── server_registry.py           # Server CRUD business logic
-│   │   ├── session_explorer.py          # Session discovery & execution history
-│   │   ├── tool_catalog.py              # Cross-server tool aggregation cache
-│   │   └── tool_executor.py             # Execution module: resolve, validate, call, audit
-│   ├── mcp/
-│   │   ├── mcp_proxy_asgi.py            # Streamable HTTP ASGI proxy application
-│   │   ├── mcp_server.py                # MCPServer exposing the hub over Streamable HTTP (/mcp)
-│   │   ├── multi_execute_tools.py       # Parallel MULTI_EXECUTE_TOOLS dispatcher
-│   │   └── search_tools.py              # SEARCH_TOOLS handler (vector search via the tool catalog)
-│   └── infrastructure/
-│       ├── database.py                  # Database connection & session setup
-│       └── repositories/
-│           ├── execution_repository.py  # ExecutionRepositoryAbstract, PostgresExecutionRepository
-│           ├── server_repository.py     # ServerRepositoryAbstract, PostgresServerRepository
-│           ├── session_repository.py    # SessionRepositoryAbstract, PostgresSessionRepository
-│           └── tool_repository.py       # ToolRepositoryAbstract, PostgresToolRepository
-├── demo_server/
-│   └── server.py                        # Built-in demo MCP server (3 tools)
-├── docs/
-│   └── api-contract.md                  # Comprehensive REST API contract
-├── tests/
-│   ├── conftest.py                      # Test fixtures & test clients
-│   ├── unit/                            # Unit test suite (search, multi-execute, gateway, router)
-│   ├── integration/                     # Full lifecycle stdio & HTTP tests
-│   └── security/                        # Security validation tests
-├── Dockerfile                           # Production multi-stage Docker build
-├── docker-compose.yml                   # Docker Compose setup
-├── pyproject.toml                       # Pinned dependencies & tooling configs
-├── .env.example                         # Environment configuration template
-└── README.md
+│   ├── main.py                # FastAPI application factory & lifespan (starts the background scheduler)
+│   ├── api/v1/                # Routers: auth, API-key tool visibility, servers, OAuth, tools, executions, sessions, system
+│   ├── background_service/    # APScheduler jobs: idle-session sweeper, embedding backfill
+│   ├── core/                  # Settings, constants, enums, exceptions, logging
+│   ├── domain/                # Dataclass entities passed between layers
+│   ├── helpers/               # Security (allowlist, SSRF), tokens, passwords, crypto, validation
+│   ├── infrastructure/        # Database engine, Postgres repositories, OAuth client glue & provider catalog
+│   ├── mcp/                   # /mcp gateway: auth proxy, MCPServer, SEARCH_TOOLS, MULTI_EXECUTE_TOOLS
+│   ├── middlewares/           # Correlation ID & request logging
+│   ├── models/                # SQLAlchemy 2.0 ORM models
+│   ├── schemas/               # Pydantic v2 request/response schemas
+│   └── services/              # Auth, connection manager, catalog, executor, sessions, OAuth, embeddings
+├── demo_server/               # Demo downstream MCP servers (server.py: math, server_b.py: text)
+├── docs/                      # api-contract.md, ADRs (docs/adr/), Postman collection
+├── migrations/                # Alembic revisions
+├── tests/                     # unit/, integration/, security/ plus fakes (downstream, embeddings, OAuth server)
+├── Dockerfile
+├── docker-compose.yml         # Backend + PostgreSQL with pgvector
+├── pyproject.toml
+└── .env.example
 ```
+
+See [`AGENT.md`](AGENT.md) for the file-by-file module map, and [`GLOSSARY.md`](GLOSSARY.md) for the domain terms.
 
 ---
 
@@ -209,12 +155,17 @@ Copy the example configuration:
 cp .env.example .env
 ```
 
-Key environment options in `.env`:
+Every setting is required; there are no in-code defaults. The ones to review first:
 ```ini
-PROJECT_NAME="MCP Hub Backend"
 ENVIRONMENT="development"
-ALLOWED_STDIO_EXECUTABLES=["python", "python3", "uv", "node", "npx"]
-ALLOW_PRIVATE_NETWORK_HTTP=true
+DATABASE_URL="postgresql+asyncpg://postgres:postgres@localhost:5432/mcp_hub"
+ALLOWED_STDIO_EXECUTABLES=["python", "python3", "python3.12", "uv", "node", "npx", "bun", "docker"]
+ALLOW_PRIVATE_NETWORK_HTTP=true    # false on any network-exposed deployment (SSRF protection)
+JWT_SECRET="<32+ random characters>"
+ALLOW_SELF_SIGNUP=true             # false on any network-exposed deployment: a registered user can add stdio servers
+OAUTH_ENCRYPTION_KEY="<Fernet key>"  # see the command in .env.example; rotating it makes stored OAuth tokens unreadable
+PUBLIC_API_BASE_URL="http://localhost:8000"   # the OAuth callback is built from it
+FRONTEND_BASE_URL="http://localhost:3000"
 ```
 
 ### 3. Run Database Migrations (Alembic)
@@ -255,17 +206,18 @@ docker compose up --build
 
 ## Running Tests
 
-Execute the complete test suite (unit, integration, and security tests):
+The suite deletes every row in the database it runs against, so point it at a separate test database first. `conftest.py` reads `TEST_DATABASE_URL` and never falls back to `DATABASE_URL`:
 
 ```bash
 cd backend
-pytest -v
+export TEST_DATABASE_URL="postgresql+asyncpg://postgres:postgres@localhost:5432/mcp_hub_test"
+uv run pytest -v
 ```
 
 Run test suite with code coverage analysis:
 
 ```bash
-pytest --cov=app --cov-report=term-missing
+uv run pytest --cov=app --cov-report=term-missing
 ```
 
 Run code formatting and linting check with Ruff:
@@ -278,11 +230,25 @@ ruff check .
 
 ## Verification & API Walkthrough
 
-Here is a step-by-step walkthrough to test the hub using `curl`:
+Here is a step-by-step walkthrough to test the hub using `curl`. Every REST endpoint except register, login, `/health` and `/ready` needs a console login token; `/mcp` needs an API key instead.
+
+### 0. Create an Account and Sign In
+Registration needs `ALLOW_SELF_SIGNUP=true`.
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email": "dev@example.com", "password": "change-me-123"}'
+
+curl -X POST http://localhost:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "dev@example.com", "password": "change-me-123"}'
+```
+Save the returned `access_token` (e.g. `TOKEN="<access_token>"`). It expires after `ACCESS_TOKEN_EXPIRE_MINUTES`; log in again to get a new one.
 
 ### 1. Register the Demo MCP Server
 ```bash
 curl -X POST http://localhost:8000/api/v1/servers \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "demo-server",
@@ -300,7 +266,8 @@ Save the returned `id` (e.g. `SERVER_ID="<returned-uuid>"`).
 
 ### 2. Test Server Connection
 ```bash
-curl -X POST "http://localhost:8000/api/v1/servers/$SERVER_ID/test-connection"
+curl -X POST "http://localhost:8000/api/v1/servers/$SERVER_ID/test-connection" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 Response:
 ```json
@@ -314,18 +281,21 @@ Response:
 
 ### 3. Connect and Discover Tools
 ```bash
-curl -X POST "http://localhost:8000/api/v1/servers/$SERVER_ID/connect"
+curl -X POST "http://localhost:8000/api/v1/servers/$SERVER_ID/connect" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ### 4. Query the Unified Tool Catalog
 ```bash
-curl "http://localhost:8000/api/v1/tools"
+curl "http://localhost:8000/api/v1/tools" \
+  -H "Authorization: Bearer $TOKEN"
 ```
-Returns all tools across enabled servers (`calculate`, `echo`, `system_ping`).
+Returns all of the account's tools across enabled servers (`calculate`, `echo`, `system_ping`).
 
 ### 5. Execute Tool: `calculate`
 ```bash
 curl -X POST "http://localhost:8000/api/v1/servers/$SERVER_ID/tools/calculate/execute" \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "arguments": {
@@ -356,12 +326,22 @@ Response:
 
 ### 6. Inspect Execution History
 ```bash
-curl "http://localhost:8000/api/v1/executions"
+curl "http://localhost:8000/api/v1/executions" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ### 7. Upstream Agent Meta-Tools via `/mcp` (Streamable HTTP)
 
-When AI agents connect to the hub's upstream endpoint (`POST /mcp`), they can discover and batch execute tools without loading entire catalogs into context:
+When AI agents connect to the hub's upstream endpoint (`POST /mcp`), they can discover and batch execute tools without loading entire catalogs into context.
+
+`/mcp` accepts only API keys, never the console token. Generate one (the full key is shown only once):
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/api-keys \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "laptop Claude"}'
+```
+Configure the MCP client with the hub URL `http://localhost:8000/mcp` and the returned `key` (`mhk_...`) in the `x-api-key` header. The endpoint is stateless: it accepts `POST` only and issues no `Mcp-Session-Id` (ADR-0004). Use one key per client, so the Session explorer can tell clients apart (ADR-0003).
 
 #### Discovery: `SEARCH_TOOLS`
 Call `SEARCH_TOOLS` with atomic search queries:
