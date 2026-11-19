@@ -2,20 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import {
-    useConnectServer,
-    useDisconnectServer,
-    useTestServerConnection,
-    useDeleteServer,
-    useRefreshServerTools,
-} from "@/features/servers/hooks/use-servers";
+import { useTestServerConnection, useDeleteServer, useRefreshServerTools } from "@/features/servers/hooks/use-servers";
 import { serversApi } from "@/lib/api";
 import { ServerRead } from "@/types";
 
 vi.mock("@/lib/api", () => ({
     serversApi: {
-        connect: vi.fn(),
-        disconnect: vi.fn(),
         testConnection: vi.fn(),
         delete: vi.fn(),
         update: vi.fn(),
@@ -67,33 +59,6 @@ describe("Server Management Actions Hooks", () => {
     const wrapper = ({ children }: { children: React.ReactNode }) => (
         <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
-
-    it("executes connectServer mutation successfully", async () => {
-        (serversApi.connect as any).mockResolvedValue({
-            ...mockServer,
-            health_status: "HEALTHY",
-            discovered_tool_count: 3,
-        });
-
-        const { result } = renderHook(() => useConnectServer(), { wrapper });
-
-        await result.current.mutateAsync("test-server-uuid");
-
-        expect(serversApi.connect).toHaveBeenCalledWith("test-server-uuid");
-    });
-
-    it("executes disconnectServer mutation successfully", async () => {
-        (serversApi.disconnect as any).mockResolvedValue({
-            ...mockServer,
-            health_status: "DISCONNECTED",
-        });
-
-        const { result } = renderHook(() => useDisconnectServer(), { wrapper });
-
-        await result.current.mutateAsync("test-server-uuid");
-
-        expect(serversApi.disconnect).toHaveBeenCalledWith("test-server-uuid");
-    });
 
     it("executes testConnection mutation and returns test probe result", async () => {
         (serversApi.testConnection as any).mockResolvedValue({

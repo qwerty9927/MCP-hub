@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import React from "react";
 import { ServerListTable } from "@/features/servers/components/ServerListTable";
 import { ServerRead } from "@/types";
@@ -67,5 +68,30 @@ describe("ServerListTable Component", () => {
 
         expect(screen.getByText("3")).toBeInTheDocument();
         expect(screen.getByText("0")).toBeInTheDocument();
+    });
+
+    const openRowMenu = async (server: ServerRead) => {
+        render(
+            <QueryClientProvider client={queryClient}>
+                <ServerListTable servers={[server]} />
+            </QueryClientProvider>
+        );
+        await userEvent.setup().click(screen.getByRole("button", { name: "Open menu" }));
+        await screen.findByRole("menuitem", { name: "Refresh Tools" });
+    };
+
+    // Refresh Tools connects and re-syncs; the Enabled switch is the on/off control.
+    it.each([
+        ["healthy server", mockServers[0]],
+        ["disconnected server", mockServers[1]],
+        [
+            "disconnected OAuth server",
+            { ...mockServers[1], auth_type: "oauth", oauth_provider_id: "atlassian", enabled: true } as ServerRead,
+        ],
+    ])("row menu of a %s has no Connect or Disconnect", async (_label, server) => {
+        await openRowMenu(server);
+
+        expect(screen.queryByRole("menuitem", { name: /^(connect|disconnect)/i })).not.toBeInTheDocument();
+        expect(screen.getByRole("menuitem", { name: "Test Connection" })).toBeInTheDocument();
     });
 });

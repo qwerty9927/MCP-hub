@@ -75,8 +75,6 @@ vi.mock("@/features/servers/hooks/use-servers", () => ({
         refetch: vi.fn(),
     }),
     useServerTools: () => ({ data: { items: TOOLS }, isLoading: false }),
-    useConnectServer: () => mutation(),
-    useDisconnectServer: () => mutation(),
     useTestServerConnection: () => mutation(),
     useRefreshServerTools: () => mutation(),
     useDeleteServer: () => mutation(),

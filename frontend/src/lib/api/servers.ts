@@ -54,20 +54,6 @@ export const serversApi = {
         });
     },
 
-    connect: async (serverId: string): Promise<ServerRead> => {
-        return apiClient<ServerRead>({
-            url: `/servers/${serverId}/connect`,
-            method: "POST",
-        });
-    },
-
-    disconnect: async (serverId: string): Promise<ServerRead> => {
-        return apiClient<ServerRead>({
-            url: `/servers/${serverId}/disconnect`,
-            method: "POST",
-        });
-    },
-
     testConnection: async (serverId: string): Promise<ServerTestResponse> => {
         return apiClient<ServerTestResponse>({
             url: `/servers/${serverId}/test-connection`,

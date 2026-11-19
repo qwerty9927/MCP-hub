@@ -160,10 +160,8 @@ The frontend integrates directly with the MCP Hub REST API (full contract: `back
 - `POST /api/v1/servers` — Register a new server (`stdio` or `streamable-http`).
 - `PATCH /api/v1/servers/{server_id}` — Update server configuration, descriptions, or toggle execution status.
 - `DELETE /api/v1/servers/{server_id}` — Delete server, release active sessions, and purge tools (its execution history is kept).
-- `POST /api/v1/servers/{server_id}/connect` — Initialize MCP client session and perform tool discovery.
-- `POST /api/v1/servers/{server_id}/disconnect` — Gracefully terminate client connection session.
 - `POST /api/v1/servers/{server_id}/test-connection` — Run ephemeral ping check and tool discovery returning latency and tool count.
-- `POST /api/v1/servers/{server_id}/refresh-tools` — Re-query server for tools and update catalog.
+- `POST /api/v1/servers/{server_id}/refresh-tools` — Connect (with stored OAuth tokens, if any), re-query the server for tools, update the catalog and health.
 - `GET /api/v1/servers/{server_id}/tools` — Get tools discovered strictly for the specified server.
 
 ### OAuth Connections
@@ -191,7 +189,7 @@ The frontend integrates directly with the MCP Hub REST API (full contract: `back
 ## 6. Known Gaps
 
 1. **Token refresh:** console tokens expire with no refresh token; an expired token sends the user back to the login page.
-2. **Batch / Bulk Actions:** the backend does not provide batch connect, disconnect, or delete endpoints. The frontend executes these per-server.
+2. **Batch / Bulk Actions:** the backend does not provide batch refresh or delete endpoints. The frontend executes these per-server.
 3. **Execution Latency Aggregation:** the backend provides total executions in `/metrics`, but no percentiles (p50, p95, p99) or latency timeseries. The frontend derives average execution latency from recent execution records.
 
 ---
