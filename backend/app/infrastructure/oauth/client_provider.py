@@ -8,14 +8,13 @@ that hand the authorization URL to the browser and wait for the callback.
 import time
 from uuid import UUID
 
-from mcp.client.auth import OAuthClientProvider, OAuthFlowError
+from mcp.client.auth import OAuthClientProvider
 from mcp.shared.auth import OAuthClientInformationFull, OAuthClientMetadata, OAuthToken
 
 from app.core.config import Settings
+from app.core.constants.oauth_constants import OAUTH_CLIENT_NAME
 from app.infrastructure.oauth.provider_catalog import OAuthProvider
 from app.infrastructure.repositories.oauth_credential_repository import OAuthCredentialRepositoryAbstract
-
-CLIENT_NAME = "MCP Hub"
 
 
 def callback_url(settings: Settings) -> str:
@@ -26,7 +25,7 @@ def callback_url(settings: Settings) -> str:
 def build_client_metadata(settings: Settings, provider: OAuthProvider | None) -> OAuthClientMetadata:
     """Metadata the hub registers itself with: a public web client using the authorization-code grant."""
     return OAuthClientMetadata(
-        client_name=CLIENT_NAME,
+        client_name=OAUTH_CLIENT_NAME,
         redirect_uris=[callback_url(settings)],
         grant_types=["authorization_code", "refresh_token"],
         response_types=["code"],
@@ -86,27 +85,32 @@ class MemoryTokenStorage:
 class DbTokenStorage:
     """A server's stored credentials; refreshed tokens are written back as the SDK obtains them."""
 
-    def __init__(self, server_id: UUID, repository: OAuthCredentialRepositoryAbstract) -> None:
+    def __init__(self, server_id: UUID, user_id: UUID, repository: OAuthCredentialRepositoryAbstract) -> None:
         self.server_id = server_id
+        self.user_id = user_id
         self.repository = repository
 
     async def get_tokens(self) -> OAuthToken | None:
-        record = await self.repository.get(self.server_id)
+        record = await self.repository.get(self.server_id, user_id=self.user_id)
         if record is None or record.tokens_json is None:
             return None
         return _with_remaining_lifetime(OAuthToken.model_validate_json(record.tokens_json), record.access_token_expires_at)
 
     async def set_tokens(self, tokens: OAuthToken) -> None:
-        await self.repository.save_tokens(self.server_id, tokens.model_dump_json(), _expires_at(tokens))
+        await self.repository.save_tokens(self.server_id, tokens.model_dump_json(), _expires_at(tokens), user_id=self.user_id)
+
+    async def set_tokens_with_expiry(self, tokens: OAuthToken, expires_at: float | None) -> None:
+        """Store tokens obtained earlier, keeping the absolute expiry recorded when they were issued."""
+        await self.repository.save_tokens(self.server_id, tokens.model_dump_json(), expires_at, user_id=self.user_id)
 
     async def get_client_info(self) -> OAuthClientInformationFull | None:
-        record = await self.repository.get(self.server_id)
+        record = await self.repository.get(self.server_id, user_id=self.user_id)
         if record is None or record.client_info_json is None:
             return None
         return OAuthClientInformationFull.model_validate_json(record.client_info_json)
 
     async def set_client_info(self, client_info: OAuthClientInformationFull) -> None:
-        await self.repository.save_client_info(self.server_id, client_info.model_dump_json())
+        await self.repository.save_client_info(self.server_id, client_info.model_dump_json(), user_id=self.user_id)
 
 
 class HubOAuthClientProvider(OAuthClientProvider):
@@ -118,22 +122,3 @@ class HubOAuthClientProvider(OAuthClientProvider):
         tokens = self.context.current_tokens
         if tokens is not None and tokens.expires_in is not None:
             self.context.update_token_expiry(tokens)
-
-
-def find_oauth_error(exc: BaseException | None) -> OAuthFlowError | None:
-    """The OAuthFlowError inside `exc` (directly, in an exception group, or in its cause/context chain)."""
-    seen: set[int] = set()
-    stack: list[BaseException] = [exc] if exc is not None else []
-    while stack:
-        current = stack.pop()
-        if id(current) in seen:
-            continue
-        seen.add(id(current))
-        if isinstance(current, OAuthFlowError):
-            return current
-        if isinstance(current, BaseExceptionGroup):
-            stack.extend(current.exceptions)
-        for linked in (current.__cause__, current.__context__):
-            if linked is not None:
-                stack.append(linked)
-    return None

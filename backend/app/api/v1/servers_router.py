@@ -12,7 +12,6 @@ from app.api.dependencies import (
     get_tool_catalog_service,
 )
 from app.core.enums.server_enum import ServerHealthStatus, TransportType
-from app.core.exceptions import OAuthReauthorizationRequiredError
 from app.domain.principal_entity import Principal
 from app.schemas.common_schema import PaginatedResponse
 from app.schemas.server_schema import (
@@ -142,11 +141,8 @@ async def connect_server(
         await connection_manager.get_or_create_session(server)
         tools = await tool_catalog.refresh_server_tools(server, connection_manager)
         await server_registry.update_health(server_id, ServerHealthStatus.HEALTHY, len(tools), user_id=principal.user_id)
-    except OAuthReauthorizationRequiredError:
-        await server_registry.update_health(server_id, ServerHealthStatus.NEEDS_AUTH, user_id=principal.user_id)
-        raise
-    except Exception:
-        await server_registry.update_health(server_id, ServerHealthStatus.UNHEALTHY, user_id=principal.user_id)
+    except Exception as exc:
+        await server_registry.record_connect_failure(server_id, exc, user_id=principal.user_id)
         raise
 
     return await server_registry.get_server(server_id, user_id=principal.user_id)
@@ -211,8 +207,8 @@ async def refresh_server_tools(
     server = await server_registry.get_server_entity(server_id, user_id=principal.user_id)
     try:
         tools = await tool_catalog.refresh_server_tools(server, connection_manager)
-    except OAuthReauthorizationRequiredError:
-        await server_registry.update_health(server_id, ServerHealthStatus.NEEDS_AUTH, user_id=principal.user_id)
+    except Exception as exc:
+        await server_registry.record_connect_failure(server_id, exc, user_id=principal.user_id, fallback_status=None)
         raise
     await server_registry.update_health(server_id, ServerHealthStatus.HEALTHY, len(tools), user_id=principal.user_id)
 

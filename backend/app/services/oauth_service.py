@@ -12,26 +12,25 @@ Pending sign-ins live in this process (`OAuthFlowRegistry`), like the live sessi
 import asyncio
 import secrets
 from dataclasses import dataclass, field
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 from uuid import UUID
 
-from mcp import ClientSession
 from mcp.client.auth import OAuthFlowError
-from mcp.client.streamable_http import create_mcp_http_client, streamable_http_client
 from mcp.shared.auth import AuthorizationCodeResult, OAuthClientInformationFull
 
 from app.core.config import Settings
+from app.core.constants.oauth_constants import OAUTH_COMPLETE_TIMEOUT_SECONDS, OAUTH_START_TIMEOUT_SECONDS
 from app.core.enums.server_enum import ServerAuthType, ServerHealthStatus, TransportType
-from app.core.exceptions import BadGatewayError, BadRequestError, ConflictError, GatewayTimeoutError, NotFoundError
+from app.core.exceptions import AppError, BadGatewayError, BadRequestError, ConflictError, GatewayTimeoutError, NotFoundError
 from app.core.logging import logger
-from app.helpers.errors import format_mcp_error
+from app.domain.server_entity import ServerEntity
+from app.helpers.errors import find_oauth_error, format_mcp_error
 from app.helpers.security import validate_http_url_resolved
 from app.infrastructure.oauth.client_provider import (
     DbTokenStorage,
     HubOAuthClientProvider,
     MemoryTokenStorage,
     build_client_metadata,
-    find_oauth_error,
     preregistered_client,
 )
 from app.infrastructure.oauth.provider_catalog import OAuthProvider, OAuthProviderCatalog
@@ -42,12 +41,6 @@ from app.schemas.server_schema import ServerCreateRequest, ServerUpdateRequest
 from app.services.connection_manager import ConnectionManager
 from app.services.server_registry import ServerRegistryService
 from app.services.tool_catalog import ToolCatalogService
-
-# How long `start` waits for the authorization URL (discovery + registration) before giving up.
-# The console's connect request waits longer (OAUTH_START_TIMEOUT_MS in frontend/src/lib/api/oauth.ts).
-START_TIMEOUT_SECONDS = 40.0
-# How long the callback waits for the code exchange, session and tool sync to finish.
-COMPLETE_TIMEOUT_SECONDS = 60.0
 
 
 @dataclass
@@ -157,7 +150,7 @@ class OAuthService:
         if server.auth_type != ServerAuthType.OAUTH or not server.oauth_provider_id:
             raise BadRequestError("This server does not use OAuth", details={"server_id": str(server_id)})
         provider = self._available_provider(server.oauth_provider_id)
-        stored = await DbTokenStorage(server_id, self.credentials).get_client_info()
+        stored = await DbTokenStorage(server_id, user_id, self.credentials).get_client_info()
         flow = PendingFlow(user_id=user_id, provider=provider, server_name=server.name, existing_server_id=server_id)
         return await self._begin(flow, client_info=stored or preregistered_client(self.settings, provider))
 
@@ -171,10 +164,18 @@ class OAuthService:
         else:
             flow.callback.set_result(AuthorizationCodeResult(code=code, state=state, iss=iss))
         try:
-            return await asyncio.wait_for(asyncio.shield(flow.task), timeout=COMPLETE_TIMEOUT_SECONDS)
+            return await asyncio.wait_for(asyncio.shield(flow.task), timeout=OAUTH_COMPLETE_TIMEOUT_SECONDS)
         except TimeoutError:
             flow.task.cancel()
             return OAuthFlowResult(error="Connecting the server took too long after sign-in.")
+
+    def complete_redirect_url(self, result: OAuthFlowResult) -> str:
+        """Where the callback sends the browser: the console's /oauth/complete page, with the result."""
+        if result.server_id is not None:
+            query = {"status": "success", "server_id": str(result.server_id)}
+        else:
+            query = {"status": "error", "error": result.error or "Sign-in failed"}
+        return f"{self.settings.FRONTEND_BASE_URL}/oauth/complete?{urlencode(query)}"
 
     # -- internals ---------------------------------------------------------
 
@@ -182,7 +183,7 @@ class OAuthService:
         await validate_http_url_resolved(flow.provider.mcp_url)
         flow.task = asyncio.create_task(self._run(flow, client_info))
         done, _ = await asyncio.wait(
-            {flow.authorization_url, flow.task}, timeout=START_TIMEOUT_SECONDS, return_when=asyncio.FIRST_COMPLETED
+            {flow.authorization_url, flow.task}, timeout=OAUTH_START_TIMEOUT_SECONDS, return_when=asyncio.FIRST_COMPLETED
         )
         if flow.authorization_url in done:
             return OAuthConnectResponse(authorization_url=flow.authorization_url.result(), state=flow.state)
@@ -197,7 +198,7 @@ class OAuthService:
         flow.task.cancel()
         raise GatewayTimeoutError(
             f"{flow.provider.name} did not answer in time",
-            details={"provider_id": flow.provider.id, "timeout_seconds": START_TIMEOUT_SECONDS},
+            details={"provider_id": flow.provider.id, "timeout_seconds": OAUTH_START_TIMEOUT_SECONDS},
         )
 
     async def _run(self, flow: PendingFlow, client_info: OAuthClientInformationFull | None) -> OAuthFlowResult:
@@ -221,19 +222,26 @@ class OAuthService:
             redirect_handler=redirect_handler,
             callback_handler=callback_handler,
         )
+        # Not saved until the sign-in succeeds; the session runs in a ConnectionManager SessionWorker (AGENT.md).
+        sign_in_server = ServerEntity(
+            name=flow.server_name,
+            transport=TransportType.STREAMABLE_HTTP,
+            http_config=HttpConfig(url=flow.provider.mcp_url),
+            user_id=flow.user_id,
+            auth_type=ServerAuthType.OAUTH,
+            oauth_provider_id=flow.provider.id,
+        )
         try:
-            async with (
-                create_mcp_http_client(auth=auth) as http_client,
-                streamable_http_client(flow.provider.mcp_url, http_client=http_client) as (read, write),
-                ClientSession(read, write) as session,
-            ):
-                await asyncio.wait_for(session.initialize(), timeout=self.settings.DEFAULT_CONNECTION_TIMEOUT)
+            await self.connection_manager.authorize(
+                sign_in_server,
+                auth,
+                timeout=self.settings.OAUTH_FLOW_TIMEOUT_SECONDS + self.settings.DEFAULT_CONNECTION_TIMEOUT,
+            )
             return await self._finish(flow, storage)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            oauth_error = find_oauth_error(exc)
-            message = str(oauth_error) if oauth_error else format_mcp_error(exc)
+            message = _sign_in_error_message(exc)
             logger.warning(f"OAuth sign-in to '{flow.provider.id}' failed: {message}")
             return OAuthFlowResult(error=message)
         finally:
@@ -260,11 +268,11 @@ class OAuthService:
             )
             server_id = created.id
 
-        db_storage = DbTokenStorage(server_id, self.credentials)
+        db_storage = DbTokenStorage(server_id, flow.user_id, self.credentials)
         if storage.client_info is not None:
             await db_storage.set_client_info(storage.client_info)
         if storage.tokens is not None:
-            await self.credentials.save_tokens(server_id, storage.tokens.model_dump_json(), storage.expires_at)
+            await db_storage.set_tokens_with_expiry(storage.tokens, storage.expires_at)
 
         server = await self.server_registry.get_server_entity(server_id, user_id=flow.user_id)
         try:
@@ -316,3 +324,13 @@ class OAuthService:
             if not await self.server_registry.name_is_taken(candidate, user_id=user_id):
                 return candidate
         return f"{base}-{secrets.token_hex(3)}"
+
+
+def _sign_in_error_message(exc: BaseException) -> str:
+    """What to tell the user about a failed sign-in: the provider's OAuth error when there is one, else the connect failure."""
+    oauth_error = find_oauth_error(exc)
+    if oauth_error is not None:
+        return str(oauth_error)
+    if isinstance(exc, AppError) and isinstance(exc.details, dict) and exc.details.get("reason"):
+        return str(exc.details["reason"])
+    return format_mcp_error(exc)

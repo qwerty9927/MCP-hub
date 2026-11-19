@@ -92,6 +92,7 @@ backend/
 │   │   ├── config.py                    # Settings loaded strictly from .env (no in-code defaults)
 │   │   ├── constants/                   # Application constants partitioned by domain
 │   │   │   ├── meta_tools.py            # Meta-tool identifiers (SEARCH_TOOLS, MULTI_EXECUTE_TOOLS)
+│   │   │   ├── oauth_constants.py       # OAuth sign-in timeouts, client name, re-authorization reason (ADR-0008)
 │   │   │   ├── session_constants.py     # Session idle defaults/bounds, sweep job id and cron schedule
 │   │   │   └── tool_search_constants.py # Embedding backfill job id, batch size and interval
 │   │   ├── enums/                       # Core enumerations partitioned by domain (no __init__.py)
@@ -103,6 +104,7 @@ backend/
 │   ├── domain/                          # Domain entities partitioned by entity responsibility
 │   │   ├── api_key_entity.py            # ApiKeyEntity dataclass
 │   │   ├── execution_entity.py          # ExecutionEntity dataclass
+│   │   ├── oauth_credential_entity.py   # OAuthCredentialEntity: a server's decrypted OAuth registration and tokens
 │   │   ├── principal_entity.py          # Principal: the authenticated caller (account + API key)
 │   │   ├── server_entity.py             # ServerEntity dataclass
 │   │   ├── session_entity.py            # SessionEntity, SessionDetailEntity, ToolCallEntity
@@ -110,7 +112,7 @@ backend/
 │   │   └── user_entity.py               # UserEntity dataclass
 │   ├── helpers/                         # Reusable utilities partitioned by responsibility
 │   │   ├── crypto.py                    # SecretCipher: Fernet encryption of stored OAuth credentials
-│   │   ├── errors.py                    # MCP error & ExceptionGroup unwrapping (format_mcp_error)
+│   │   ├── errors.py                    # MCP error & ExceptionGroup unwrapping (format_mcp_error, find_oauth_error)
 │   │   ├── passwords.py                 # Password hashing and verification
 │   │   ├── security.py                  # Shell injection, SSRF (incl. DNS resolution), env sanitization, header masking
 │   │   ├── session_idle.py              # Session idle-timeout arithmetic (effective timeout, is_idle)
@@ -162,7 +164,7 @@ backend/
 │   │   └── tool_schema.py               # Tool discovery & execution schemas
 │   └── services/                        # Business logic & orchestrators
 │       ├── auth_service.py              # Accounts, console JWT login, API keys, bearer token -> Principal
-│       ├── connection_manager.py        # Downstream MCP client session lifecycle (SessionWorker)
+│       ├── connection_manager.py        # Downstream MCP client session lifecycle (SessionWorker), incl. OAuth sign-ins (authorize)
 │       ├── embedding_service.py         # EmbeddingServiceAbstract, FastEmbedService, tool_embedding_text
 │       ├── oauth_service.py             # OAuthService + OAuthFlowRegistry: sign-ins that end in a connected server
 │       ├── server_registry.py           # Server CRUD, uniqueness validation, status management
@@ -204,7 +206,7 @@ Strict unidirectional dependency flow:
 ### AnyIO Cancel Scope Rule & `SessionWorker`
 - The MCP Python SDK uses AnyIO cancel scopes internally.
 - **Invariant**: Never enter an MCP client context manager (`stdio_client`, `streamable_http_client`, `ClientSession`) directly inside an ephemeral HTTP request handler. Doing so causes `RuntimeError: Attempted to exit a cancel scope in a different task than it was entered in`.
-- **Rule**: All downstream connections must be spawned and maintained inside a dedicated, long-running `SessionWorker` task managed by `ConnectionManager`.
+- **Rule**: All downstream connections must be spawned and maintained inside a dedicated, long-running `SessionWorker` task managed by `ConnectionManager`. OAuth sign-ins too: `OAuthService` calls `ConnectionManager.authorize`, which runs an ephemeral `SessionWorker` with the sign-in's in-memory auth.
 
 ### Streamable HTTP Header Forwarding
 - When connecting to remote `streamable-http` servers with authentication headers (e.g. GitHub Copilot, OAuth), pass an `http_client` created via `create_mcp_http_client(headers=server.http_config.headers)` into `streamable_http_client(url, http_client=http_client)`.
@@ -213,7 +215,7 @@ Strict unidirectional dependency flow:
 - **Every router depends on the caller**: each endpoint in `app/api/v1/` (except `/auth/register`, `/auth/login`, `/health`, `/ready`) takes `principal: Annotated[Principal, Depends(get_current_principal)]` and passes `user_id=principal.user_id` down. Repository and service methods that read or change owned data take a keyword-only `user_id: UUID` with no default and no `None` (unscoped) mode, so a forgotten owner is a TypeError, not a data leak.
 - Another account's resource is a `NotFoundError` (404), never 403, so its existence is not revealed.
 - REST accepts only console JWTs (`AuthService.authenticate_console`). `/mcp` accepts only API keys, sent in the `x-api-key` header (`AuthService.authenticate_api_key`), checked in `MCPProxyASGI`, which also sets the SDK's `scope["user"]` so transport sessions are bound to the credential that opened them.
-- `user_id` is NOT NULL on `mcp_servers`, `discovered_tools` and `mcp_sessions` (foreign key to `users`, cascade delete), and required on their domain entities. `discovered_tools.user_id` is a copy of the server's owner so catalog lookups can be scoped without a join. The only cross-account code is the idle-session sweeper.
+- `user_id` is NOT NULL on `mcp_servers`, `discovered_tools`, `tool_executions`, `server_oauth_credentials` and `mcp_sessions` (foreign key to `users`, cascade delete), and required on their domain entities. `discovered_tools.user_id` and `server_oauth_credentials.user_id` are copies of the server's owner so lookups can be scoped without a join. The only cross-account code is the idle-session sweeper.
 - **Ids**: every table's `id` is a UUID stored as `str(UUID)` in `varchar(36)`. The app generates it (`uuid4()` in the entity or service) and `gen_random_uuid()::text` is the database default for inserts made outside the app. `replace_server_tools` replaces a server's Tools on every re-discovery, so Tool ids change then; `(server_id, name)` is unique. There is no `{server_id}:{tool_name}` id; REST names a tool by name plus `server_id`, agents by Tool Slug.
 - Settings: `JWT_SECRET` (32+ chars), `ACCESS_TOKEN_EXPIRE_MINUTES`, `ALLOW_SELF_SIGNUP`. Keep `ALLOW_SELF_SIGNUP=false` on any network-exposed deployment: a registered user can add stdio servers.
 
@@ -268,7 +270,7 @@ Strict unidirectional dependency flow:
 
 ### Error Handling & Exception Groups
 - Domain exceptions use a strict 2-level hierarchy inheriting directly from `AppError` (`app/core/exceptions.py`), defining service-agnostic category names (`NotFoundError`, `BadRequestError`, `ConflictError`, `ForbiddenError`, `ValidationError`, `BadGatewayError`, `GatewayTimeoutError`, `InternalServerError`).
-- Contextual details (e.g. `server_id`, `tool_name`) are passed through `__init__` parameters rather than defining 3rd-level subclasses.
+- Contextual details (e.g. `server_id`, `tool_name`) are passed through `__init__` parameters rather than defining 3rd-level subclasses. A case callers must tell apart carries a `details["reason"]` constant instead: an OAuth server that needs a new sign-in is a `BadGatewayError` with `OAUTH_REAUTHORIZATION_REASON`, and `ServerRegistryService.record_connect_failure` turns it into health `NEEDS_AUTH`.
 - Global exception handling in `app/main.py` populates `ErrorDetail.code` with `str(exc.status_code)`.
 - AnyIO and TaskGroups wrap downstream MCP exceptions in nested `ExceptionGroup` objects. Always use `format_mcp_error(exc)` from `app.helpers.errors` to extract clean, actionable error strings for logging and API responses.
 

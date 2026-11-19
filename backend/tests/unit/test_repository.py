@@ -212,3 +212,28 @@ async def test_execution_repository_crud(account_id):
     items_none, total_none = await exec_repo.list(tool_name="nonexistent", user_id=account_id)
     assert total_none == 0
     assert len(items_none) == 0
+
+
+async def test_oauth_credentials_are_scoped_to_their_owner(account_id):
+    """Another account's user_id sees nothing, and cannot read the owner's secrets (AGENT.md ownership rule)."""
+    from cryptography.fernet import Fernet
+
+    from app.domain.user_entity import UserEntity
+    from app.helpers.crypto import SecretCipher
+    from app.infrastructure.repositories.oauth_credential_repository import PostgresOAuthCredentialRepository
+    from app.infrastructure.repositories.user_repository import PostgresUserRepository
+
+    server = await PostgresServerRepository().create(
+        ServerEntity(name="oauth-owned", transport=TransportType.STDIO, stdio_config=StdioConfig(command="python3"), user_id=account_id)
+    )
+    other = await PostgresUserRepository().create(UserEntity(email=f"{uuid4().hex[:12]}@test.local", password_hash="x"))
+    repo = PostgresOAuthCredentialRepository(SecretCipher(Fernet.generate_key().decode()))
+
+    await repo.save_client_info(server.id, '{"client_id": "c1"}', user_id=account_id)
+    await repo.save_tokens(server.id, '{"access_token": "a1"}', 123.0, user_id=account_id)
+
+    mine = await repo.get(server.id, user_id=account_id)
+    assert mine is not None
+    assert mine.user_id == account_id and mine.client_info_json == '{"client_id": "c1"}'
+    assert mine.tokens_json == '{"access_token": "a1"}' and mine.access_token_expires_at == 123.0
+    assert await repo.get(server.id, user_id=other.id) is None

@@ -6,29 +6,29 @@ from contextlib import AsyncExitStack
 from typing import Any
 from uuid import UUID
 
+import httpx2
 import mcp.types as mcp_types
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from mcp.client.streamable_http import create_mcp_http_client, streamable_http_client
 
 from app.core.config import Settings, get_settings
+from app.core.constants.oauth_constants import OAUTH_REAUTHORIZATION_REASON
 from app.core.enums.server_enum import ServerAuthType, TransportType
 from app.core.exceptions import (
     BadGatewayError,
     BadRequestError,
     GatewayTimeoutError,
     InternalServerError,
-    OAuthReauthorizationRequiredError,
 )
 from app.core.logging import logger
 from app.domain.server_entity import ServerEntity
-from app.helpers.errors import format_mcp_error
+from app.helpers.errors import find_oauth_error, format_mcp_error
 from app.helpers.security import sanitize_environment, validate_http_url_resolved, validate_stdio_command
 from app.infrastructure.oauth.client_provider import (
     DbTokenStorage,
     HubOAuthClientProvider,
     build_client_metadata,
-    find_oauth_error,
 )
 from app.infrastructure.repositories.oauth_credential_repository import OAuthCredentialRepositoryAbstract
 
@@ -49,11 +49,14 @@ class SessionWorker:
         settings: Settings,
         semaphore: asyncio.Semaphore,
         oauth_credentials: OAuthCredentialRepositoryAbstract | None = None,
+        auth: httpx2.Auth | None = None,
     ) -> None:
         self.server = server
         self.settings = settings
         self.semaphore = semaphore
         self.oauth_credentials = oauth_credentials
+        # Set only for a sign-in (ConnectionManager.authorize): its credentials live in memory until it succeeds.
+        self.auth = auth
         self.session: ClientSession | None = None
         self.ready_event = asyncio.Event()
         self.stop_event = asyncio.Event()
@@ -83,7 +86,10 @@ class SessionWorker:
             await self.stop()
             oauth_error = find_oauth_error(self.error) if self.server.auth_type == ServerAuthType.OAUTH else None
             if oauth_error is not None:
-                raise OAuthReauthorizationRequiredError(str(self.server.id), str(oauth_error)) from self.error
+                raise BadGatewayError(
+                    f"Server '{self.server.id}' needs you to sign in again: {oauth_error}",
+                    details={"server_id": str(self.server.id), "reason": OAUTH_REAUTHORIZATION_REASON, "detail": str(oauth_error)},
+                ) from self.error
             error_message = format_mcp_error(self.error)
             raise BadGatewayError(
                 f"Failed to connect to server '{self.server.id}': {error_message}",
@@ -141,7 +147,7 @@ class SessionWorker:
                     await validate_http_url_resolved(self.server.http_config.url)
                     logger.info(f"Connecting streamable-http client for '{self.server.name}' at {self.server.http_config.url}")
                     http_client = None
-                    auth = self._oauth_auth() if self.server.auth_type == ServerAuthType.OAUTH else None
+                    auth = self.auth or (self._oauth_auth() if self.server.auth_type == ServerAuthType.OAUTH else None)
                     if self.server.http_config.headers or auth is not None:
                         http_client = await stack.enter_async_context(
                             create_mcp_http_client(headers=self.server.http_config.headers or None, auth=auth)
@@ -177,14 +183,14 @@ class SessionWorker:
 
     def _oauth_auth(self) -> HubOAuthClientProvider:
         """Auth for an OAuth server: stored tokens, refreshed when expired. With no redirect handler, a token
-        that cannot be refreshed raises OAuthFlowError, surfaced as OAuthReauthorizationRequiredError."""
+        that cannot be refreshed raises OAuthFlowError, surfaced as a BadGatewayError with reason OAUTH_REAUTHORIZATION_REASON."""
         if self.oauth_credentials is None:
             raise ValueError("OAuth credentials storage is not configured")
         assert self.server.http_config is not None
         return HubOAuthClientProvider(
             server_url=self.server.http_config.url,
             client_metadata=build_client_metadata(self.settings, provider=None),
-            storage=DbTokenStorage(self.server.id, self.oauth_credentials),
+            storage=DbTokenStorage(self.server.id, self.server.user_id, self.oauth_credentials),
         )
 
 
@@ -240,6 +246,22 @@ class ConnectionManager:
             if worker:
                 await worker.stop()
                 logger.info(f"Disconnected session for server {server_id}")
+
+    async def authorize(self, server: ServerEntity, auth: httpx2.Auth, timeout: float) -> None:
+        """Run one OAuth sign-in (ADR-0008) for a server that is not saved yet: open a session with `auth`, whose
+        callback handler waits for the user to approve access, initialize it, then close it. Raises as
+        `get_or_create_session` does; the original OAuth error stays in the exception chain."""
+        worker = SessionWorker(
+            server=server,
+            settings=self.settings,
+            semaphore=asyncio.Semaphore(1),
+            oauth_credentials=self._oauth_credentials,
+            auth=auth,
+        )
+        try:
+            await worker.start(timeout=timeout)
+        finally:
+            await worker.stop()
 
     async def test_connection(
         self,

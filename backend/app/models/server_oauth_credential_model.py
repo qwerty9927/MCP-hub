@@ -14,6 +14,8 @@ class ServerOAuthCredentialModel(Base):
     __tablename__ = "server_oauth_credentials"
 
     server_id: Mapped[str] = mapped_column(String(36), ForeignKey("mcp_servers.id", ondelete="CASCADE"), primary_key=True)
+    # A copy of the server's owner, so credential lookups are scoped without a join (as discovered_tools.user_id).
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
     client_info_enc: Mapped[str | None] = mapped_column(Text, nullable=True)  # OAuthClientInformationFull JSON
     tokens_enc: Mapped[str | None] = mapped_column(Text, nullable=True)  # OAuthToken JSON
     access_token_expires_at: Mapped[float | None] = mapped_column(Float, nullable=True)  # unix seconds
