@@ -57,7 +57,7 @@ async def test_session_explorer_api_lifecycle(async_client: AsyncClient, user_id
     server_id = server_resp.json()["id"]
 
     # 4. Connect server to discover tools
-    connect_resp = await async_client.post(f"/api/v1/servers/{server_id}/connect")
+    connect_resp = await async_client.post(f"/api/v1/servers/{server_id}/refresh-tools")
     assert connect_resp.status_code == 200
 
     # 5. Execute tool linked to the session

@@ -27,7 +27,7 @@ async def test_system_endpoints(async_client: AsyncClient):
 
 
 async def test_demo_server_full_lifecycle(async_client: AsyncClient):
-    """Full lifecycle: register, test, connect, discover, execute, inspect audit log, disconnect."""
+    """Full lifecycle: register, test, connect, discover, execute, inspect audit log, delete."""
     # 1. Register demo server
     server_payload = {
         "name": "e2e-demo-server",
@@ -54,10 +54,10 @@ async def test_demo_server_full_lifecycle(async_client: AsyncClient):
     assert test_data["tools_count"] >= 3
     assert test_data["latency_ms"] > 0
 
-    # 3. Connect to Server
-    conn_res = await async_client.post(f"/api/v1/servers/{server_id}/connect")
+    # 3. Connect to Server and discover its tools
+    conn_res = await async_client.post(f"/api/v1/servers/{server_id}/refresh-tools")
     assert conn_res.status_code == 200
-    conn_data = conn_res.json()
+    conn_data = (await async_client.get(f"/api/v1/servers/{server_id}")).json()
     assert conn_data["health_status"] == "HEALTHY"
     assert conn_data["discovered_tool_count"] >= 3
 
@@ -116,15 +116,39 @@ async def test_demo_server_full_lifecycle(async_client: AsyncClient):
     assert single_exec_res.status_code == 200
     assert single_exec_res.json()["tool_name"] == "calculate"
 
-    # 9. Disconnect Server
-    disc_res = await async_client.post(f"/api/v1/servers/{server_id}/disconnect")
-    assert disc_res.status_code == 200
-    assert disc_res.json()["health_status"] == "DISCONNECTED"
-
-    # 10. Delete Server
+    # 9. Delete Server
     del_res = await async_client.delete(f"/api/v1/servers/{server_id}")
     assert del_res.status_code == 204
 
     # Verify deleted
     get_res = await async_client.get(f"/api/v1/servers/{server_id}")
     assert get_res.status_code == 404
+
+
+async def test_refresh_tools_that_cannot_connect_marks_the_server_unhealthy(async_client: AsyncClient):
+    """Refresh Tools is how a server is brought online, so a failure to connect shows in its health."""
+    res = await async_client.post(
+        "/api/v1/servers",
+        json={
+            "name": "exits-at-once",
+            "transport": "stdio",
+            "stdio_config": {"command": sys.executable, "args": ["-c", "raise SystemExit(1)"]},
+        },
+    )
+    server_id = res.json()["id"]
+
+    refresh = await async_client.post(f"/api/v1/servers/{server_id}/refresh-tools")
+    assert refresh.status_code >= 500
+    assert (await async_client.get(f"/api/v1/servers/{server_id}")).json()["health_status"] == "UNHEALTHY"
+
+
+async def test_connect_and_disconnect_endpoints_are_gone(async_client: AsyncClient):
+    """Refresh Tools connects and tool calls connect on their own; only `enabled` stops a server being used."""
+    res = await async_client.post(
+        "/api/v1/servers",
+        json={"name": "demo", "transport": "stdio", "stdio_config": {"command": sys.executable, "args": [DEMO_SERVER_SCRIPT]}},
+    )
+    server_id = res.json()["id"]
+
+    for action in ("connect", "disconnect"):
+        assert (await async_client.post(f"/api/v1/servers/{server_id}/{action}")).status_code in (404, 405)

@@ -233,27 +233,7 @@ Terminates active sessions, deletes server configuration, and purges tools from 
 
 ---
 
-### 2.6 Connect to Server
-`POST /api/v1/servers/{server_id}/connect`
-
-Initializes the MCP client session, performs protocol handshake, discovers tools, and sets health status to `HEALTHY`.
-
-#### Response (`200 OK`):
-Returns updated `ServerResponse` object with `health_status: "HEALTHY"`.
-
----
-
-### 2.7 Disconnect from Server
-`POST /api/v1/servers/{server_id}/disconnect`
-
-Gracefully closes active client session and releases subprocess or HTTP stream resources.
-
-#### Response (`200 OK`):
-Returns updated `ServerResponse` object with `health_status: "DISCONNECTED"`.
-
----
-
-### 2.8 Test Server Connection
+### 2.6 Test Server Connection
 `POST /api/v1/servers/{server_id}/test-connection`
 
 Performs an ephemeral test connection and tool discovery to verify connectivity without leaving a persistent connection open.
@@ -270,17 +250,22 @@ Performs an ephemeral test connection and tool discovery to verify connectivity 
 
 ---
 
-### 2.9 Refresh Server Tools
+### 2.7 Refresh Server Tools
 `POST /api/v1/servers/{server_id}/refresh-tools`
 
-Refreshes discovered tools from the server and replaces its stored tools.
+Brings the server online and syncs its tools: opens a session if there is no live one (an OAuth server uses its stored
+tokens, refreshing them if expired), replaces its stored tools, and sets `health_status` to `HEALTHY`. On failure the
+health becomes `NEEDS_AUTH` when OAuth tokens can no longer be refreshed, otherwise `UNHEALTHY`.
+
+There is no separate connect or disconnect endpoint: tool calls open a session on their own, and only `enabled: false`
+stops a server from being used.
 
 #### Response (`200 OK`):
 Returns array of `ToolResponse` items.
 
 ---
 
-### 2.10 Connect a Hosted Server with OAuth (ADR-0008)
+### 2.8 Connect a Hosted Server with OAuth (ADR-0008)
 
 **List providers** — `GET /api/v1/oauth/providers` (login token)
 

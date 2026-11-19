@@ -115,13 +115,13 @@ async def test_mcp_gateway_e2e_two_servers_and_dynamic_lifecycle(
         server_b_id = resp_b.json()["id"]
 
         # 3. Connect both downstream servers
-        connect_a = await rest_client.post(f"/api/v1/servers/{server_a_id}/connect")
+        connect_a = await rest_client.post(f"/api/v1/servers/{server_a_id}/refresh-tools")
         assert connect_a.status_code == 200, connect_a.text
-        assert connect_a.json()["health_status"] == "HEALTHY"
+        assert (await rest_client.get(f"/api/v1/servers/{server_a_id}")).json()["health_status"] == "HEALTHY"
 
-        connect_b = await rest_client.post(f"/api/v1/servers/{server_b_id}/connect")
+        connect_b = await rest_client.post(f"/api/v1/servers/{server_b_id}/refresh-tools")
         assert connect_b.status_code == 200, connect_b.text
-        assert connect_b.json()["health_status"] == "HEALTHY"
+        assert (await rest_client.get(f"/api/v1/servers/{server_b_id}")).json()["health_status"] == "HEALTHY"
 
         # 4. Connect MCP Client to the Hub's /mcp Streamable HTTP endpoint
         async with (

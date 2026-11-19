@@ -61,10 +61,10 @@ async def test_streamable_http_server_lifecycle(async_client: AsyncClient, http_
     assert test_res.json()["success"] is True
     assert test_res.json()["tools_count"] == 1
 
-    # 3. Connect Server
-    conn_res = await async_client.post(f"/api/v1/servers/{server_id}/connect")
+    # 3. Connect Server and discover its tools
+    conn_res = await async_client.post(f"/api/v1/servers/{server_id}/refresh-tools")
     assert conn_res.status_code == 200
-    assert conn_res.json()["health_status"] == "HEALTHY"
+    assert (await async_client.get(f"/api/v1/servers/{server_id}")).json()["health_status"] == "HEALTHY"
 
     # 4. Discover Tools
     tools_res = await async_client.get(f"/api/v1/servers/{server_id}/tools")
@@ -82,8 +82,3 @@ async def test_streamable_http_server_lifecycle(async_client: AsyncClient, http_
     exec_data = exec_res.json()
     assert exec_data["is_error"] is False
     assert any("56" in str(c) for c in exec_data["content"])
-
-    # 6. Disconnect
-    disc_res = await async_client.post(f"/api/v1/servers/{server_id}/disconnect")
-    assert disc_res.status_code == 200
-    assert disc_res.json()["health_status"] == "DISCONNECTED"
