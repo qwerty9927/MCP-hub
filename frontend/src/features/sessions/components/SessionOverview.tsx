@@ -84,7 +84,6 @@ export function SessionOverview({ session, onRefresh, isRefreshing }: SessionOve
                             {copiedId ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
                             Copy ID
                         </Button>
-                        {renderStatusBadge(session.status)}
                         {onRefresh && (
                             <Button variant="outline" size="sm" onClick={onRefresh} disabled={isRefreshing} className="gap-1.5">
                                 <Activity className="h-3.5 w-3.5 text-primary" />

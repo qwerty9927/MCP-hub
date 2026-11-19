@@ -70,7 +70,8 @@ describe("SessionOverview Component", () => {
         render(<SessionOverview session={mockSessionDetail} />);
 
         expect(screen.getByText("Test Agent Session")).toBeInTheDocument();
-        expect(screen.getAllByText("Active").length).toBeGreaterThanOrEqual(1);
+        // Status is shown once, in the Status card, not again next to the header actions.
+        expect(screen.getAllByText("Active")).toHaveLength(1);
 
         // Metric numbers
         expect(screen.getByText("8")).toBeInTheDocument(); // total calls
