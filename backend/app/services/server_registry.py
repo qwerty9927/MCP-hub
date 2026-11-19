@@ -4,8 +4,9 @@ import math
 from datetime import UTC, datetime
 from uuid import UUID
 
+from app.core.constants.oauth_constants import OAUTH_REAUTHORIZATION_REASON
 from app.core.enums.server_enum import ServerAuthType, ServerHealthStatus, TransportType
-from app.core.exceptions import ConflictError, NotFoundError
+from app.core.exceptions import BadGatewayError, ConflictError, NotFoundError
 from app.core.logging import logger
 from app.domain.server_entity import ServerEntity
 from app.infrastructure.repositories.server_repository import ServerRepositoryAbstract
@@ -155,6 +156,21 @@ class ServerRegistryService:
             logger.info(f"Deleted MCP server '{server.name}' (id: {server_id})")
         return deleted
 
+    async def record_connect_failure(
+        self,
+        server_id: UUID,
+        exc: BaseException,
+        *,
+        user_id: UUID,
+        fallback_status: ServerHealthStatus | None = ServerHealthStatus.UNHEALTHY,
+    ) -> None:
+        """Set the health a failed connect or tool sync leaves: NEEDS_AUTH when the server's OAuth tokens can no
+        longer be refreshed (ADR-0008), otherwise `fallback_status` (None leaves health unchanged)."""
+        if needs_reauthorization(exc):
+            await self.update_health(server_id, ServerHealthStatus.NEEDS_AUTH, user_id=user_id)
+        elif fallback_status is not None:
+            await self.update_health(server_id, fallback_status, user_id=user_id)
+
     async def update_health(
         self,
         server_id: UUID,
@@ -175,3 +191,8 @@ class ServerRegistryService:
             await self.server_repository.update(server)
         except NotFoundError:
             pass
+
+
+def needs_reauthorization(exc: BaseException) -> bool:
+    """Whether `exc` is the 502 raised for an OAuth server whose tokens can no longer be refreshed."""
+    return isinstance(exc, BadGatewayError) and isinstance(exc.details, dict) and exc.details.get("reason") == OAUTH_REAUTHORIZATION_REASON

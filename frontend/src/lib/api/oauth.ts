@@ -3,7 +3,7 @@ import { OAuthAuthorizationResponse, OAuthConnectRequest, OAuthProvider } from "
 
 /**
  * Starting a sign-in runs discovery and client registration with the provider first; the backend gives that up to
- * 40 s (START_TIMEOUT_SECONDS in backend/app/services/oauth_service.py). Wait a little longer than it, so the backend's
+ * 40 s (OAUTH_START_TIMEOUT_SECONDS in backend/app/core/constants/oauth_constants.py). Wait a little longer than it, so the backend's
  * own answer (a URL or a clear error) reaches the dialog instead of a generic client timeout.
  */
 export const OAUTH_START_TIMEOUT_MS = 45_000;

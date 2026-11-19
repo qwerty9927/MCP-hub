@@ -3,14 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { ServerRead, ServerTestResponse } from "@/types";
-import {
-    useConnectServer,
-    useDeleteServer,
-    useDisconnectServer,
-    useRefreshServerTools,
-    useTestServerConnection,
-    useUpdateServer,
-} from "../hooks/use-servers";
+import { useDeleteServer, useRefreshServerTools, useTestServerConnection, useUpdateServer } from "../hooks/use-servers";
 import { HealthBadge } from "@/components/common/HealthBadge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,8 +29,6 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
     MoreHorizontal,
-    Play,
-    Square,
     Activity,
     RefreshCw,
     Edit,
@@ -64,8 +55,6 @@ export function ServerListTable({ servers, isLoading }: ServerListTableProps) {
     } | null>(null);
 
     const deleteMutation = useDeleteServer();
-    const connectMutation = useConnectServer();
-    const disconnectMutation = useDisconnectServer();
     const testMutation = useTestServerConnection();
     const refreshToolsMutation = useRefreshServerTools();
     const updateMutation = useUpdateServer();
@@ -113,8 +102,6 @@ export function ServerListTable({ servers, isLoading }: ServerListTableProps) {
                     </TableHeader>
                     <TableBody>
                         {servers.map((server) => {
-                            const isConnecting = connectMutation.isPending && connectMutation.variables === server.id;
-                            const isDisconnecting = disconnectMutation.isPending && disconnectMutation.variables === server.id;
                             const isTesting = testMutation.isPending && testMutation.variables === server.id;
                             const isRefreshing = refreshToolsMutation.isPending && refreshToolsMutation.variables === server.id;
 
@@ -182,9 +169,9 @@ export function ServerListTable({ servers, isLoading }: ServerListTableProps) {
                                                     variant="ghost"
                                                     size="icon"
                                                     className="h-8 w-8"
-                                                    disabled={isConnecting || isDisconnecting || isTesting || isRefreshing}
+                                                    disabled={isTesting || isRefreshing}
                                                 >
-                                                    {isConnecting || isDisconnecting || isTesting || isRefreshing ? (
+                                                    {isTesting || isRefreshing ? (
                                                         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                                                     ) : (
                                                         <MoreHorizontal className="h-4 w-4" />
@@ -204,24 +191,6 @@ export function ServerListTable({ servers, isLoading }: ServerListTableProps) {
                                                     <Activity className="mr-2 h-4 w-4 text-muted-foreground" />
                                                     Test Connection
                                                 </DropdownMenuItem>
-
-                                                {server.health_status === "HEALTHY" ? (
-                                                    <DropdownMenuItem
-                                                        onClick={() => disconnectMutation.mutate(server.id)}
-                                                        className="cursor-pointer"
-                                                    >
-                                                        <Square className="mr-2 h-4 w-4 text-amber-500" />
-                                                        Disconnect
-                                                    </DropdownMenuItem>
-                                                ) : (
-                                                    <DropdownMenuItem
-                                                        onClick={() => connectMutation.mutate(server.id)}
-                                                        className="cursor-pointer"
-                                                    >
-                                                        <Play className="mr-2 h-4 w-4 text-emerald-500" />
-                                                        Connect & Discover
-                                                    </DropdownMenuItem>
-                                                )}
 
                                                 <DropdownMenuItem
                                                     onClick={() => refreshToolsMutation.mutate(server.id)}

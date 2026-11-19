@@ -281,7 +281,7 @@ Response:
 
 ### 3. Connect and Discover Tools
 ```bash
-curl -X POST "http://localhost:8000/api/v1/servers/$SERVER_ID/connect" \
+curl -X POST "http://localhost:8000/api/v1/servers/$SERVER_ID/refresh-tools" \
   -H "Authorization: Bearer $TOKEN"
 ```
 

@@ -516,12 +516,12 @@
           }
         },
         {
-          "name": "Connect Server 1",
+          "name": "Refresh Tools Server 1",
           "request": {
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/servers/{{server1_id}}/connect",
+              "raw": "{{baseUrl}}/api/v1/servers/{{server1_id}}/refresh-tools",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -530,18 +530,18 @@
                 "v1",
                 "servers",
                 "{{server1_id}}",
-                "connect"
+                "refresh-tools"
               ]
             }
           }
         },
         {
-          "name": "Connect Server 2",
+          "name": "Refresh Tools Server 2",
           "request": {
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/servers/{{server2_id}}/connect",
+              "raw": "{{baseUrl}}/api/v1/servers/{{server2_id}}/refresh-tools",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -550,7 +550,7 @@
                 "v1",
                 "servers",
                 "{{server2_id}}",
-                "connect"
+                "refresh-tools"
               ]
             }
           }

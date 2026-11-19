@@ -56,8 +56,6 @@ async def test_owner_sees_their_resources(async_client, owned):
         ("get", "/api/v1/servers/{server}"),
         ("patch", "/api/v1/servers/{server}"),
         ("delete", "/api/v1/servers/{server}"),
-        ("post", "/api/v1/servers/{server}/connect"),
-        ("post", "/api/v1/servers/{server}/disconnect"),
         ("post", "/api/v1/servers/{server}/test-connection"),
         ("post", "/api/v1/servers/{server}/refresh-tools"),
         ("get", "/api/v1/auth/api-keys/{api_key}/servers/{server}/tools"),

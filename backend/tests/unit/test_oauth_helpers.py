@@ -9,12 +9,12 @@ from mcp.shared.auth import OAuthToken
 
 from app.core.config import get_settings
 from app.helpers.crypto import SecretCipher
+from app.helpers.errors import find_oauth_error
 from app.infrastructure.oauth.client_provider import (
     HubOAuthClientProvider,
     MemoryTokenStorage,
     build_client_metadata,
     callback_url,
-    find_oauth_error,
     preregistered_client,
 )
 from app.infrastructure.oauth.provider_catalog import OAuthProvider, OAuthProviderCatalog, get_provider_catalog

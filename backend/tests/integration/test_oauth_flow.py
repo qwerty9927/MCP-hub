@@ -2,6 +2,7 @@
 
 import time
 from urllib.parse import parse_qs, urlparse
+from uuid import UUID
 
 import httpx
 import pytest
@@ -9,7 +10,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 
 import app.infrastructure.database as db_module
-from app.api.dependencies import get_oauth_service
+from app.api.dependencies import get_connection_manager, get_oauth_service
 from app.infrastructure.oauth.provider_catalog import OAuthProvider, OAuthProviderCatalog
 from app.main import app
 from app.models.server_model import ServerModel
@@ -17,6 +18,11 @@ from app.models.server_oauth_credential_model import ServerOAuthCredentialModel
 from tests.fake_oauth_server import FakeOAuthMcpServer
 
 PORT = 8931
+
+
+async def drop_live_session(server_id: str) -> None:
+    """Close the hub's live session to the server, so the next call opens a new one from the stored credentials."""
+    await get_connection_manager().disconnect(UUID(server_id))
 
 
 @pytest.fixture(scope="module")
@@ -127,22 +133,22 @@ async def test_connect_creates_a_working_server_without_leaking_tokens(async_cli
 
 async def test_hub_reconnects_with_stored_tokens_and_refreshes_expired_ones(async_client: AsyncClient, catalog, oauth_server):
     server_id = (await connect(async_client))["server_id"]
-    await async_client.post(f"/api/v1/servers/{server_id}/disconnect")
+    await drop_live_session(server_id)
 
     # Stored tokens are used as they are while valid.
     refreshes_before = oauth_server.provider.refresh_count
-    res = await async_client.post(f"/api/v1/servers/{server_id}/connect")
+    res = await async_client.post(f"/api/v1/servers/{server_id}/refresh-tools")
     assert res.status_code == 200, res.text
     assert oauth_server.provider.refresh_count == refreshes_before
 
     # An expired access token is refreshed up front and the new one is stored.
-    await async_client.post(f"/api/v1/servers/{server_id}/disconnect")
+    await drop_live_session(server_id)
     before = await stored_credentials(server_id)
     async with db_module.async_session_factory() as session:
         model = await session.get(ServerOAuthCredentialModel, server_id)
         model.access_token_expires_at = time.time() - 10
         await session.commit()
-    res = await async_client.post(f"/api/v1/servers/{server_id}/connect")
+    res = await async_client.post(f"/api/v1/servers/{server_id}/refresh-tools")
     assert res.status_code == 200, res.text
     assert oauth_server.provider.refresh_count == refreshes_before + 1
     after = await stored_credentials(server_id)
@@ -152,10 +158,10 @@ async def test_hub_reconnects_with_stored_tokens_and_refreshes_expired_ones(asyn
 
 async def test_revoked_tokens_mark_the_server_needs_auth_and_reconnect_fixes_it(async_client: AsyncClient, catalog, oauth_server):
     server_id = (await connect(async_client))["server_id"]
-    await async_client.post(f"/api/v1/servers/{server_id}/disconnect")
+    await drop_live_session(server_id)
     oauth_server.provider.revoke_everything()
 
-    res = await async_client.post(f"/api/v1/servers/{server_id}/connect")
+    res = await async_client.post(f"/api/v1/servers/{server_id}/refresh-tools")
     assert res.status_code == 502
     assert res.json()["error"]["details"]["reason"] == "oauth_reauthorization_required"
     assert (await async_client.get(f"/api/v1/servers/{server_id}")).json()["health_status"] == "NEEDS_AUTH"
@@ -205,7 +211,7 @@ async def test_reconnect_moves_the_server_to_the_providers_current_url(async_cli
     """A provider's URL can change in the catalog (Atlassian /v1 -> /v2). Signing in again gets tokens for the current URL,
     so the server must be moved there too, or the hub would present them to the old one."""
     server_id = (await connect(async_client))["server_id"]
-    await async_client.post(f"/api/v1/servers/{server_id}/disconnect")
+    await drop_live_session(server_id)
     async with db_module.async_session_factory() as session:
         model = await session.get(ServerModel, server_id)
         model.http_config = {"url": f"{oauth_server.base_url}/old-mcp", "headers": {}}

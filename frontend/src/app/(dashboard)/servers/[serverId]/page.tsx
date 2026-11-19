@@ -6,8 +6,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
     ArrowLeft,
     Activity,
-    Play,
-    Square,
     RefreshCw,
     Edit,
     Trash2,
@@ -55,9 +53,7 @@ import { TableSkeleton } from "@/components/common/TableSkeleton";
 import { CardGridSkeleton } from "@/components/common/CardGridSkeleton";
 import { formatDate, formatDuration } from "@/lib/utils";
 import {
-    useConnectServer,
     useDeleteServer,
-    useDisconnectServer,
     useRefreshServerTools,
     useServer,
     useServerTools,
@@ -93,8 +89,6 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
         page_size: 10,
     });
 
-    const connectMutation = useConnectServer();
-    const disconnectMutation = useDisconnectServer();
     const testMutation = useTestServerConnection();
     const refreshToolsMutation = useRefreshServerTools();
     const deleteMutation = useDeleteServer();
@@ -183,11 +177,10 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
         );
     }
 
-    const isActionLoading =
-        connectMutation.isPending || disconnectMutation.isPending || testMutation.isPending || refreshToolsMutation.isPending;
+    const isActionLoading = testMutation.isPending || refreshToolsMutation.isPending;
 
-    // Refresh and connect replace the server's tools (new ids), so the rows on screen go stale until the new list loads.
-    const toolsRefreshing = refreshToolsMutation.isPending || connectMutation.isPending;
+    // Refresh replaces the server's tools (new ids), so the rows on screen go stale until the new list loads.
+    const toolsRefreshing = refreshToolsMutation.isPending;
 
     const executions = executionsData?.items || [];
 
@@ -222,34 +215,8 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                             Test Connection
                         </Button>
 
-                        {server.health_status === "HEALTHY" ? (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => disconnectMutation.mutate(server.id)}
-                                disabled={isActionLoading}
-                                className="gap-1.5 text-amber-600 dark:text-amber-400 border-amber-500/30"
-                            >
-                                {disconnectMutation.isPending ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                    <Square className="h-4 w-4" />
-                                )}
-                                Disconnect
-                            </Button>
-                        ) : (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => connectMutation.mutate(server.id)}
-                                disabled={isActionLoading}
-                                className="gap-1.5 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
-                            >
-                                {connectMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-                                Connect
-                            </Button>
-                        )}
-
+                        {/* No Connect/Disconnect: Refresh Tools opens the connection and re-syncs tools, tool calls
+                            connect on their own, and only the Enabled switch stops a server being used. */}
                         <Button
                             variant="outline"
                             size="sm"

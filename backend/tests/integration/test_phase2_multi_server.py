@@ -43,13 +43,13 @@ async def test_multi_server_aggregation_and_duplicate_tool_names(async_client: A
     server_b_id = res_b.json()["id"]
 
     # 3. Connect both servers
-    conn_a = await async_client.post(f"/api/v1/servers/{server_a_id}/connect")
+    conn_a = await async_client.post(f"/api/v1/servers/{server_a_id}/refresh-tools")
     assert conn_a.status_code == 200
-    assert conn_a.json()["health_status"] == "HEALTHY"
+    assert (await async_client.get(f"/api/v1/servers/{server_a_id}")).json()["health_status"] == "HEALTHY"
 
-    conn_b = await async_client.post(f"/api/v1/servers/{server_b_id}/connect")
+    conn_b = await async_client.post(f"/api/v1/servers/{server_b_id}/refresh-tools")
     assert conn_b.status_code == 200
-    assert conn_b.json()["health_status"] == "HEALTHY"
+    assert (await async_client.get(f"/api/v1/servers/{server_b_id}")).json()["health_status"] == "HEALTHY"
 
     # 4. Aggregated Tool Catalog Check
     tools_res = await async_client.get("/api/v1/tools?page_size=50")
@@ -125,7 +125,7 @@ async def test_execution_history_filtering_and_pagination(async_client: AsyncCli
         },
     )
     server_id = res.json()["id"]
-    await async_client.post(f"/api/v1/servers/{server_id}/connect")
+    await async_client.post(f"/api/v1/servers/{server_id}/refresh-tools")
 
     # Run successful tool call
     await async_client.post(
@@ -181,7 +181,7 @@ async def test_server_disabled_blocks_execution(async_client: AsyncClient):
         },
     )
     server_id = res.json()["id"]
-    await async_client.post(f"/api/v1/servers/{server_id}/connect")
+    await async_client.post(f"/api/v1/servers/{server_id}/refresh-tools")
 
     # Disable server
     patch_res = await async_client.patch(

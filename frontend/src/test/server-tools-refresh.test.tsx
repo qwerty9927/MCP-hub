@@ -6,7 +6,7 @@ import ServerDetailPage from "@/app/(dashboard)/servers/[serverId]/page";
 const SERVER_ID = "0b7f6c1e-5d2a-4c8e-9f31-2a6d4e8b7c90";
 
 const mutation = (isPending = false) => ({ isPending, mutate: vi.fn(), mutateAsync: vi.fn() });
-const state = { refreshPending: false, connectPending: false };
+const state = { refreshPending: false };
 
 vi.mock("next/navigation", () => ({
     useRouter: () => ({ push: vi.fn() }),
@@ -62,8 +62,6 @@ vi.mock("@/features/servers/hooks/use-servers", () => ({
         },
         isLoading: false,
     }),
-    useConnectServer: () => mutation(state.connectPending),
-    useDisconnectServer: () => mutation(),
     useTestServerConnection: () => mutation(),
     useRefreshServerTools: () => mutation(state.refreshPending),
     useDeleteServer: () => mutation(),
@@ -82,7 +80,6 @@ async function renderPage() {
 describe("Server detail tools table while tools are refreshed", () => {
     beforeEach(() => {
         state.refreshPending = false;
-        state.connectPending = false;
     });
 
     it("keeps the tool list usable when nothing is refreshing", async () => {
@@ -104,13 +101,5 @@ describe("Server detail tools table while tools are refreshed", () => {
         expect(table).toHaveClass("pointer-events-none");
         expect(table.parentElement).toHaveAttribute("aria-busy", "true");
         expect(screen.getByRole("status")).toHaveTextContent("Refreshing tools…");
-    });
-
-    it("disables the old tool list while connecting, which also re-discovers tools", async () => {
-        state.connectPending = true;
-        await renderPage();
-
-        expect(screen.getByTestId("server-tools-table")).toHaveAttribute("inert");
-        expect(screen.getByText("Refreshing tools…")).toBeInTheDocument();
     });
 });

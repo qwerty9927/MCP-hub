@@ -5,8 +5,9 @@ from uuid import uuid4
 
 import pytest
 
+from app.core.constants.oauth_constants import OAUTH_REAUTHORIZATION_REASON
 from app.core.enums.server_enum import ServerHealthStatus, TransportType
-from app.core.exceptions import ConflictError, NotFoundError
+from app.core.exceptions import BadGatewayError, ConflictError, NotFoundError
 from app.domain.server_entity import ServerEntity
 from app.infrastructure.repositories.server_repository import ServerRepositoryAbstract
 from app.schemas.connection_schema import StdioConfig
@@ -146,3 +147,31 @@ async def test_delete_server(registry_service: ServerRegistryService, mock_serve
     mock_server_repo.get_by_id.return_value = None
     with pytest.raises(NotFoundError):
         await registry_service.delete_server(server_id, user_id=USER_ID)
+
+
+@pytest.mark.parametrize(
+    ("exc", "fallback", "expected"),
+    [
+        (
+            BadGatewayError("x", details={"reason": OAUTH_REAUTHORIZATION_REASON}),
+            ServerHealthStatus.UNHEALTHY,
+            ServerHealthStatus.NEEDS_AUTH,
+        ),
+        (BadGatewayError("x", details={"reason": OAUTH_REAUTHORIZATION_REASON}), None, ServerHealthStatus.NEEDS_AUTH),
+        (BadGatewayError("x", details={"reason": "connection refused"}), ServerHealthStatus.UNHEALTHY, ServerHealthStatus.UNHEALTHY),
+        (RuntimeError("boom"), ServerHealthStatus.UNHEALTHY, ServerHealthStatus.UNHEALTHY),
+        (RuntimeError("boom"), None, None),
+    ],
+)
+async def test_record_connect_failure_sets_needs_auth_only_for_reauthorization(
+    registry_service: ServerRegistryService, exc, fallback, expected
+):
+    registry_service.update_health = AsyncMock()
+    server_id = uuid4()
+
+    await registry_service.record_connect_failure(server_id, exc, user_id=USER_ID, fallback_status=fallback)
+
+    if expected is None:
+        registry_service.update_health.assert_not_awaited()
+    else:
+        registry_service.update_health.assert_awaited_once_with(server_id, expected, user_id=USER_ID)

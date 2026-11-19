@@ -20,7 +20,7 @@ async def connected_demo_server(client: AsyncClient) -> str:
             json={"name": "math", "transport": "stdio", "stdio_config": {"command": sys.executable, "args": [DEMO_SERVER]}},
         )
     ).json()
-    assert (await client.post(f"/api/v1/servers/{server['id']}/connect")).status_code == 200
+    assert (await client.post(f"/api/v1/servers/{server['id']}/refresh-tools")).status_code == 200
     return server["id"]
 
 

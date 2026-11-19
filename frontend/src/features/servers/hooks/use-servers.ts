@@ -78,43 +78,6 @@ export function useDeleteServer() {
     });
 }
 
-export function useConnectServer() {
-    const queryClient = useQueryClient();
-
-    return useMutation({
-        mutationFn: (serverId: string) => serversApi.connect(serverId),
-        // Connecting re-discovers the server's tools, giving them new ids. Awaiting the refetch keeps the
-        // mutation pending until the new list is loaded, so the old (stale) rows stay disabled until then.
-        onSuccess: async (server) => {
-            await Promise.all([
-                queryClient.invalidateQueries({ queryKey: SERVERS_QUERY_KEY }),
-                queryClient.invalidateQueries({ queryKey: ["tools"] }),
-                queryClient.invalidateQueries({ queryKey: ["system-health"] }),
-            ]);
-            toast.success(`Connected to "${server.name}". ${server.discovered_tool_count} tools discovered.`);
-        },
-        onError: (err: AppApiError) => {
-            toast.error(err.message || "Connection failed");
-        },
-    });
-}
-
-export function useDisconnectServer() {
-    const queryClient = useQueryClient();
-
-    return useMutation({
-        mutationFn: (serverId: string) => serversApi.disconnect(serverId),
-        onSuccess: (server) => {
-            queryClient.invalidateQueries({ queryKey: SERVERS_QUERY_KEY });
-            queryClient.invalidateQueries({ queryKey: ["system-health"] });
-            toast.info(`Disconnected from "${server.name}"`);
-        },
-        onError: (err: AppApiError) => {
-            toast.error(err.message || "Disconnection failed");
-        },
-    });
-}
-
 export function useTestServerConnection() {
     const queryClient = useQueryClient();
 

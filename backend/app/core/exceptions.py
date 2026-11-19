@@ -78,16 +78,6 @@ class BadGatewayError(AppError):
         super().__init__(message=message, status_code=502, details=details)
 
 
-class OAuthReauthorizationRequiredError(BadGatewayError):
-    """An OAuth server's tokens are gone or can no longer be refreshed: the user must sign in again (ADR-0008)."""
-
-    def __init__(self, server_id: str, reason: str):
-        super().__init__(
-            message=f"Server '{server_id}' needs you to sign in again: {reason}",
-            details={"server_id": server_id, "reason": "oauth_reauthorization_required", "detail": reason},
-        )
-
-
 class GatewayTimeoutError(AppError):
     """Raised when an upstream service or operation exceeds timeout limit (HTTP 504)."""
 

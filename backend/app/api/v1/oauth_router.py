@@ -1,14 +1,12 @@
 """Connect hosted MCP servers with OAuth (ADR-0008)."""
 
 from typing import Annotated
-from urllib.parse import urlencode
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import RedirectResponse
 
 from app.api.dependencies import get_current_principal, get_oauth_service
-from app.core.config import get_settings
 from app.domain.principal_entity import Principal
 from app.schemas.oauth_schema import OAuthConnectRequest, OAuthConnectResponse, OAuthProviderResponse
 from app.services.oauth_service import OAuthService
@@ -58,8 +56,4 @@ async def oauth_callback(
     (and so to the account) that started it. Ends by handing the result to the console's /oauth/complete."""
     reason = (error_description or error) if error else None
     result = await oauth_service.complete(state=state, code=code, iss=iss, error=reason)
-    if result.server_id is not None:
-        query = {"status": "success", "server_id": str(result.server_id)}
-    else:
-        query = {"status": "error", "error": result.error or "Sign-in failed"}
-    return RedirectResponse(f"{get_settings().FRONTEND_BASE_URL}/oauth/complete?{urlencode(query)}", status_code=303)
+    return RedirectResponse(oauth_service.complete_redirect_url(result), status_code=303)
