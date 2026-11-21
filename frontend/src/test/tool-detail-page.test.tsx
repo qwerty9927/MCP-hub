@@ -108,6 +108,20 @@ describe("ToolDetailPage Component", () => {
         });
     });
 
+    it("shows the JSON Schema as a tree, with the pretty-printed text under Raw JSON", async () => {
+        await renderDetailPage("srv-1:calculate");
+
+        fireEvent.click(screen.getByRole("tab", { name: /JSON Schema/i }));
+
+        await waitFor(() => {
+            expect(screen.getByText("properties")).toBeInTheDocument();
+        });
+        expect(screen.queryByText(/"properties": \{/)).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("tab", { name: "Raw JSON" }));
+        expect(screen.getByText(/"properties": \{/)).toBeInTheDocument();
+    });
+
     it("switches to Invocation API tab and displays cURL and Python gateway snippets", async () => {
         await renderDetailPage("srv-1:calculate");
 

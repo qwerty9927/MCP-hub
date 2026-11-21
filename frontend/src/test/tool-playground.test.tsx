@@ -135,7 +135,9 @@ describe("ToolPlayground Component", () => {
                 payload: { arguments: { expression: "4 * 5" } },
             });
             expect(screen.getByText("Success")).toBeInTheDocument();
-            expect(screen.getByText("20")).toBeInTheDocument();
+            // "20" shows in the text block and in the structured-result tree.
+            expect(screen.getAllByText("20")).toHaveLength(2);
+            expect(screen.getByText("result")).toBeInTheDocument();
         });
     });
 

@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ContentBlock, JsonTabs, JsonViewer } from "@/components/common/JsonViewer";
 import { Textarea } from "@/components/ui/textarea";
 import {
     AlertDialog,
@@ -65,7 +66,6 @@ export function ToolPlayground() {
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [pendingArgs, setPendingArgs] = useState<Record<string, any> | null>(null);
     const [copiedResult, setCopiedResult] = useState(false);
-    const [outputTab, setOutputTab] = useState<"formatted" | "raw">("formatted");
 
     // Execution result state
     const [result, setResult] = useState<ToolExecuteResponse | null>(null);
@@ -483,60 +483,38 @@ export function ToolPlayground() {
                                             </div>
                                         )}
 
-                                        <Tabs value={outputTab} onValueChange={(v: any) => setOutputTab(v)}>
-                                            <TabsList className="h-7 w-full grid grid-cols-2 max-w-[200px]">
-                                                <TabsTrigger
-                                                    value="formatted"
-                                                    onClick={() => setOutputTab("formatted")}
-                                                    className="text-xs h-6"
-                                                >
-                                                    Content
-                                                </TabsTrigger>
-                                                <TabsTrigger value="raw" onClick={() => setOutputTab("raw")} className="text-xs h-6">
-                                                    Raw JSON
-                                                </TabsTrigger>
-                                            </TabsList>
+                                        <JsonTabs
+                                            raw={result}
+                                            rawClassName="max-h-96"
+                                            formatted={
+                                                <div className="space-y-3">
+                                                    {/* Textual content items */}
+                                                    {result.content && result.content.length > 0 ? (
+                                                        <div className="space-y-2">
+                                                            <span className="text-xs font-medium text-muted-foreground">
+                                                                Content Blocks ({result.content.length}
+                                                                ):
+                                                            </span>
+                                                            {result.content.map((item, idx) => (
+                                                                <ContentBlock key={idx} item={item} className="max-h-96" />
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-xs text-muted-foreground">No textual content returned.</p>
+                                                    )}
 
-                                            <TabsContent value="formatted" className="mt-3 space-y-3">
-                                                {/* Textual content items */}
-                                                {result.content && result.content.length > 0 ? (
-                                                    <div className="space-y-2">
-                                                        <span className="text-xs font-medium text-muted-foreground">
-                                                            Content Blocks ({result.content.length}
-                                                            ):
-                                                        </span>
-                                                        {result.content.map((item, idx) => (
-                                                            <div
-                                                                key={idx}
-                                                                className="rounded-lg border border-border bg-muted/40 p-3 text-sm font-mono overflow-x-auto whitespace-pre-wrap break-all"
-                                                            >
-                                                                {item.text || JSON.stringify(item, null, 2)}
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                ) : (
-                                                    <p className="text-xs text-muted-foreground">No textual content returned.</p>
-                                                )}
-
-                                                {/* Structured Content if present */}
-                                                {result.structured_content && (
-                                                    <div className="space-y-2">
-                                                        <span className="text-xs font-medium text-muted-foreground">
-                                                            Structured Result:
-                                                        </span>
-                                                        <pre className="rounded-lg border border-border bg-muted/40 p-3 text-xs font-mono overflow-x-auto">
-                                                            {JSON.stringify(result.structured_content, null, 2)}
-                                                        </pre>
-                                                    </div>
-                                                )}
-                                            </TabsContent>
-
-                                            <TabsContent value="raw" className="mt-3">
-                                                <pre className="rounded-lg border border-border bg-muted/40 p-3 text-xs font-mono overflow-x-auto max-h-96">
-                                                    {JSON.stringify(result, null, 2)}
-                                                </pre>
-                                            </TabsContent>
-                                        </Tabs>
+                                                    {/* Structured Content if present */}
+                                                    {result.structured_content && (
+                                                        <div className="space-y-2">
+                                                            <span className="text-xs font-medium text-muted-foreground">
+                                                                Structured Result:
+                                                            </span>
+                                                            <JsonViewer value={result.structured_content} className="max-h-96" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            }
+                                        />
 
                                         {/* Execution Audit Link */}
                                         <div className="flex items-center justify-between pt-2 border-t border-border text-xs text-muted-foreground">

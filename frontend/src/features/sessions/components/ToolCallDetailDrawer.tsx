@@ -5,12 +5,12 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ToolCallRead } from "@/types";
+import { ToolCallRead, ToolContentItem } from "@/types";
 import { formatDate, formatDuration } from "@/lib/utils";
 import { Wrench, Server, Clock, Copy, Check, FileCode2, Terminal, AlertTriangle, Ban } from "lucide-react";
 import { toast } from "sonner";
 import { ToolCallStatusBadge } from "@/components/common/ToolCallStatusBadge";
+import { ContentBlock, JsonTabs, JsonViewer } from "@/components/common/JsonViewer";
 
 interface ToolCallDetailDrawerProps {
     toolCall: ToolCallRead | null;
@@ -23,7 +23,6 @@ export function ToolCallDetailDrawer({ toolCall, open, onOpenChange }: ToolCallD
     const [copiedArgs, setCopiedArgs] = useState(false);
     const [copiedResponse, setCopiedResponse] = useState(false);
     const [copiedAll, setCopiedAll] = useState(false);
-    const [responseTab, setResponseTab] = useState<"formatted" | "raw">("formatted");
 
     if (!toolCall) return null;
 
@@ -184,9 +183,11 @@ export function ToolCallDetailDrawer({ toolCall, open, onOpenChange }: ToolCallD
                             </Button>
                         </CardHeader>
                         <CardContent className="p-4 pt-2">
-                            <pre className="rounded-lg bg-muted/60 p-3.5 font-mono text-xs overflow-x-auto border border-border max-h-[300px]">
-                                {JSON.stringify(toolCall.arguments, null, 2)}
-                            </pre>
+                            <JsonTabs
+                                formatted={<JsonViewer value={toolCall.arguments} className="max-h-[300px]" />}
+                                raw={toolCall.arguments}
+                                rawClassName="max-h-[300px]"
+                            />
                         </CardContent>
                     </Card>
 
@@ -222,39 +223,19 @@ export function ToolCallDetailDrawer({ toolCall, open, onOpenChange }: ToolCallD
                                     <p className="text-xs font-medium">No response payload recorded</p>
                                 </div>
                             ) : (
-                                <Tabs value={responseTab} onValueChange={(v: any) => setResponseTab(v)}>
-                                    <TabsList className="h-7 max-w-[200px] grid grid-cols-2 mb-3">
-                                        <TabsTrigger value="formatted" className="text-xs h-6">
-                                            Formatted
-                                        </TabsTrigger>
-                                        <TabsTrigger value="raw" className="text-xs h-6">
-                                            Raw JSON
-                                        </TabsTrigger>
-                                    </TabsList>
-
-                                    <TabsContent value="formatted" className="space-y-2 mt-0">
-                                        {toolCall.response.content && Array.isArray(toolCall.response.content) ? (
-                                            toolCall.response.content.map((item: any, idx: number) => (
-                                                <div
-                                                    key={idx}
-                                                    className="rounded-lg border border-border bg-muted/40 p-3 text-xs font-mono overflow-x-auto whitespace-pre-wrap break-all max-h-60"
-                                                >
-                                                    {item.text || JSON.stringify(item, null, 2)}
-                                                </div>
+                                <JsonTabs
+                                    formatted={
+                                        Array.isArray(toolCall.response.content) ? (
+                                            toolCall.response.content.map((item: ToolContentItem, idx: number) => (
+                                                <ContentBlock key={idx} item={item} className="max-h-[400px]" />
                                             ))
                                         ) : (
-                                            <pre className="rounded-lg bg-muted/60 p-3.5 font-mono text-xs overflow-x-auto border border-border max-h-[300px]">
-                                                {JSON.stringify(toolCall.response, null, 2)}
-                                            </pre>
-                                        )}
-                                    </TabsContent>
-
-                                    <TabsContent value="raw" className="mt-0">
-                                        <pre className="rounded-lg bg-muted/60 p-3.5 font-mono text-xs overflow-x-auto border border-border max-h-[300px]">
-                                            {JSON.stringify(toolCall.response, null, 2)}
-                                        </pre>
-                                    </TabsContent>
-                                </Tabs>
+                                            <JsonViewer value={toolCall.response} className="max-h-[400px]" />
+                                        )
+                                    }
+                                    raw={toolCall.response}
+                                    rawClassName="max-h-[300px]"
+                                />
                             )}
                         </CardContent>
                     </Card>
