@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { TableSkeleton } from "@/components/common/TableSkeleton";
 import { CardGridSkeleton } from "@/components/common/CardGridSkeleton";
 import { ErrorAlert } from "@/components/common/ErrorAlert";
+import { JsonTabs, JsonViewer } from "@/components/common/JsonViewer";
 import { useTool } from "@/features/tools/hooks/use-tools";
 import { formatDate } from "@/lib/utils";
 
@@ -318,9 +319,10 @@ async with streamable_http_client("http://localhost:8000/mcp") as (read_stream, 
                             </div>
                         </CardHeader>
                         <CardContent>
-                            <pre className="rounded-lg bg-muted/60 p-4 font-mono text-xs overflow-x-auto border border-border">
-                                {JSON.stringify(tool.input_schema, null, 2)}
-                            </pre>
+                            <JsonTabs
+                                formatted={<JsonViewer value={tool.input_schema} collapsed={3} className="max-h-[700px]" />}
+                                raw={tool.input_schema}
+                            />
                         </CardContent>
                     </Card>
                 </TabsContent>

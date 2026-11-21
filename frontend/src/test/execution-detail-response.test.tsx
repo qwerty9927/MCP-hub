@@ -83,16 +83,20 @@ describe("ExecutionDetailPage Component with Response Payload", () => {
             expect(screen.getByText("18.5ms")).toBeInTheDocument();
             expect(screen.getByText("math-server")).toBeInTheDocument();
 
-            // Invocation Arguments
-            expect(screen.getByText(/"expr": "2 \* \(10 \+ 5\)"/)).toBeInTheDocument();
+            // Invocation Arguments, as a tree
+            expect(screen.getByText("expr")).toBeInTheDocument();
 
-            // Response Output Card
+            // Response Output Card: plain text stays text, structured output is a tree
             expect(screen.getByText("Tool Output Response")).toBeInTheDocument();
             expect(screen.getByText("Content Blocks (1):")).toBeInTheDocument();
             expect(screen.getByText("Result: 30")).toBeInTheDocument();
             expect(screen.getByText("Structured Output:")).toBeInTheDocument();
-            expect(screen.getByText(/"result": 30/)).toBeInTheDocument();
+            expect(screen.getByText("operation_count")).toBeInTheDocument();
         });
+
+        // Raw JSON keeps the pretty-printed text.
+        fireEvent.click(screen.getAllByRole("tab", { name: "Raw JSON" })[0]);
+        expect(screen.getByText(/"expr": "2 \* \(10 \+ 5\)"/)).toBeInTheDocument();
     });
 
     it("switches to Raw JSON tab in response card", async () => {
@@ -112,11 +116,12 @@ describe("ExecutionDetailPage Component with Response Payload", () => {
 
         await renderDetailPage("exec-102");
 
+        // One Raw JSON tab for the arguments, one for the response.
         await waitFor(() => {
-            expect(screen.getByRole("tab", { name: "Raw JSON" })).toBeInTheDocument();
+            expect(screen.getAllByRole("tab", { name: "Raw JSON" })).toHaveLength(2);
         });
 
-        const rawTab = screen.getByRole("tab", { name: "Raw JSON" });
+        const rawTab = screen.getAllByRole("tab", { name: "Raw JSON" })[1];
         fireEvent.click(rawTab);
 
         expect(screen.getByText(/"type": "text"/)).toBeInTheDocument();

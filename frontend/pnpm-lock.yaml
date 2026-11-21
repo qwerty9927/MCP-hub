@@ -41,6 +41,9 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.104.5
         version: 5.104.5(@types/react@19.3.0)(react@19.0.0)
+      '@uiw/react-json-view':
+        specifier: 2.0.0-alpha.46
+        version: 2.0.0-alpha.46(@babel/runtime@7.29.10)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       axios:
         specifier: ^1.20.0
         version: 1.20.0
@@ -1034,6 +1037,13 @@ packages:
 
   '@types/react@19.3.0':
     resolution: {integrity: sha512-N0rFCuH9YoxG9/m61l9MfpJKfmLOVU0em7ipIz6TRgSSkvReLB9vL85GB+yr8Bs5leqpvg96JSwF4ZS1s4viQg==}
+
+  '@uiw/react-json-view@2.0.0-alpha.46':
+    resolution: {integrity: sha512-fCgbqA3iVo8IwK2M3OeOok3cepGtt60SaBSeqLzLYdgQu+TB62FBoGcJbOihNZzRNHor1WiYZDDezdoFPuKiDg==}
+    peerDependencies:
+      '@babel/runtime': '>=7.10.0'
+      react: '>=18.0.0'
+      react-dom: '>=18.0.0'
 
   '@vitejs/plugin-react@6.1.2':
     resolution: {integrity: sha512-fhJNGUdscQa4HkI0xFxwonWyhnVReCPDbXI7FH7jmzpnVCrFQI7PRrhWecO263610vOrs9tr2Y4xcf8uAdFxbw==}
@@ -2798,6 +2808,12 @@ snapshots:
   '@types/react@19.3.0':
     dependencies:
       csstype: 3.2.3
+
+  '@uiw/react-json-view@2.0.0-alpha.46(@babel/runtime@7.29.10)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)':
+    dependencies:
+      '@babel/runtime': 7.29.10
+      react: 19.0.0
+      react-dom: 19.0.0(react@19.0.0)
 
   '@vitejs/plugin-react@6.1.2(vite@8.3.5(@types/node@26.6.5)(jiti@1.21.7))':
     dependencies:

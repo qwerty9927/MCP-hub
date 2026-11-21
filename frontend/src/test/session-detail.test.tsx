@@ -158,6 +158,9 @@ describe("ToolCallDetailDrawer Component", () => {
         expect(screen.getByText("divide")).toBeInTheDocument();
         expect(screen.getByText("math-server")).toBeInTheDocument();
         expect(screen.getByText("ZeroDivisionError: division by zero")).toBeInTheDocument();
+        // Arguments open as a tree; Raw JSON shows the pretty-printed text.
+        expect(screen.getByText("a")).toBeInTheDocument();
+        fireEvent.click(screen.getByRole("tab", { name: "Raw JSON" }));
         expect(screen.getByText(/"a": 10/)).toBeInTheDocument();
         expect(screen.getByText("No response payload recorded")).toBeInTheDocument();
     });
@@ -172,6 +175,14 @@ describe("ToolCallDetailDrawer Component", () => {
         );
 
         expect(screen.getByText("calculate")).toBeInTheDocument();
+        // Arguments and response open as trees...
+        expect(screen.getByText("expression")).toBeInTheDocument();
+        expect(screen.getByText("result")).toBeInTheDocument();
+
+        // ...and each Raw JSON tab shows the pretty-printed text.
+        const [argsRaw, responseRaw] = screen.getAllByRole("tab", { name: "Raw JSON" });
+        fireEvent.click(argsRaw);
+        fireEvent.click(responseRaw);
         expect(screen.getByText(/"expression": "2 \+ 2"/)).toBeInTheDocument();
         expect(screen.getByText(/"result": 4/)).toBeInTheDocument();
     });
