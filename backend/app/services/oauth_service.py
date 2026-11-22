@@ -71,6 +71,9 @@ class OAuthFlowRegistry:
     def __init__(self) -> None:
         self._flows: dict[str, PendingFlow] = {}
 
+    def __len__(self) -> int:
+        return len(self._flows)
+
     def add(self, state: str, flow: PendingFlow) -> None:
         self._flows[state] = flow
 
@@ -79,9 +82,6 @@ class OAuthFlowRegistry:
 
     def get(self, state: str) -> PendingFlow | None:
         return self._flows.get(state)
-
-    def __len__(self) -> int:
-        return len(self._flows)
 
     async def shutdown(self) -> None:
         flows = list(self._flows.values())

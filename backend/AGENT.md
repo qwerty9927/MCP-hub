@@ -291,6 +291,7 @@ Strict unidirectional dependency flow:
 - **Import Style & Package Invariant**:
   - All `__init__.py` files across `app/` are pure package markers (empty, containing 0 re-exports or logic).
   - Internal imports must be explicit and direct to the defining submodule (e.g. `from app.domain.server_entity import ServerEntity`, `from app.infrastructure.repositories.server_repo import ServerRepositoryAbstract`).
+- **Definition Order in a Module**: module-level constants and variables, then classes, then public functions, then private (`_x`) functions. Inside a class: `__init__`, other special methods (`__len__`, …), public methods, then private methods. A class another class needs at definition time (a base class, or a type a dataclass field evaluates) stays above it.
 - **Ruff Configuration**:
   - Max line length: `140`.
   - Selected linters: `E` (Pycodestyle errors), `F` (Pyflakes), `I` (isort imports), `UP` (pyupgrade), `B` (flake8-bugbear), `SIM` (flake8-simplify).

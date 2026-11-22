@@ -17,49 +17,6 @@ from app.infrastructure.oauth.provider_catalog import OAuthProvider
 from app.infrastructure.repositories.oauth_credential_repository import OAuthCredentialRepositoryAbstract
 
 
-def callback_url(settings: Settings) -> str:
-    """The redirect URI registered with every authorization server."""
-    return f"{settings.PUBLIC_API_BASE_URL}{settings.API_V1_STR}/oauth/callback"
-
-
-def build_client_metadata(settings: Settings, provider: OAuthProvider | None) -> OAuthClientMetadata:
-    """Metadata the hub registers itself with: a public web client using the authorization-code grant."""
-    return OAuthClientMetadata(
-        client_name=OAUTH_CLIENT_NAME,
-        redirect_uris=[callback_url(settings)],
-        grant_types=["authorization_code", "refresh_token"],
-        response_types=["code"],
-        token_endpoint_auth_method="none",
-        scope=provider.scopes if provider else None,
-        application_type="web",
-    )
-
-
-def preregistered_client(settings: Settings, provider: OAuthProvider) -> OAuthClientInformationFull | None:
-    """The admin-configured client for a provider without dynamic client registration, if any."""
-    config = settings.OAUTH_CLIENTS.get(provider.id)
-    if not config or not config.get("client_id"):
-        return None
-    secret = config.get("client_secret")
-    return OAuthClientInformationFull(
-        client_id=config["client_id"],
-        client_secret=secret,
-        redirect_uris=[callback_url(settings)],
-        token_endpoint_auth_method="client_secret_post" if secret else "none",
-    )
-
-
-def _expires_at(tokens: OAuthToken) -> float | None:
-    return time.time() + int(tokens.expires_in) if tokens.expires_in is not None else None
-
-
-def _with_remaining_lifetime(tokens: OAuthToken, expires_at: float | None) -> OAuthToken:
-    """Stored tokens carry an absolute expiry; the SDK reads a relative `expires_in`."""
-    if expires_at is None:
-        return tokens
-    return tokens.model_copy(update={"expires_in": max(0, int(expires_at - time.time()))})
-
-
 class MemoryTokenStorage:
     """Credentials held only for the duration of one sign-in, persisted once it succeeds."""
 
@@ -122,3 +79,46 @@ class HubOAuthClientProvider(OAuthClientProvider):
         tokens = self.context.current_tokens
         if tokens is not None and tokens.expires_in is not None:
             self.context.update_token_expiry(tokens)
+
+
+def callback_url(settings: Settings) -> str:
+    """The redirect URI registered with every authorization server."""
+    return f"{settings.PUBLIC_API_BASE_URL}{settings.API_V1_STR}/oauth/callback"
+
+
+def build_client_metadata(settings: Settings, provider: OAuthProvider | None) -> OAuthClientMetadata:
+    """Metadata the hub registers itself with: a public web client using the authorization-code grant."""
+    return OAuthClientMetadata(
+        client_name=OAUTH_CLIENT_NAME,
+        redirect_uris=[callback_url(settings)],
+        grant_types=["authorization_code", "refresh_token"],
+        response_types=["code"],
+        token_endpoint_auth_method="none",
+        scope=provider.scopes if provider else None,
+        application_type="web",
+    )
+
+
+def preregistered_client(settings: Settings, provider: OAuthProvider) -> OAuthClientInformationFull | None:
+    """The admin-configured client for a provider without dynamic client registration, if any."""
+    config = settings.OAUTH_CLIENTS.get(provider.id)
+    if not config or not config.get("client_id"):
+        return None
+    secret = config.get("client_secret")
+    return OAuthClientInformationFull(
+        client_id=config["client_id"],
+        client_secret=secret,
+        redirect_uris=[callback_url(settings)],
+        token_endpoint_auth_method="client_secret_post" if secret else "none",
+    )
+
+
+def _expires_at(tokens: OAuthToken) -> float | None:
+    return time.time() + int(tokens.expires_in) if tokens.expires_in is not None else None
+
+
+def _with_remaining_lifetime(tokens: OAuthToken, expires_at: float | None) -> OAuthToken:
+    """Stored tokens carry an absolute expiry; the SDK reads a relative `expires_in`."""
+    if expires_at is None:
+        return tokens
+    return tokens.model_copy(update={"expires_in": max(0, int(expires_at - time.time()))})
