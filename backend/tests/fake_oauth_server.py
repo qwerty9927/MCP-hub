@@ -13,12 +13,17 @@ from mcp.server.auth.provider import (
     AccessToken,
     AuthorizationCode,
     AuthorizationParams,
+    ProviderTokenVerifier,
     RefreshToken,
     construct_redirect_uri,
 )
+from mcp.server.auth.routes import create_auth_routes
 from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions
 from mcp.server.mcpserver import MCPServer
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
+from pydantic import AnyHttpUrl
+from starlette.applications import Starlette
+from starlette.routing import BaseRoute, Mount, Route
 
 
 class InMemoryAuthProvider:
@@ -91,39 +96,65 @@ class InMemoryAuthProvider:
         return OAuthToken(access_token=access, expires_in=self.access_token_lifetime, refresh_token=refresh, scope=" ".join(scopes) or None)
 
 
-class FakeOAuthMcpServer:
-    """Runs the protected server on 127.0.0.1:`port` in a background thread."""
+AUTH_PATH = "/tenant"
 
-    def __init__(self, port: int) -> None:
+
+def _routes_under_issuer_path(routes: list[Route]) -> list[BaseRoute]:
+    """Serve the SDK's auth routes for an issuer with a path: endpoints under it, metadata at the RFC 8414 location."""
+    metadata = [Route(f"{r.path}{AUTH_PATH}", endpoint=r.endpoint, methods=r.methods) for r in routes if r.path.startswith("/.well-known")]
+    return [*metadata, Mount(AUTH_PATH, routes=[r for r in routes if not r.path.startswith("/.well-known")])]
+
+
+class FakeOAuthMcpServer:
+    """Runs the protected server on 127.0.0.1:`port` in a background thread.
+
+    With `separate_auth_server`, the authorization server runs on its own origin (`port + 1`), as Atlassian's
+    does: its token endpoint is then not `<MCP server origin>/token`, the SDK's guess when it has no metadata.
+    """
+
+    def __init__(self, port: int, *, separate_auth_server: bool = False) -> None:
         self.port = port
         self.base_url = f"http://127.0.0.1:{port}"
         self.mcp_url = f"{self.base_url}/mcp"
         self.provider = InMemoryAuthProvider()
-        mcp = MCPServer(
-            "fake-oauth-server",
-            auth_server_provider=self.provider,
-            auth=AuthSettings(
-                issuer_url=self.base_url,
-                resource_server_url=self.mcp_url,
-                client_registration_options=ClientRegistrationOptions(enabled=True),
-                validate_token_resource=True,
-            ),
+        registration = ClientRegistrationOptions(enabled=True)
+        # A path issuer, like Atlassian's https://auth.atlassian.com/<id>.
+        self.auth_url = f"http://127.0.0.1:{port + 1}{AUTH_PATH}" if separate_auth_server else self.base_url
+        settings = AuthSettings(
+            issuer_url=self.auth_url,
+            resource_server_url=self.mcp_url,
+            client_registration_options=registration,
+            validate_token_resource=True,
         )
+        if separate_auth_server:
+            mcp = MCPServer("fake-oauth-server", token_verifier=ProviderTokenVerifier(self.provider), auth=settings)
+        else:
+            mcp = MCPServer("fake-oauth-server", auth_server_provider=self.provider, auth=settings)
 
         @mcp.tool()
         def whoami() -> str:
             """Say who is calling."""
             return "an authenticated caller"
 
-        self._server = uvicorn.Server(uvicorn.Config(mcp.streamable_http_app(), host="127.0.0.1", port=port, log_level="warning"))
-        self._thread = threading.Thread(target=self._server.run, daemon=True)
+        self._servers = [uvicorn.Server(uvicorn.Config(mcp.streamable_http_app(), host="127.0.0.1", port=port, log_level="warning"))]
+        if separate_auth_server:
+            auth_app = Starlette(
+                routes=_routes_under_issuer_path(
+                    create_auth_routes(self.provider, AnyHttpUrl(self.auth_url), client_registration_options=registration)
+                )
+            )
+            self._servers.append(uvicorn.Server(uvicorn.Config(auth_app, host="127.0.0.1", port=port + 1, log_level="warning")))
+        self._threads = [threading.Thread(target=server.run, daemon=True) for server in self._servers]
 
     def start(self) -> None:
-        self._thread.start()
+        for thread in self._threads:
+            thread.start()
         deadline = time.time() + 5
-        while not self._server.started and time.time() < deadline:
+        while not all(server.started for server in self._servers) and time.time() < deadline:
             time.sleep(0.05)
 
     def stop(self) -> None:
-        self._server.should_exit = True
-        self._thread.join(timeout=5)
+        for server in self._servers:
+            server.should_exit = True
+        for thread in self._threads:
+            thread.join(timeout=5)

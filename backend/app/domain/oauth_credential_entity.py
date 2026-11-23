@@ -13,3 +13,4 @@ class OAuthCredentialEntity:
     client_info_json: str | None = None  # OAuthClientInformationFull JSON
     tokens_json: str | None = None  # OAuthToken JSON
     access_token_expires_at: float | None = None  # unix seconds
+    discovery_json: str | None = None  # OAuthDiscovery JSON: the authorization server metadata found at sign-in

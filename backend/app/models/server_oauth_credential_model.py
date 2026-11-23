@@ -19,6 +19,8 @@ class ServerOAuthCredentialModel(Base):
     client_info_enc: Mapped[str | None] = mapped_column(Text, nullable=True)  # OAuthClientInformationFull JSON
     tokens_enc: Mapped[str | None] = mapped_column(Text, nullable=True)  # OAuthToken JSON
     access_token_expires_at: Mapped[float | None] = mapped_column(Float, nullable=True)  # unix seconds
+    # Where the authorization server is and its token endpoint, as discovered at sign-in. Public, so not encrypted.
+    discovery_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
