@@ -6,9 +6,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { LoginForm } from "@/features/auth/components/LoginForm";
 import { AuthGuard } from "@/components/layout/AuthGuard";
 import { ApiKeysCard, mcpClientConfig } from "@/features/auth/components/ApiKeysCard";
-import { handleUnauthorized } from "@/lib/api-client";
-import { AUTH_TOKEN_KEY, getAuthToken, loginPath, safeNextPath, setAuthToken } from "@/lib/auth-token";
+import { handleUnauthorized, refreshSession } from "@/lib/api-client";
+import { AUTH_TOKEN_KEY, clearAuthToken, getAuthToken, loginPath, safeNextPath, setAuthToken } from "@/lib/auth-token";
 import { authApi } from "@/lib/api";
+import { useLogout } from "@/features/auth/hooks/use-auth";
 
 const replace = vi.fn();
 let searchParams = new URLSearchParams();
@@ -28,7 +29,14 @@ vi.mock("@/lib/api", () => ({
         createApiKey: vi.fn(),
         updateApiKey: vi.fn(),
         revokeApiKey: vi.fn(),
+        logout: vi.fn(),
     },
+}));
+
+// AuthGuard tries the refresh token cookie before sending a tab without a token to login; never hit the network here.
+vi.mock("@/lib/api-client", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@/lib/api-client")>()),
+    refreshSession: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
@@ -42,6 +50,7 @@ beforeEach(() => {
     vi.clearAllMocks();
     sessionStorage.clear();
     searchParams = new URLSearchParams();
+    vi.mocked(refreshSession).mockResolvedValue(null);
 });
 
 describe("auth token helpers", () => {
@@ -93,7 +102,42 @@ describe("AuthGuard", () => {
         );
 
         await waitFor(() => expect(replace).toHaveBeenCalledWith("/login?next=%2Fservers"));
+        expect(refreshSession).toHaveBeenCalled();
         expect(screen.queryByText("secret dashboard")).not.toBeInTheDocument();
+    });
+
+    it("stays signed in from the refresh cookie in a tab without a token", async () => {
+        vi.mocked(refreshSession).mockImplementation(async () => {
+            setAuthToken("jwt-from-cookie");
+            return "jwt-from-cookie";
+        });
+        vi.mocked(authApi.me).mockResolvedValue({ id: "u1", email: "me@example.com", created_at: "2026-11-12T00:00:00Z" });
+
+        renderWithClient(
+            <AuthGuard>
+                <p>secret dashboard</p>
+            </AuthGuard>
+        );
+
+        expect(await screen.findByText("secret dashboard")).toBeInTheDocument();
+        expect(replace).not.toHaveBeenCalled();
+    });
+
+    it("goes to login without trying the cookie when the token goes away after sign-in", async () => {
+        setAuthToken("jwt-123");
+        vi.mocked(authApi.me).mockResolvedValue({ id: "u1", email: "me@example.com", created_at: "2026-11-12T00:00:00Z" });
+        renderWithClient(
+            <AuthGuard>
+                <p>secret dashboard</p>
+            </AuthGuard>
+        );
+        await screen.findByText("secret dashboard");
+
+        // Sign-out clears the token while the dashboard is still mounted; a refresh now would race POST /auth/logout.
+        act(() => clearAuthToken());
+
+        await waitFor(() => expect(replace).toHaveBeenCalledWith("/login?next=%2Fservers"));
+        expect(refreshSession).not.toHaveBeenCalled();
     });
 
     it("renders the dashboard once the account is confirmed", async () => {
@@ -155,6 +199,36 @@ describe("401 interceptor", () => {
         handleUnauthorized(axios401("/auth/login"));
 
         expect(sessionStorage.getItem(AUTH_TOKEN_KEY)).toBe("jwt-123");
+    });
+});
+
+describe("useLogout", () => {
+    function SignOut() {
+        const logout = useLogout();
+        return <button onClick={() => void logout()}>Sign out</button>;
+    }
+
+    it("revokes the refresh token on the server and clears the tab's token", async () => {
+        setAuthToken("jwt-123");
+        vi.mocked(authApi.logout).mockResolvedValue(undefined);
+        renderWithClient(<SignOut />);
+
+        fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+
+        expect(authApi.logout).toHaveBeenCalledTimes(1);
+        expect(getAuthToken()).toBeNull();
+    });
+
+    it("still signs out locally when the server cannot be reached", async () => {
+        setAuthToken("jwt-123");
+        vi.mocked(authApi.logout).mockRejectedValue(new Error("Network Error"));
+        renderWithClient(<SignOut />);
+
+        await act(async () => {
+            fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+        });
+
+        expect(getAuthToken()).toBeNull();
     });
 });
 

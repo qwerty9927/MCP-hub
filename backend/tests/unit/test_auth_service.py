@@ -12,6 +12,7 @@ from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError, Un
 from app.helpers.passwords import hash_password, verify_password
 from app.helpers.tokens import JWT_ALGORITHM, JWT_AUDIENCE, create_access_token, decode_access_token, generate_api_key, hash_api_key
 from app.infrastructure.repositories.api_key_repository import PostgresApiKeyRepository
+from app.infrastructure.repositories.refresh_token_repository import PostgresRefreshTokenRepository
 from app.infrastructure.repositories.user_repository import PostgresUserRepository
 from app.schemas.auth_schema import ApiKeyCreateRequest, LoginRequest, RegisterRequest
 from app.services.auth_service import AuthService
@@ -19,7 +20,11 @@ from app.services.auth_service import AuthService
 
 @pytest.fixture
 def auth() -> AuthService:
-    return AuthService(user_repository=PostgresUserRepository(), api_key_repository=PostgresApiKeyRepository())
+    return AuthService(
+        user_repository=PostgresUserRepository(),
+        api_key_repository=PostgresApiKeyRepository(),
+        refresh_token_repository=PostgresRefreshTokenRepository(),
+    )
 
 
 def test_password_hash_roundtrip():
@@ -73,8 +78,8 @@ async def test_register_and_login(auth: AuthService):
     user = await auth.register(RegisterRequest(email="  Alice@Example.COM ", password="s3cret-pass"))
     assert user.email == "alice@example.com"
 
-    token = await auth.login(LoginRequest(email="alice@example.com", password="s3cret-pass"))
-    principal = auth.authenticate_console(token.access_token)
+    tokens = await auth.login(LoginRequest(email="alice@example.com", password="s3cret-pass"))
+    principal = auth.authenticate_console(tokens.access.access_token)
     assert principal is not None and principal.user_id == user.id and principal.api_key_id is None
 
 

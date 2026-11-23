@@ -1,4 +1,4 @@
-"""Console JWTs and MCP API key helpers."""
+"""Console JWTs, console refresh tokens and MCP API key helpers."""
 
 import hashlib
 import secrets
@@ -8,6 +8,7 @@ from uuid import UUID
 import jwt
 
 from app.core.config import get_settings
+from app.core.constants.auth_constants import REFRESH_TOKEN_PREFIX
 
 JWT_ALGORITHM = "HS256"
 JWT_AUDIENCE = "mcp-hub"
@@ -51,6 +52,17 @@ def generate_api_key() -> tuple[str, str, str]:
 def hash_api_key(key: str) -> str:
     # A fast hash is right here: keys are 256 bits of randomness, not human-chosen secrets.
     return hashlib.sha256(key.encode("utf-8")).hexdigest()
+
+
+def generate_refresh_token() -> tuple[str, str]:
+    """Create a console refresh token (ADR-0009); returns (plaintext, sha256 hash). Only the hash is stored."""
+    plaintext = f"{REFRESH_TOKEN_PREFIX}{secrets.token_urlsafe(32)}"
+    return plaintext, hash_refresh_token(plaintext)
+
+
+def hash_refresh_token(token: str) -> str:
+    # 256 random bits, like API keys: a fast hash is enough.
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 def is_api_key(token: str) -> bool:

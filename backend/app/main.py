@@ -12,6 +12,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.routing import Route
 
 from app.api.dependencies import (
+    get_auth_service,
     get_connection_manager,
     get_embedding_backfill_service,
     get_embedding_service,
@@ -52,7 +53,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     mcp_server = get_mcp_server()
     async with mcp_server.run():
         # Background jobs (app/background_service/). A fresh scheduler per lifespan: one cannot restart after shutdown.
-        scheduler = create_scheduler(get_session_sweeper_service(), embedding_backfill)
+        scheduler = create_scheduler(get_session_sweeper_service(), embedding_backfill, get_auth_service().purge_expired_refresh_tokens)
         scheduler.start()
         logger.info(f"Background scheduler started with jobs: {[job.id for job in scheduler.get_jobs()]}")
         try:

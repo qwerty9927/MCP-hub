@@ -59,7 +59,8 @@ All listing endpoints return records wrapped in this envelope:
 
 ### 1.5 Authentication & Ownership
 
-- Every endpoint under `/api/v1` except `POST /auth/register` and `POST /auth/login` requires `Authorization: Bearer <console token>`. API keys are not accepted here.
+- Every endpoint under `/api/v1` except `POST /auth/register`, `/auth/login`, `/auth/refresh` and `/auth/logout` requires `Authorization: Bearer <console token>`. API keys are not accepted here.
+- The console token is short-lived (`ACCESS_TOKEN_EXPIRE_MINUTES`). Login also sets the httpOnly cookie `mcp_hub_refresh` (`Path=/api/v1/auth`), which `POST /auth/refresh` exchanges for a new console token, rotating the cookie (ADR-0009). Refresh and logout read the cookie and require the header `X-MCP-Hub-Client: console`; browsers must send them with credentials.
 - `/health` and `/ready` (and their `/api/v1/system/...` aliases) are open; `/metrics` requires a token.
 - Servers, tools, executions and sessions belong to the account that created them. Another account's resource answers `404`, as if it did not exist, and is absent from lists.
 - Server names are unique per account, not globally.
@@ -69,7 +70,9 @@ All listing endpoints return records wrapped in this envelope:
 | Method | Path | Auth | Body | Response |
 | :--- | :--- | :--- | :--- | :--- |
 | `POST` | `/auth/register` | none | `{"email", "password"}` (8-128 chars) | `201` `{"id", "email", "created_at"}`; `409` email taken; `403` sign-up disabled |
-| `POST` | `/auth/login` | none | `{"email", "password"}` | `200` `{"access_token", "token_type": "bearer", "expires_in"}`; `401` bad credentials |
+| `POST` | `/auth/login` | none | `{"email", "password"}` | `200` `{"access_token", "token_type": "bearer", "expires_in"}` and `Set-Cookie: mcp_hub_refresh=mhr_...; HttpOnly`; `401` bad credentials |
+| `POST` | `/auth/refresh` | refresh cookie + `X-MCP-Hub-Client: console` | | `200` same body as login, and a new cookie (the old one stops working); `401` missing, unknown, expired or revoked token, or a token already used, which also revokes that sign-in; `403` header missing |
+| `POST` | `/auth/logout` | refresh cookie + `X-MCP-Hub-Client: console` | | `204`, always: revokes the cookie's sign-in and clears the cookie; `403` header missing |
 | `GET` | `/auth/me` | token | | `200` the account |
 | `GET` | `/auth/api-keys` | token | | `200` list of `{"id", "name", "key_prefix", "created_at", "last_used_at", "revoked_at", "session_idle_minutes"}` |
 | `POST` | `/auth/api-keys` | token | `{"name", "session_idle_minutes"?}` | `201` same fields plus `"key"`, the full key, **returned only here**; `422` when `session_idle_minutes` is outside 1–1440 |

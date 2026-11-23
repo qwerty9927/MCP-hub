@@ -27,7 +27,7 @@ export function Header({ onMenuToggle }: HeaderProps) {
     const router = useRouter();
 
     const handleSignOut = () => {
-        logout();
+        void logout();
         router.replace("/login");
     };
 

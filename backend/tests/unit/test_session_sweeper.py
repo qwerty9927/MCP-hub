@@ -9,6 +9,7 @@ from apscheduler.triggers.cron import CronTrigger
 
 from app.background_service.scheduler import create_scheduler
 from app.background_service.session_sweeper import SessionSweeperService
+from app.core.constants.auth_constants import REFRESH_TOKEN_PURGE_JOB_ID
 from app.core.constants.session_constants import DEFAULT_SESSION_IDLE_SECONDS, SESSION_SWEEP_JOB_ID
 from app.core.constants.tool_search_constants import EMBEDDING_BACKFILL_JOB_ID
 from app.core.enums.session_enum import SessionStatus
@@ -57,10 +58,10 @@ async def test_sweep_failure_is_logged_not_raised():
 
 
 async def test_scheduler_registers_one_non_overlapping_cron_job():
-    scheduler = create_scheduler(SessionSweeperService(PostgresSessionRepository()), MagicMock())
+    scheduler = create_scheduler(SessionSweeperService(PostgresSessionRepository()), MagicMock(), MagicMock())
 
     jobs = scheduler.get_jobs()
-    assert {job.id for job in jobs} == {SESSION_SWEEP_JOB_ID, EMBEDDING_BACKFILL_JOB_ID}
+    assert {job.id for job in jobs} == {SESSION_SWEEP_JOB_ID, EMBEDDING_BACKFILL_JOB_ID, REFRESH_TOKEN_PURGE_JOB_ID}
     job = scheduler.get_job(SESSION_SWEEP_JOB_ID)
     assert isinstance(job.trigger, CronTrigger)
     assert job.max_instances == 1 and job.coalesce is True

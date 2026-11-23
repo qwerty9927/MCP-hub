@@ -1,4 +1,4 @@
-import { apiClient } from "../api-client";
+import { apiClient, CONSOLE_CLIENT_HEADERS } from "../api-client";
 import {
     ApiKeyCreated,
     ApiKeyRead,
@@ -14,8 +14,13 @@ export const authApi = {
     register: async (payload: RegisterRequest): Promise<UserRead> => {
         return apiClient<UserRead>({ url: "/auth/register", method: "POST", data: payload });
     },
+    /** Also sets the httpOnly refresh token cookie, hence `withCredentials` on this cross-origin call. */
     login: async (payload: LoginRequest): Promise<TokenResponse> => {
-        return apiClient<TokenResponse>({ url: "/auth/login", method: "POST", data: payload });
+        return apiClient<TokenResponse>({ url: "/auth/login", method: "POST", data: payload, withCredentials: true });
+    },
+    /** Revoke the sign-in of the refresh token cookie and clear the cookie. The server always answers 204. */
+    logout: async (): Promise<void> => {
+        return apiClient<void>({ url: "/auth/logout", method: "POST", withCredentials: true, headers: { ...CONSOLE_CLIENT_HEADERS } });
     },
     me: async (signal?: AbortSignal): Promise<UserRead> => {
         return apiClient<UserRead>({ url: "/auth/me", method: "GET", signal });

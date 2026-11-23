@@ -1,7 +1,8 @@
-"""Accounts, console login tokens, and MCP API keys."""
+"""Accounts, console login and refresh tokens (ADR-0009), and MCP API keys."""
 
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from jwt import InvalidTokenError
 
@@ -10,11 +11,20 @@ from app.core.exceptions import ForbiddenError, NotFoundError, UnauthorizedError
 from app.core.logging import logger
 from app.domain.api_key_entity import ApiKeyEntity
 from app.domain.principal_entity import Principal
+from app.domain.refresh_token_entity import RefreshTokenEntity
 from app.domain.user_entity import UserEntity
 from app.helpers.passwords import hash_password_async, verify_password_async
 from app.helpers.session_idle import idle_minutes_to_seconds
-from app.helpers.tokens import create_access_token, decode_access_token, generate_api_key, hash_api_key
+from app.helpers.tokens import (
+    create_access_token,
+    decode_access_token,
+    generate_api_key,
+    generate_refresh_token,
+    hash_api_key,
+    hash_refresh_token,
+)
 from app.infrastructure.repositories.api_key_repository import ApiKeyRepositoryAbstract
+from app.infrastructure.repositories.refresh_token_repository import RefreshTokenRepositoryAbstract
 from app.infrastructure.repositories.user_repository import UserRepositoryAbstract
 from app.schemas.auth_schema import (
     ApiKeyCreatedResponse,
@@ -31,6 +41,16 @@ from app.schemas.auth_schema import (
 API_KEY_TOUCH_INTERVAL = timedelta(seconds=60)
 
 _INVALID_CREDENTIALS = "Invalid email or password"
+_INVALID_REFRESH = "Invalid or expired refresh token"
+
+
+@dataclass(frozen=True)
+class ConsoleTokens:
+    """What a login or refresh hands the console: the access token (response body) and the refresh token (cookie)."""
+
+    access: TokenResponse
+    refresh_token: str
+    refresh_max_age: int  # seconds until the refresh token expires
 
 
 class AuthService:
@@ -40,9 +60,11 @@ class AuthService:
         self,
         user_repository: UserRepositoryAbstract,
         api_key_repository: ApiKeyRepositoryAbstract,
+        refresh_token_repository: RefreshTokenRepositoryAbstract,
     ) -> None:
         self._user_repository = user_repository
         self._api_key_repository = api_key_repository
+        self._refresh_token_repository = refresh_token_repository
 
     async def register(self, data: RegisterRequest) -> UserResponse:
         if not get_settings().ALLOW_SELF_SIGNUP:
@@ -52,12 +74,67 @@ class AuthService:
         logger.info(f"Registered account {created.id}")
         return _user_response(created)
 
-    async def login(self, data: LoginRequest) -> TokenResponse:
+    async def login(self, data: LoginRequest) -> ConsoleTokens:
+        """Check the password and start a new sign-in: an access token plus the first refresh token of a new family."""
         user = await self._user_repository.get_by_email(data.email)
         if not await verify_password_async(user.password_hash if user else None, data.password) or user is None:
             raise UnauthorizedError(_INVALID_CREDENTIALS)
-        token, expires_in = create_access_token(user.id)
-        return TokenResponse(access_token=token, expires_in=expires_in)
+        now = datetime.now(UTC)
+        plaintext, token_hash = generate_refresh_token()
+        await self._refresh_token_repository.create(
+            RefreshTokenEntity(
+                user_id=user.id,
+                family_id=uuid4(),
+                token_hash=token_hash,
+                created_at=now,
+                expires_at=now + _refresh_lifetime(),
+            )
+        )
+        return _console_tokens(user.id, plaintext, now)
+
+    async def refresh(self, refresh_token: str | None) -> ConsoleTokens:
+        """Exchange a live refresh token for a new access token and its successor (rotation).
+
+        A token that was already used is a replay, by an attacker or by a client that lost the response: either
+        way the whole sign-in is revoked, and the account must log in again.
+        """
+        if not refresh_token:
+            raise UnauthorizedError(_INVALID_REFRESH)
+        now = datetime.now(UTC)
+        token_hash = hash_refresh_token(refresh_token)
+        successor_plaintext, successor_hash = generate_refresh_token()
+        successor = await self._refresh_token_repository.rotate(token_hash, successor_hash, now + _refresh_lifetime(), now)
+        if successor is not None:
+            return _console_tokens(successor.user_id, successor_plaintext, now)
+
+        presented = await self._refresh_token_repository.get_by_hash(token_hash)
+        if presented is not None and presented.used_at is not None and presented.revoked_at is None:
+            revoked = await self._refresh_token_repository.revoke_family(user_id=presented.user_id, family_id=presented.family_id, now=now)
+            logger.warning(
+                f"Refresh token reuse for account {presented.user_id}: revoked {revoked} token(s) of sign-in {presented.family_id}"
+            )
+        raise UnauthorizedError(_INVALID_REFRESH)
+
+    async def logout(self, refresh_token: str | None) -> None:
+        """End the sign-in the refresh token belongs to. Unknown or missing tokens are ignored: logout always succeeds."""
+        if not refresh_token:
+            return
+        presented = await self._refresh_token_repository.get_by_hash(hash_refresh_token(refresh_token))
+        if presented is None:
+            return
+        await self._refresh_token_repository.revoke_family(user_id=presented.user_id, family_id=presented.family_id, now=datetime.now(UTC))
+        logger.info(f"Signed out sign-in {presented.family_id} of account {presented.user_id}")
+
+    async def purge_expired_refresh_tokens(self) -> int:
+        """Delete expired refresh tokens; run by the scheduler. Never raises."""
+        try:
+            deleted = await self._refresh_token_repository.delete_expired(datetime.now(UTC))
+        except Exception as exc:
+            logger.error(f"Could not purge expired refresh tokens: {exc}")
+            return 0
+        if deleted:
+            logger.info(f"Purged {deleted} expired refresh token(s)")
+        return deleted
 
     async def get_user(self, user_id: UUID) -> UserResponse:
         user = await self._user_repository.get_by_id(user_id)
@@ -118,6 +195,19 @@ class AuthService:
                 logger.warning(f"Could not update last_used_at for API key {key.id}: {exc}")
 
         return Principal(user_id=key.user_id, api_key_id=key.id, session_idle_seconds=idle_minutes_to_seconds(key.session_idle_minutes))
+
+
+def _console_tokens(user_id: UUID, refresh_plaintext: str, now: datetime) -> ConsoleTokens:
+    access_token, expires_in = create_access_token(user_id, now=now)
+    return ConsoleTokens(
+        access=TokenResponse(access_token=access_token, expires_in=expires_in),
+        refresh_token=refresh_plaintext,
+        refresh_max_age=int(_refresh_lifetime().total_seconds()),
+    )
+
+
+def _refresh_lifetime() -> timedelta:
+    return timedelta(days=get_settings().REFRESH_TOKEN_EXPIRE_DAYS)
 
 
 def _user_response(user: UserEntity) -> UserResponse:
