@@ -42,11 +42,14 @@ export function useRegister() {
     });
 }
 
+/** Signs out in this tab at once; revoking the refresh token on the server runs in the background and may fail quietly. */
 export function useLogout() {
     const queryClient = useQueryClient();
-    return () => {
+    return (): Promise<void> => {
+        const revoked = authApi.logout().catch(() => undefined);
         clearAuthToken();
         queryClient.clear();
+        return revoked;
     };
 }
 
