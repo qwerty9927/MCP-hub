@@ -10,9 +10,22 @@ interface ToolExecutionTimelineProps {
     toolCalls: ToolCallRead[];
     selectedCallId?: string | null;
     onSelectCall: (call: ToolCallRead) => void;
+    /** Sort order of `toolCalls`; with "desc" the numbers count down so each call keeps its chronological number. */
+    order?: "asc" | "desc";
+    /** Calls on earlier pages, so numbering continues across pages. */
+    offset?: number;
+    /** Calls across all pages; needed to count down with "desc". Defaults to this page's calls. */
+    total?: number;
 }
 
-export function ToolExecutionTimeline({ toolCalls, selectedCallId, onSelectCall }: ToolExecutionTimelineProps) {
+export function ToolExecutionTimeline({
+    toolCalls,
+    selectedCallId,
+    onSelectCall,
+    order = "asc",
+    offset = 0,
+    total = offset + toolCalls.length,
+}: ToolExecutionTimelineProps) {
     if (toolCalls.length === 0) {
         return (
             <EmptyState
@@ -29,6 +42,8 @@ export function ToolExecutionTimeline({ toolCalls, selectedCallId, onSelectCall 
                 {toolCalls.map((call, index) => {
                     const isSelected = selectedCallId === call.id;
                     const isLast = index === toolCalls.length - 1;
+                    const position = offset + index;
+                    const callNumber = order === "desc" ? total - position : position + 1;
 
                     return (
                         <div key={call.id} className="relative">
@@ -47,6 +62,7 @@ export function ToolExecutionTimeline({ toolCalls, selectedCallId, onSelectCall 
 
                             {/* Timeline Node Dot (after the connector, so it paints on top of it) */}
                             <div
+                                data-testid="timeline-node"
                                 className={`absolute -left-6 sm:-left-8 top-4 flex h-5 w-5 items-center justify-center rounded-full border-2 bg-background text-[10px] font-mono font-bold transition-colors ${
                                     isSelected
                                         ? "border-primary text-primary"
@@ -57,7 +73,7 @@ export function ToolExecutionTimeline({ toolCalls, selectedCallId, onSelectCall 
                                             : "border-muted-foreground/40 text-muted-foreground"
                                 }`}
                             >
-                                {index + 1}
+                                {callNumber}
                             </div>
 
                             <ToolCallItem call={call} isSelected={isSelected} onSelect={onSelectCall} />

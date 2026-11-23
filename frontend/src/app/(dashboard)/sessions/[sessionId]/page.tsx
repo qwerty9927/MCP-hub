@@ -33,7 +33,7 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
         page: 1,
         page_size: 50,
         sort_by: "created_at",
-        order: "asc", // Default to chronological oldest first
+        order: "desc", // Default to newest first
     });
 
     // Selected tool call for drawer
@@ -171,7 +171,7 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
                         </Select>
 
                         {/* Chronological Sorting Switcher (Oldest First vs Newest First) */}
-                        <Select value={toolFilters.order || "asc"} onValueChange={(val: any) => handleSortOrderChange(val)}>
+                        <Select value={toolFilters.order || "desc"} onValueChange={(val: any) => handleSortOrderChange(val)}>
                             <SelectTrigger className="h-9 w-[145px] text-xs font-medium">
                                 <ArrowDownUp className="h-3 w-3 mr-1 text-primary" />
                                 <SelectValue />
@@ -199,7 +199,14 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
                     <>
                         {/* Render Active View Mode with Shared Dataset */}
                         {displayMode === "timeline" ? (
-                            <ToolExecutionTimeline toolCalls={toolCalls} selectedCallId={selectedCallId} onSelectCall={handleSelectCall} />
+                            <ToolExecutionTimeline
+                                toolCalls={toolCalls}
+                                selectedCallId={selectedCallId}
+                                onSelectCall={handleSelectCall}
+                                order={toolFilters.order}
+                                offset={((toolFilters.page || 1) - 1) * (toolFilters.page_size || 50)}
+                                total={totalCalls}
+                            />
                         ) : (
                             <ServerToolGroup toolCalls={toolCalls} selectedCallId={selectedCallId} onSelectCall={handleSelectCall} />
                         )}

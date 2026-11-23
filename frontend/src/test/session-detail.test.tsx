@@ -99,6 +99,38 @@ describe("ToolExecutionTimeline (Mode A: Chronological)", () => {
         fireEvent.click(screen.getByText("divide"));
         expect(handleSelect).toHaveBeenCalledWith(mockToolCalls[2]);
     });
+
+    const nodeNumbers = () => screen.getAllByTestId("timeline-node").map((node) => node.textContent);
+
+    it("numbers calls oldest first by default", () => {
+        render(<ToolExecutionTimeline toolCalls={mockToolCalls} selectedCallId={null} onSelectCall={vi.fn()} />);
+        expect(nodeNumbers()).toEqual(["1", "2", "3"]);
+    });
+
+    it("counts down when newest first, so each call keeps its chronological number", () => {
+        render(<ToolExecutionTimeline toolCalls={mockToolCalls} selectedCallId={null} onSelectCall={vi.fn()} order="desc" />);
+        expect(nodeNumbers()).toEqual(["3", "2", "1"]);
+    });
+
+    it("continues numbering across pages in both orders", () => {
+        const { unmount } = render(
+            <ToolExecutionTimeline toolCalls={mockToolCalls} selectedCallId={null} onSelectCall={vi.fn()} offset={50} total={53} />
+        );
+        expect(nodeNumbers()).toEqual(["51", "52", "53"]);
+        unmount();
+
+        render(
+            <ToolExecutionTimeline
+                toolCalls={mockToolCalls}
+                selectedCallId={null}
+                onSelectCall={vi.fn()}
+                order="desc"
+                offset={50}
+                total={53}
+            />
+        );
+        expect(nodeNumbers()).toEqual(["3", "2", "1"]);
+    });
 });
 
 describe("ServerToolGroup (Mode B: Frontend Grouping)", () => {
