@@ -27,6 +27,10 @@ class OAuthCredentialRepositoryAbstract(ABC):
     async def save_tokens(self, server_id: UUID, tokens_json: str, access_token_expires_at: float | None, *, user_id: UUID) -> None:
         """Create or replace the tokens."""
 
+    @abstractmethod
+    async def save_discovery(self, server_id: UUID, discovery_json: str, *, user_id: UUID) -> None:
+        """Create or replace the discovered authorization server metadata."""
+
 
 class PostgresOAuthCredentialRepository(OAuthCredentialRepositoryAbstract):
     """PostgreSQL implementation; encrypts with `cipher` on the way in and decrypts on the way out."""
@@ -46,6 +50,7 @@ class PostgresOAuthCredentialRepository(OAuthCredentialRepositoryAbstract):
                 client_info_json=self._cipher.decrypt(model.client_info_enc) if model.client_info_enc else None,
                 tokens_json=self._cipher.decrypt(model.tokens_enc) if model.tokens_enc else None,
                 access_token_expires_at=model.access_token_expires_at,
+                discovery_json=model.discovery_json,
             )
 
     async def save_client_info(self, server_id: UUID, client_info_json: str, *, user_id: UUID) -> None:
@@ -59,6 +64,12 @@ class PostgresOAuthCredentialRepository(OAuthCredentialRepositoryAbstract):
             model = await _get_or_new(session, server_id, user_id)
             model.tokens_enc = self._cipher.encrypt(tokens_json)
             model.access_token_expires_at = access_token_expires_at
+            await session.commit()
+
+    async def save_discovery(self, server_id: UUID, discovery_json: str, *, user_id: UUID) -> None:
+        async with db_module.async_session_factory() as session:
+            model = await _get_or_new(session, server_id, user_id)
+            model.discovery_json = discovery_json
             await session.commit()
 
 

@@ -18,6 +18,7 @@ from app.models.server_oauth_credential_model import ServerOAuthCredentialModel
 from tests.fake_oauth_server import FakeOAuthMcpServer
 
 PORT = 8931
+SEPARATE_AUTH_PORT = 8933  # and 8934 for its authorization server
 
 
 async def drop_live_session(server_id: str) -> None:
@@ -33,12 +34,28 @@ def oauth_server():
     server.stop()
 
 
+@pytest.fixture(scope="module")
+def separate_auth_server():
+    """A server whose authorization server has its own origin, as Atlassian's does."""
+    server = FakeOAuthMcpServer(SEPARATE_AUTH_PORT, separate_auth_server=True)
+    server.start()
+    yield server
+    server.stop()
+
+
 @pytest.fixture
-def catalog(oauth_server: FakeOAuthMcpServer):
-    """Point the OAuth service at a catalog holding the fake server, plus one provider that needs setup."""
+def catalog(oauth_server: FakeOAuthMcpServer, separate_auth_server: FakeOAuthMcpServer):
+    """Point the OAuth service at a catalog holding the fake servers, plus one provider that needs setup."""
     catalog = OAuthProviderCatalog(
         [
             OAuthProvider(id="fake", name="Fake", description="Test server", category="Testing", mcp_url=oauth_server.mcp_url),
+            OAuthProvider(
+                id="separate-auth",
+                name="Separate Auth",
+                description="Authorization server on another origin",
+                category="Testing",
+                mcp_url=separate_auth_server.mcp_url,
+            ),
             OAuthProvider(
                 id="needs-app",
                 name="Needs App",
@@ -154,6 +171,44 @@ async def test_hub_reconnects_with_stored_tokens_and_refreshes_expired_ones(asyn
     after = await stored_credentials(server_id)
     assert after.tokens_enc != before.tokens_enc
     assert after.access_token_expires_at > time.time()
+
+
+async def expire_access_token(server_id: str) -> None:
+    async with db_module.async_session_factory() as session:
+        model = await session.get(ServerOAuthCredentialModel, server_id)
+        model.access_token_expires_at = time.time() - 10
+        await session.commit()
+
+
+async def test_refresh_uses_the_discovered_token_endpoint_on_another_origin(async_client: AsyncClient, catalog, separate_auth_server):
+    """Atlassian's token endpoint is on auth.atlassian.com, not the MCP server's origin. A refresh in a later session
+    must use the endpoint discovered at sign-in, not the SDK's `<server origin>/token` guess (which 404s)."""
+    server_id = (await connect(async_client, provider_id="separate-auth"))["server_id"]
+    await drop_live_session(server_id)
+    await expire_access_token(server_id)
+    refreshes_before = separate_auth_server.provider.refresh_count
+
+    res = await async_client.post(f"/api/v1/servers/{server_id}/refresh-tools")
+    assert res.status_code == 200, res.text
+    assert separate_auth_server.provider.refresh_count == refreshes_before + 1
+    assert (await async_client.get(f"/api/v1/servers/{server_id}")).json()["health_status"] == "HEALTHY"
+
+
+async def test_server_saved_without_metadata_discovers_it_before_refreshing(async_client: AsyncClient, catalog, separate_auth_server):
+    """Servers connected before the discovered metadata was stored find it once, then keep it."""
+    server_id = (await connect(async_client, provider_id="separate-auth"))["server_id"]
+    await drop_live_session(server_id)
+    async with db_module.async_session_factory() as session:
+        model = await session.get(ServerOAuthCredentialModel, server_id)
+        model.discovery_json = None
+        await session.commit()
+    await expire_access_token(server_id)
+    refreshes_before = separate_auth_server.provider.refresh_count
+
+    res = await async_client.post(f"/api/v1/servers/{server_id}/refresh-tools")
+    assert res.status_code == 200, res.text
+    assert separate_auth_server.provider.refresh_count == refreshes_before + 1
+    assert (await stored_credentials(server_id)).discovery_json
 
 
 async def test_revoked_tokens_mark_the_server_needs_auth_and_reconnect_fixes_it(async_client: AsyncClient, catalog, oauth_server):

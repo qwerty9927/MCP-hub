@@ -3,18 +3,58 @@
 The SDK does discovery, dynamic client registration, PKCE, token exchange and refresh. The hub supplies
 where credentials live (a DB-backed or in-memory `TokenStorage`) and, during a sign-in only, the handlers
 that hand the authorization URL to the browser and wait for the callback.
+
+The SDK keeps what it discovers about the authorization server in memory only. The hub stores it with the
+credentials (`OAuthDiscovery`) and restores it for every later session, so a refresh goes to the real token
+endpoint and not to the SDK's `<server origin>/token` guess.
 """
 
 import time
 from uuid import UUID
 
+import httpx2
 from mcp.client.auth import OAuthClientProvider
-from mcp.shared.auth import OAuthClientInformationFull, OAuthClientMetadata, OAuthToken
+from mcp.client.auth.oauth2 import OAuthContext
+from mcp.client.auth.utils import (
+    build_oauth_authorization_server_metadata_discovery_urls,
+    build_protected_resource_metadata_discovery_urls,
+    create_oauth_metadata_request,
+    handle_auth_metadata_response,
+    handle_protected_resource_response,
+    validate_metadata_issuer,
+)
+from mcp.shared.auth import OAuthClientInformationFull, OAuthClientMetadata, OAuthMetadata, OAuthToken, ProtectedResourceMetadata
+from pydantic import BaseModel, ValidationError
 
 from app.core.config import Settings
-from app.core.constants.oauth_constants import OAUTH_CLIENT_NAME
+from app.core.constants.oauth_constants import OAUTH_CLIENT_NAME, OAUTH_DISCOVERY_TIMEOUT_SECONDS
+from app.core.logging import logger
 from app.infrastructure.oauth.provider_catalog import OAuthProvider
 from app.infrastructure.repositories.oauth_credential_repository import OAuthCredentialRepositoryAbstract
+
+
+class OAuthDiscovery(BaseModel):
+    """Where a server's authorization server is and how to reach it (its token endpoint above all)."""
+
+    auth_server_url: str | None = None
+    protected_resource_metadata: ProtectedResourceMetadata | None = None
+    oauth_metadata: OAuthMetadata | None = None
+
+    @classmethod
+    def from_context(cls, context: OAuthContext) -> "OAuthDiscovery | None":
+        """What the SDK discovered during a sign-in, or None if it discovered nothing."""
+        if context.oauth_metadata is None:
+            return None
+        return cls(
+            auth_server_url=context.auth_server_url,
+            protected_resource_metadata=context.protected_resource_metadata,
+            oauth_metadata=context.oauth_metadata,
+        )
+
+    def apply_to(self, context: OAuthContext) -> None:
+        context.auth_server_url = self.auth_server_url
+        context.protected_resource_metadata = self.protected_resource_metadata
+        context.oauth_metadata = self.oauth_metadata
 
 
 class MemoryTokenStorage:
@@ -69,16 +109,49 @@ class DbTokenStorage:
     async def set_client_info(self, client_info: OAuthClientInformationFull) -> None:
         await self.repository.save_client_info(self.server_id, client_info.model_dump_json(), user_id=self.user_id)
 
+    async def get_discovery(self) -> OAuthDiscovery | None:
+        record = await self.repository.get(self.server_id, user_id=self.user_id)
+        if record is None or record.discovery_json is None:
+            return None
+        try:
+            return OAuthDiscovery.model_validate_json(record.discovery_json)
+        except ValidationError:
+            logger.warning(f"Ignoring unreadable OAuth discovery stored for server {self.server_id}")
+            return None
+
+    async def set_discovery(self, discovery: OAuthDiscovery) -> None:
+        await self.repository.save_discovery(self.server_id, discovery.model_dump_json(), user_id=self.user_id)
+
 
 class HubOAuthClientProvider(OAuthClientProvider):
-    """The SDK provider, plus: tokens loaded from storage keep their expiry, so an expired one is refreshed
-    up front instead of being sent, rejected with 401 and sent down the full sign-in path."""
+    """The SDK provider, plus, for a server's stored credentials:
+    - tokens keep their expiry, so an expired one is refreshed up front instead of being sent, rejected with 401
+      and sent down the full sign-in path;
+    - the authorization server metadata found at sign-in is restored, so the refresh goes to the real token endpoint.
+    """
 
     async def _initialize(self) -> None:
         await super()._initialize()
         tokens = self.context.current_tokens
         if tokens is not None and tokens.expires_in is not None:
             self.context.update_token_expiry(tokens)
+        storage = self.context.storage
+        if isinstance(storage, DbTokenStorage) and self.context.oauth_metadata is None:
+            await self._restore_discovery(storage)
+
+    async def _restore_discovery(self, storage: DbTokenStorage) -> None:
+        discovery = await storage.get_discovery()
+        if discovery is None and self.context.current_tokens is not None:
+            # Saved before the discovery was stored: find it once and keep it.
+            try:
+                discovery = await discover(self.context.server_url)
+            except Exception as exc:
+                logger.warning(f"OAuth metadata discovery for server {storage.server_id} failed: {exc}")
+                return
+            if discovery is not None:
+                await storage.set_discovery(discovery)
+        if discovery is not None:
+            discovery.apply_to(self.context)
 
 
 def callback_url(settings: Settings) -> str:
@@ -111,6 +184,27 @@ def preregistered_client(settings: Settings, provider: OAuthProvider) -> OAuthCl
         redirect_uris=[callback_url(settings)],
         token_endpoint_auth_method="client_secret_post" if secret else "none",
     )
+
+
+async def discover(server_url: str) -> OAuthDiscovery | None:
+    """Find a server's authorization server metadata as the SDK does on a 401: protected resource metadata
+    (RFC 9728), then the authorization server's (RFC 8414), checking its issuer. None if the server has none."""
+    async with httpx2.AsyncClient(timeout=OAUTH_DISCOVERY_TIMEOUT_SECONDS) as client:
+        resource: ProtectedResourceMetadata | None = None
+        for url in build_protected_resource_metadata_discovery_urls(None, server_url):
+            resource = await handle_protected_resource_response(await client.send(create_oauth_metadata_request(url)))
+            if resource is not None:
+                break
+        auth_server_url = str(resource.authorization_servers[0]) if resource else None
+        for url in build_oauth_authorization_server_metadata_discovery_urls(auth_server_url, server_url):
+            ok, metadata = await handle_auth_metadata_response(await client.send(create_oauth_metadata_request(url)))
+            if not ok:
+                break
+            if metadata is not None:
+                if auth_server_url is not None:
+                    validate_metadata_issuer(metadata, auth_server_url)
+                return OAuthDiscovery(auth_server_url=auth_server_url, protected_resource_metadata=resource, oauth_metadata=metadata)
+    return None
 
 
 def _expires_at(tokens: OAuthToken) -> float | None:

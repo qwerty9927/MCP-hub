@@ -30,6 +30,7 @@ from app.infrastructure.oauth.client_provider import (
     DbTokenStorage,
     HubOAuthClientProvider,
     MemoryTokenStorage,
+    OAuthDiscovery,
     build_client_metadata,
     preregistered_client,
 )
@@ -237,7 +238,7 @@ class OAuthService:
                 auth,
                 timeout=self.settings.OAUTH_FLOW_TIMEOUT_SECONDS + self.settings.DEFAULT_CONNECTION_TIMEOUT,
             )
-            return await self._finish(flow, storage)
+            return await self._finish(flow, storage, OAuthDiscovery.from_context(auth.context))
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -248,8 +249,8 @@ class OAuthService:
             if flow.state:
                 self.registry.pop(flow.state)
 
-    async def _finish(self, flow: PendingFlow, storage: MemoryTokenStorage) -> OAuthFlowResult:
-        """Save the server and its credentials, then connect it and sync its tools."""
+    async def _finish(self, flow: PendingFlow, storage: MemoryTokenStorage, discovery: OAuthDiscovery | None) -> OAuthFlowResult:
+        """Save the server, its credentials and where its authorization server is, then connect it and sync its tools."""
         if flow.existing_server_id is not None:
             server_id = flow.existing_server_id
             await self.connection_manager.disconnect(server_id)
@@ -273,6 +274,8 @@ class OAuthService:
             await db_storage.set_client_info(storage.client_info)
         if storage.tokens is not None:
             await db_storage.set_tokens_with_expiry(storage.tokens, storage.expires_at)
+        if discovery is not None:  # without it, later refreshes would guess the token endpoint
+            await db_storage.set_discovery(discovery)
 
         server = await self.server_registry.get_server_entity(server_id, user_id=flow.user_id)
         try:

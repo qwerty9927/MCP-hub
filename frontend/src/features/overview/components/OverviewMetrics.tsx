@@ -180,7 +180,7 @@ export function OverviewDashboard() {
                             </div>
                         ) : (
                             <div className="space-y-3">
-                                {servers.slice(0, 5).map((server) => (
+                                {servers.slice(0, 8).map((server) => (
                                     <div
                                         key={server.id}
                                         className="flex items-center justify-between rounded-lg border border-border p-3 transition-colors hover:bg-muted/40"
