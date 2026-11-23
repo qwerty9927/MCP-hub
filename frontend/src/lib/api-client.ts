@@ -1,9 +1,8 @@
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, InternalAxiosRequestConfig } from "axios";
 import { clearAuthToken, getAuthToken, loginPath, setAuthToken } from "./auth-token";
 import { normalizeApiError } from "./errors";
+import { API_BASE_URL } from "./config";
 import { TokenResponse } from "@/types";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
 
 /**
  * /auth/refresh and /auth/logout act on the refresh token cookie, so the backend also requires this header (its CSRF check).

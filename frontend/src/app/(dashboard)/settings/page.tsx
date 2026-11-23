@@ -11,13 +11,12 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { systemApi } from "@/lib/api";
+import { API_BASE_URL } from "@/lib/config";
 import { toast } from "sonner";
 import { ApiKeysCard } from "@/features/auth/components/ApiKeysCard";
 
 export default function SettingsPage() {
     const { theme, setTheme } = useTheme();
-
-    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
 
     // System readiness probe
     const {
@@ -61,7 +60,7 @@ export default function SettingsPage() {
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
                         <Label htmlFor="api_url">API Base URL</Label>
-                        <Input id="api_url" value={apiBaseUrl} readOnly className="font-mono text-sm bg-muted/40" />
+                        <Input id="api_url" value={API_BASE_URL} readOnly className="font-mono text-sm bg-muted/40" />
                         <p className="text-xs text-muted-foreground">
                             Configured via <code className="font-mono text-xs">NEXT_PUBLIC_API_BASE_URL</code> in environment variables.
                         </p>

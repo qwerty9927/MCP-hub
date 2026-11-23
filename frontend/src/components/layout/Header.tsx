@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useLogout, useMe } from "@/features/auth/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
+import { API_BASE_URL, API_DOCS_URL } from "@/lib/config";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -20,8 +21,6 @@ interface HeaderProps {
 }
 
 export function Header({ onMenuToggle }: HeaderProps) {
-    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
-    const docsUrl = apiBaseUrl.replace(/\/api\/v1\/?$/, "/docs");
     const { data: me } = useMe();
     const logout = useLogout();
     const router = useRouter();
@@ -43,7 +42,7 @@ export function Header({ onMenuToggle }: HeaderProps) {
             <div className="flex items-center gap-3">
                 {/* API Docs Link */}
                 <Button asChild variant="outline" size="sm" className="hidden sm:inline-flex gap-1.5 h-8 text-xs font-medium">
-                    <a href={docsUrl} target="_blank" rel="noopener noreferrer">
+                    <a href={API_DOCS_URL} target="_blank" rel="noopener noreferrer">
                         <ExternalLink className="h-3.5 w-3.5" />
                         Swagger Docs
                     </a>
@@ -74,7 +73,7 @@ export function Header({ onMenuToggle }: HeaderProps) {
                         <DropdownMenuSeparator />
                         <DropdownMenuItem asChild>
                             <a
-                                href={docsUrl}
+                                href={API_DOCS_URL}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex items-center justify-between w-full cursor-pointer"
@@ -85,7 +84,7 @@ export function Header({ onMenuToggle }: HeaderProps) {
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem disabled className="text-xs text-muted-foreground">
-                            Backend: {apiBaseUrl}
+                            Backend: {API_BASE_URL}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onSelect={handleSignOut} className="cursor-pointer gap-2">

@@ -11,6 +11,8 @@ export default defineConfig({
         environment: "jsdom",
         globals: true,
         setupFiles: ["./src/test/setup.ts"],
+        // Tests do not load frontend/.env; src/lib/config.ts requires the API URL.
+        env: { NEXT_PUBLIC_API_BASE_URL: "http://localhost:8000/api/v1" },
         include: ["src/**/*.{test,spec}.{ts,tsx}"],
     },
     resolve: {

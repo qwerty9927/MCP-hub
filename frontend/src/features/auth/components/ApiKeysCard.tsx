@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useApiKeys, useCreateApiKey, useRevokeApiKey, useUpdateApiKey } from "@/features/auth/hooks/use-auth";
 import { formatDate } from "@/lib/utils";
+import { MCP_ENDPOINT_URL } from "@/lib/config";
 import {
     ApiKeyFormValues,
     apiKeySchema,
@@ -24,13 +25,8 @@ import {
 } from "@/schemas/auth.schema";
 import { ApiKeyCreated, ApiKeyRead } from "@/types";
 
-function mcpEndpoint(): string {
-    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
-    return apiBaseUrl.replace(/\/api\/v1\/?$/, "/mcp");
-}
-
 export function mcpClientConfig(key: string): string {
-    return JSON.stringify({ mcpServers: { "mcp-hub": { type: "http", url: mcpEndpoint(), headers: { "x-api-key": key } } } }, null, 2);
+    return JSON.stringify({ mcpServers: { "mcp-hub": { type: "http", url: MCP_ENDPOINT_URL, headers: { "x-api-key": key } } } }, null, 2);
 }
 
 export function sessionIdleLabel(minutes: number | null | undefined): string {

@@ -17,6 +17,7 @@ import { ErrorAlert } from "@/components/common/ErrorAlert";
 import { JsonTabs, JsonViewer } from "@/components/common/JsonViewer";
 import { useTool } from "@/features/tools/hooks/use-tools";
 import { formatDate } from "@/lib/utils";
+import { API_BASE_URL, MCP_ENDPOINT_URL } from "@/lib/config";
 
 interface ToolDetailPageProps {
     params: Promise<{ toolId: string }>;
@@ -109,9 +110,7 @@ export default function ToolDetailPage({ params }: ToolDetailPageProps) {
         }
     }
 
-    const curlSnippet = `curl -X POST http://localhost:8000/api/v1/servers/${tool.server_id}/tools/${encodeURIComponent(
-        tool.name
-    )}/execute \\
+    const curlSnippet = `curl -X POST ${API_BASE_URL}/servers/${tool.server_id}/tools/${encodeURIComponent(tool.name)}/execute \\
   -H "Content-Type: application/json" \\
   -d '${JSON.stringify({ arguments: sampleArgs }, null, 2)}'`;
 
@@ -119,7 +118,7 @@ export default function ToolDetailPage({ params }: ToolDetailPageProps) {
 from mcp.client.session import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
-async with streamable_http_client("http://localhost:8000/mcp") as (read_stream, write_stream):
+async with streamable_http_client("${MCP_ENDPOINT_URL}") as (read_stream, write_stream):
     async with ClientSession(read_stream, write_stream) as session:
         await session.initialize()
         result = await session.call_tool(
