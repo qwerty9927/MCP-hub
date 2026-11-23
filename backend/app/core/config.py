@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Base directory for the backend package
@@ -54,6 +54,11 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int
     ALLOW_SELF_SIGNUP: bool
 
+    # Console refresh tokens (ADR-0009): an httpOnly cookie, rotated on every use
+    REFRESH_TOKEN_EXPIRE_DAYS: int  # a refresh token unused this long expires; each rotation starts the clock again
+    REFRESH_COOKIE_SECURE: bool  # true whenever the API is served over HTTPS
+    REFRESH_COOKIE_SAMESITE: Literal["strict", "lax", "none"]  # "none" only when console and API are on different sites
+
     # Observability
     LOG_LEVEL: str
 
@@ -93,12 +98,18 @@ class Settings(BaseSettings):
             raise ValueError("JWT_SECRET must be at least 32 characters")
         return value
 
-    @field_validator("ACCESS_TOKEN_EXPIRE_MINUTES")
+    @field_validator("ACCESS_TOKEN_EXPIRE_MINUTES", "REFRESH_TOKEN_EXPIRE_DAYS")
     @classmethod
     def _expiry_is_positive(cls, value: int) -> int:
         if value <= 0:
-            raise ValueError("ACCESS_TOKEN_EXPIRE_MINUTES must be positive")
+            raise ValueError("token lifetimes must be positive")
         return value
+
+    @model_validator(mode="after")
+    def _samesite_none_needs_secure(self) -> "Settings":
+        if self.REFRESH_COOKIE_SAMESITE == "none" and not self.REFRESH_COOKIE_SECURE:
+            raise ValueError("REFRESH_COOKIE_SAMESITE=none requires REFRESH_COOKIE_SECURE=true")
+        return self
 
 
 @lru_cache

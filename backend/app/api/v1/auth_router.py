@@ -1,11 +1,13 @@
-"""Account registration, login, and API key management endpoints."""
+"""Account registration, console sign-in (login, refresh, logout), and API key management endpoints."""
 
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Cookie, Depends, Response, status
 
-from app.api.dependencies import get_auth_service, get_current_principal
+from app.api.dependencies import get_auth_service, get_current_principal, require_console_client
+from app.core.config import get_settings
+from app.core.constants.auth_constants import REFRESH_COOKIE_NAME, REFRESH_COOKIE_PATH_SUFFIX
 from app.domain.principal_entity import Principal
 from app.schemas.auth_schema import (
     ApiKeyCreatedResponse,
@@ -17,7 +19,7 @@ from app.schemas.auth_schema import (
     TokenResponse,
     UserResponse,
 )
-from app.services.auth_service import AuthService
+from app.services.auth_service import AuthService, ConsoleTokens
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -34,9 +36,58 @@ async def register(payload: RegisterRequest, auth_service: Annotated[AuthService
 
 
 @router.post("/login", response_model=TokenResponse, summary="Log in and receive a console token")
-async def login(payload: LoginRequest, auth_service: Annotated[AuthService, Depends(get_auth_service)]) -> TokenResponse:
-    """Exchange email and password for a short-lived JWT used by the admin console and REST API."""
-    return await auth_service.login(payload)
+async def login(
+    payload: LoginRequest,
+    response: Response,
+    auth_service: Annotated[AuthService, Depends(get_auth_service)],
+) -> TokenResponse:
+    """Exchange email and password for a short-lived JWT used by the admin console and REST API.
+
+    Also sets the refresh token, an httpOnly cookie, which POST /auth/refresh exchanges for a new JWT (ADR-0009).
+    """
+    return _issue(response, await auth_service.login(payload))
+
+
+@router.post(
+    "/refresh",
+    response_model=TokenResponse,
+    summary="Exchange the refresh token cookie for a new console token",
+    dependencies=[Depends(require_console_client)],
+)
+async def refresh(
+    response: Response,
+    auth_service: Annotated[AuthService, Depends(get_auth_service)],
+    refresh_token: Annotated[str | None, Cookie(alias=REFRESH_COOKIE_NAME)] = None,
+) -> TokenResponse:
+    """Rotates the refresh token: the cookie is replaced, and the old token stops working.
+
+    Presenting a refresh token that was already used signs the whole sign-in out. Needs the `X-MCP-Hub-Client: console` header.
+    """
+    return _issue(response, await auth_service.refresh(refresh_token))
+
+
+@router.post(
+    "/logout",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Sign out: revoke the refresh token cookie",
+    dependencies=[Depends(require_console_client)],
+)
+async def logout(
+    response: Response,
+    auth_service: Annotated[AuthService, Depends(get_auth_service)],
+    refresh_token: Annotated[str | None, Cookie(alias=REFRESH_COOKIE_NAME)] = None,
+) -> None:
+    """Works without a valid console token, so an expired sign-in can still be ended. Access tokens already issued stay
+    valid until they expire (ACCESS_TOKEN_EXPIRE_MINUTES)."""
+    await auth_service.logout(refresh_token)
+    settings = get_settings()
+    response.delete_cookie(
+        REFRESH_COOKIE_NAME,
+        path=_cookie_path(),
+        secure=settings.REFRESH_COOKIE_SECURE,
+        httponly=True,
+        samesite=settings.REFRESH_COOKIE_SAMESITE,
+    )
 
 
 @router.get("/me", response_model=UserResponse, summary="Get the signed-in account")
@@ -88,3 +139,22 @@ async def revoke_api_key(
     auth_service: Annotated[AuthService, Depends(get_auth_service)],
 ) -> None:
     await auth_service.revoke_api_key(principal.user_id, key_id)
+
+
+def _issue(response: Response, tokens: ConsoleTokens) -> TokenResponse:
+    settings = get_settings()
+    response.set_cookie(
+        REFRESH_COOKIE_NAME,
+        tokens.refresh_token,
+        max_age=tokens.refresh_max_age,
+        path=_cookie_path(),
+        secure=settings.REFRESH_COOKIE_SECURE,
+        httponly=True,
+        samesite=settings.REFRESH_COOKIE_SAMESITE,
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return tokens.access
+
+
+def _cookie_path() -> str:
+    return f"{get_settings().API_V1_STR}{REFRESH_COOKIE_PATH_SUFFIX}"

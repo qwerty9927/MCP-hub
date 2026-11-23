@@ -32,6 +32,9 @@ What a caller uses to name the Tool it wants to execute: a Tool Slug (upstream a
 ### Account
 A person signed up to the hub. Every Server, Tool, Execution and Session belongs to exactly one Account, and an Account can see and act on only its own.
 
+### Refresh Token (console)
+A long-lived credential the console holds in an httpOnly cookie and exchanges at `POST /auth/refresh` for a new short-lived console login token. Each use replaces it with a new one (rotation); presenting a used one again revokes the whole sign-in (its family). Stored as a hash; never accepted as a bearer token and unrelated to the OAuth tokens of downstream Servers (ADR-0009).
+
 ### API Key
 A revocable credential an upstream MCP client uses to call `/mcp` on behalf of an Account. Shown once when generated; the hub stores only its hash. API keys open `/mcp` only, never the REST API. A key may carry a **Session Idle Timeout** (minutes, default 30): how long a Session opened with it may go without a tool call before it is completed. This is not the key's expiry.
 

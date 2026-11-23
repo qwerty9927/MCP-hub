@@ -80,7 +80,7 @@ backend/
 │   ├── api/
 │   │   ├── dependencies.py              # Centralized dependency injection providers, get_current_principal
 │   │   └── v1/                          # API Routers
-│   │       ├── auth_router.py           # /auth: register, login, me, API keys
+│   │       ├── auth_router.py           # /auth: register, login, refresh, logout, me, API keys
 │   │       ├── api_key_tools_router.py  # /auth/api-keys/{id}/servers/{id}/tools: per-key tool visibility (ADR-0007)
 │   │       ├── executions_router.py     # Execution audit log endpoints
 │   │       ├── oauth_router.py          # /oauth/providers, /oauth/connect, /oauth/callback, /servers/{id}/oauth/reconnect (ADR-0008)
@@ -91,6 +91,7 @@ backend/
 │   ├── core/
 │   │   ├── config.py                    # Settings loaded strictly from .env (no in-code defaults)
 │   │   ├── constants/                   # Application constants partitioned by domain
+│   │   │   ├── auth_constants.py        # Refresh token cookie name/path, console CSRF header, purge job (ADR-0009)
 │   │   │   ├── meta_tools.py            # Meta-tool identifiers (SEARCH_TOOLS, MULTI_EXECUTE_TOOLS)
 │   │   │   ├── oauth_constants.py       # OAuth sign-in timeouts, client name, re-authorization reason (ADR-0008)
 │   │   │   ├── session_constants.py     # Session idle defaults/bounds, sweep job id and cron schedule
@@ -106,6 +107,7 @@ backend/
 │   │   ├── execution_entity.py          # ExecutionEntity dataclass
 │   │   ├── oauth_credential_entity.py   # OAuthCredentialEntity: a server's decrypted OAuth registration and tokens
 │   │   ├── principal_entity.py          # Principal: the authenticated caller (account + API key)
+│   │   ├── refresh_token_entity.py      # RefreshTokenEntity: one hashed console refresh token of a sign-in family
 │   │   ├── server_entity.py             # ServerEntity dataclass
 │   │   ├── session_entity.py            # SessionEntity, SessionDetailEntity, ToolCallEntity
 │   │   ├── tool_entity.py               # ToolEntity dataclass
@@ -117,7 +119,7 @@ backend/
 │   │   ├── security.py                  # Shell injection, SSRF (incl. DNS resolution), env sanitization, header masking
 │   │   ├── session_idle.py              # Session idle-timeout arithmetic (effective timeout, is_idle)
 │   │   ├── text.py                      # Slugification & string manipulation (slugify)
-│   │   ├── tokens.py                    # Console JWTs, API key generation and hashing (`mhk_` prefix)
+│   │   ├── tokens.py                    # Console JWTs, refresh tokens (`mhr_`), API key generation and hashing (`mhk_`)
 │   │   └── validation.py                # Tool arguments JSON-schema validation
 │   ├── infrastructure/
 │   │   ├── database.py                  # Async SQLAlchemy engine, session maker, connection pooling
@@ -129,6 +131,7 @@ backend/
 │   │       ├── api_key_repository.py    # ApiKeyRepositoryAbstract, PostgresApiKeyRepository
 │   │       ├── execution_repository.py  # ExecutionRepositoryAbstract, PostgresExecutionRepository
 │   │       ├── oauth_credential_repository.py # Encrypted OAuth client registration and tokens per server
+│   │       ├── refresh_token_repository.py # Console refresh tokens: create, rotate (atomic), revoke a family, purge
 │   │       ├── server_repository.py     # ServerRepositoryAbstract, PostgresServerRepository
 │   │       ├── session_repository.py    # SessionRepositoryAbstract, PostgresSessionRepository
 │   │       ├── tool_access_repository.py # Tools hidden from an API key (api_key_disabled_tools)
@@ -146,6 +149,7 @@ backend/
 │   │   ├── api_key_model.py             # ApiKeyModel ORM mapping (hash only)
 │   │   ├── base_model.py                # Base declarative class
 │   │   ├── execution_model.py           # ExecutionModel ORM mapping (no FK to mcp_servers: kept after delete)
+│   │   ├── refresh_token_model.py       # console_refresh_tokens (hash only, family_id, used_at/revoked_at)
 │   │   ├── server_model.py              # ServerModel ORM mapping
 │   │   ├── server_oauth_credential_model.py # Fernet-encrypted OAuth credentials of one server
 │   │   ├── session_model.py             # SessionModel ORM mapping
@@ -163,7 +167,7 @@ backend/
 │   │   ├── tool_access_schema.py        # Per-API-key tool visibility models
 │   │   └── tool_schema.py               # Tool discovery & execution schemas
 │   └── services/                        # Business logic & orchestrators
-│       ├── auth_service.py              # Accounts, console JWT login, API keys, bearer token -> Principal
+│       ├── auth_service.py              # Accounts, console login/refresh/logout (ADR-0009), API keys, bearer token -> Principal
 │       ├── connection_manager.py        # Downstream MCP client session lifecycle (SessionWorker), incl. OAuth sign-ins (authorize)
 │       ├── embedding_service.py         # EmbeddingServiceAbstract, FastEmbedService, tool_embedding_text
 │       ├── oauth_service.py             # OAuthService + OAuthFlowRegistry: sign-ins that end in a connected server
@@ -214,10 +218,10 @@ Strict unidirectional dependency flow:
 ### Accounts, Authentication & Ownership
 - **Every router depends on the caller**: each endpoint in `app/api/v1/` (except `/auth/register`, `/auth/login`, `/health`, `/ready`) takes `principal: Annotated[Principal, Depends(get_current_principal)]` and passes `user_id=principal.user_id` down. Repository and service methods that read or change owned data take a keyword-only `user_id: UUID` with no default and no `None` (unscoped) mode, so a forgotten owner is a TypeError, not a data leak.
 - Another account's resource is a `NotFoundError` (404), never 403, so its existence is not revealed.
-- REST accepts only console JWTs (`AuthService.authenticate_console`). `/mcp` accepts only API keys, sent in the `x-api-key` header (`AuthService.authenticate_api_key`), checked in `MCPProxyASGI`, which also sets the SDK's `scope["user"]` so transport sessions are bound to the credential that opened them.
+- REST accepts only console JWTs (`AuthService.authenticate_console`). They are short-lived; the console renews them at `POST /auth/refresh` with a rotated, hashed refresh token in an httpOnly cookie, and reuse of a rotated token revokes that sign-in (ADR-0009). `/mcp` accepts only API keys, sent in the `x-api-key` header (`AuthService.authenticate_api_key`), checked in `MCPProxyASGI`, which also sets the SDK's `scope["user"]` so transport sessions are bound to the credential that opened them.
 - `user_id` is NOT NULL on `mcp_servers`, `discovered_tools`, `tool_executions`, `server_oauth_credentials` and `mcp_sessions` (foreign key to `users`, cascade delete), and required on their domain entities. `discovered_tools.user_id` and `server_oauth_credentials.user_id` are copies of the server's owner so lookups can be scoped without a join. The only cross-account code is the idle-session sweeper.
 - **Ids**: every table's `id` is a UUID stored as `str(UUID)` in `varchar(36)`. The app generates it (`uuid4()` in the entity or service) and `gen_random_uuid()::text` is the database default for inserts made outside the app. `replace_server_tools` replaces a server's Tools on every re-discovery, so Tool ids change then; `(server_id, name)` is unique. There is no `{server_id}:{tool_name}` id; REST names a tool by name plus `server_id`, agents by Tool Slug.
-- Settings: `JWT_SECRET` (32+ chars), `ACCESS_TOKEN_EXPIRE_MINUTES`, `ALLOW_SELF_SIGNUP`. Keep `ALLOW_SELF_SIGNUP=false` on any network-exposed deployment: a registered user can add stdio servers.
+- Settings: `JWT_SECRET` (32+ chars), `ACCESS_TOKEN_EXPIRE_MINUTES`, `REFRESH_TOKEN_EXPIRE_DAYS`, `REFRESH_COOKIE_SECURE` (true behind HTTPS), `REFRESH_COOKIE_SAMESITE`, `ALLOW_SELF_SIGNUP`. Keep `ALLOW_SELF_SIGNUP=false` on any network-exposed deployment: a registered user can add stdio servers.
 
 ### Stateless `/mcp` and derived Sessions (ADR-0003, ADR-0004)
 - `/mcp` runs the SDK stateless with JSON responses: no transport sessions, no `Mcp-Session-Id` (a client-sent one is ignored), `GET`/`DELETE` answer 405. Do not add features that need a server-to-client channel (sampling, elicitation, notification streams) without revisiting ADR-0004.
@@ -227,7 +231,8 @@ Strict unidirectional dependency flow:
 - One APScheduler `AsyncIOScheduler` per process, built by `create_scheduler()` and started/shut down in `main.py` `lifespan`; a fresh one per lifespan, since a scheduler cannot restart after shutdown. In-memory job store: jobs are defined in code.
 - `complete-idle-sessions` (cron, every minute, `max_instances=1`, `coalesce=True`) runs `SessionSweeperService.complete_idle_sessions`: one idempotent `UPDATE` completing active Sessions idle past their own timeout. It never raises and never touches `last_activity_at`.
 - Every job must be safe to run on several hub instances at once. Do not use FastAPI `BackgroundTasks` for periodic work: it only runs after a request.
-- Job IDs and schedules live in `app/core/constants/session_constants.py`; shared idle arithmetic in `app/helpers/session_idle.py`.
+- `purge-expired-refresh-tokens` (interval, hourly) runs `AuthService.purge_expired_refresh_tokens`: one `DELETE` of expired console refresh tokens (ADR-0009).
+- Job IDs and schedules live in `app/core/constants/session_constants.py` (refresh token purge: `auth_constants.py`); shared idle arithmetic in `app/helpers/session_idle.py`.
 
 ### Configuration Policy (Strict .env Compliance)
 - **Invariant**: Do NOT add hardcoded fallback default values for application configuration in `app/core/config.py`. All settings in `Settings` must be explicitly declared and loaded from `.env` or environment variables.
@@ -304,7 +309,7 @@ Strict unidirectional dependency flow:
 - **Runner**: `pytest` with `pytest-asyncio` in auto mode (`asyncio_mode = "auto"`).
 - **Test Isolation**: Every test automatically runs the `cleanup_dependencies` fixture in `tests/conftest.py`, which:
   1. Shuts down active connections in `_connection_manager` after the test.
-  2. Purges all rows from `discovered_tools`, `tool_executions`, `mcp_sessions`, `mcp_servers`, `api_keys` and `users` (other tables go with them by cascade).
+  2. Purges all rows from `discovered_tools`, `tool_executions`, `mcp_sessions`, `mcp_servers`, `api_keys` and `users` (other tables, `console_refresh_tokens` included, go with them by cascade).
   The schema is created once per run (`init_db()` in a session-scoped fixture). The suite deletes every row in the database it targets: always export `TEST_DATABASE_URL` (conftest no longer falls back to `DATABASE_URL`).
 - **Test Client**: `async_client` is signed in as a default account (`user_id` fixture gives its ID; `account_id` creates a bare account for repository-level tests); `other_user_client` is a second account; `anon_client` has no credentials.
 - **Test Categories**:

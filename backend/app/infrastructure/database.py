@@ -13,6 +13,7 @@ from app.models.api_key_disabled_tool_model import ApiKeyDisabledToolModel  # no
 from app.models.api_key_model import ApiKeyModel  # noqa: F401 - metadata discovery
 from app.models.base_model import Base
 from app.models.execution_model import ExecutionModel  # noqa: F401 - metadata discovery
+from app.models.refresh_token_model import RefreshTokenModel  # noqa: F401 - metadata discovery
 from app.models.server_model import ServerModel  # noqa: F401 - metadata discovery
 from app.models.server_oauth_credential_model import ServerOAuthCredentialModel  # noqa: F401 - metadata discovery
 from app.models.session_model import SessionModel  # noqa: F401 - metadata discovery

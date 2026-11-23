@@ -2,13 +2,14 @@
 
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, Header
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.background_service.embedding_backfill import EmbeddingBackfillService
 from app.background_service.session_sweeper import SessionSweeperService
 from app.core.config import get_settings
-from app.core.exceptions import UnauthorizedError
+from app.core.constants.auth_constants import CONSOLE_CLIENT_HEADER, CONSOLE_CLIENT_HEADER_VALUE
+from app.core.exceptions import ForbiddenError, UnauthorizedError
 from app.domain.principal_entity import Principal
 from app.helpers.crypto import SecretCipher
 from app.infrastructure.oauth.provider_catalog import get_provider_catalog
@@ -21,6 +22,7 @@ from app.infrastructure.repositories.oauth_credential_repository import (
     OAuthCredentialRepositoryAbstract,
     PostgresOAuthCredentialRepository,
 )
+from app.infrastructure.repositories.refresh_token_repository import PostgresRefreshTokenRepository, RefreshTokenRepositoryAbstract
 from app.infrastructure.repositories.server_repository import (
     PostgresServerRepository,
     ServerRepositoryAbstract,
@@ -54,6 +56,7 @@ _execution_repository: ExecutionRepositoryAbstract = PostgresExecutionRepository
 _session_repository: SessionRepositoryAbstract = PostgresSessionRepository()
 _user_repository: UserRepositoryAbstract = PostgresUserRepository()
 _api_key_repository: ApiKeyRepositoryAbstract = PostgresApiKeyRepository()
+_refresh_token_repository: RefreshTokenRepositoryAbstract = PostgresRefreshTokenRepository()
 _tool_access_repository: ToolAccessRepositoryAbstract = PostgresToolAccessRepository()
 _settings = get_settings()
 _oauth_credential_repository: OAuthCredentialRepositoryAbstract = PostgresOAuthCredentialRepository(
@@ -97,8 +100,12 @@ def get_session_repository() -> SessionRepositoryAbstract:
 
 
 def get_auth_service() -> AuthService:
-    """Return the account and API key service."""
-    return AuthService(user_repository=_user_repository, api_key_repository=_api_key_repository)
+    """Return the account, console sign-in and API key service."""
+    return AuthService(
+        user_repository=_user_repository,
+        api_key_repository=_api_key_repository,
+        refresh_token_repository=_refresh_token_repository,
+    )
 
 
 async def get_current_principal(
@@ -115,6 +122,17 @@ async def get_current_principal(
         raise UnauthorizedError("Invalid or expired token")
 
     return principal
+
+
+def require_console_client(
+    console_client: Annotated[str | None, Header(alias=CONSOLE_CLIENT_HEADER, include_in_schema=False)] = None,
+) -> None:
+    """CSRF check for the endpoints that act on the refresh token cookie (ADR-0009).
+
+    A cross-site page cannot add a custom header without a CORS preflight, which only CORS_ORIGINS pass.
+    """
+    if console_client != CONSOLE_CLIENT_HEADER_VALUE:
+        raise ForbiddenError(f"Missing {CONSOLE_CLIENT_HEADER} header")
 
 
 def get_oauth_flow_registry() -> OAuthFlowRegistry:

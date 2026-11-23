@@ -60,7 +60,7 @@ async def test_a_failing_model_is_logged_not_raised():
 
 async def test_scheduler_registers_the_backfill_as_a_non_overlapping_interval_job():
     backfill = EmbeddingBackfillService(InMemoryTools(0), FakeEmbeddingService())
-    scheduler = create_scheduler(MagicMock(), backfill)
+    scheduler = create_scheduler(MagicMock(), backfill, MagicMock())
 
     job = scheduler.get_job(EMBEDDING_BACKFILL_JOB_ID)
     assert isinstance(job.trigger, IntervalTrigger)
