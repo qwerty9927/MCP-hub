@@ -1,0 +1,31 @@
+# Local environments and secrets
+.env
+.env.*
+!.env.example
+.venv/
+
+# Caches and build output
+__pycache__/
+*.py[cod]
+.cache/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Not needed in the image
+tests/
+.agents/
+.zed/
+.DS_Store
+skills-lock.json
+uv.lock
+Dockerfile
+docker-compose.yml
+.dockerignore

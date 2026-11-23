@@ -1,0 +1,65 @@
+# MCP Hub: PostgreSQL (pgvector) + FastAPI backend + Next.js console.
+# Each app reads its own env file, the same one used when running it locally:
+#   backend  -> backend/.env
+#   frontend -> frontend/.env
+# Then: docker compose up --build
+# Console: http://localhost:3000  API: http://localhost:8000 (docs at /docs)
+
+name: mcp-hub
+
+services:
+    db:
+        # Postgres with the pgvector extension (ADR-0006); same image as CI.
+        image: pgvector/pgvector:pg17
+        restart: unless-stopped
+        environment:
+            POSTGRES_USER: ${POSTGRES_USER:-postgres}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+            POSTGRES_DB: ${POSTGRES_DB:-mcp_hub}
+        volumes:
+            # POSTGRES_DATA (root .env) may name a host folder holding an existing data directory; default is the named volume.
+            - ${POSTGRES_DATA:-postgres_data}:/var/lib/postgresql/data
+        # Not published to the host; use `docker compose exec db psql -U postgres mcp_hub`.
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}",
+                ]
+            interval: 5s
+            timeout: 5s
+            retries: 10
+
+    backend:
+        build:
+            context: ./backend
+        restart: unless-stopped
+        # The image's default command runs `alembic upgrade head` and then uvicorn.
+        depends_on:
+            db:
+                condition: service_healthy
+        ports:
+            - "${BACKEND_PORT:-8000}:8000"
+        env_file:
+            - ./backend/.env
+        environment:
+            # Overrides backend/.env, whose DATABASE_URL points at localhost: inside compose the database is `db`.
+            DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-mcp_hub}
+
+    frontend:
+        build:
+            # `next build` reads frontend/.env.local and frontend/.env from the build context, so
+            # NEXT_PUBLIC_API_BASE_URL comes from there (it is inlined into the browser bundle at build time).
+            context: ./frontend
+        restart: unless-stopped
+        depends_on:
+            backend:
+                condition: service_healthy
+        ports:
+            - "${FRONTEND_PORT:-3000}:3000"
+        # Runtime (server-side) variables; NEXT_PUBLIC_* changes need `docker compose up --build`.
+        env_file:
+            - ./frontend/.env
+
+volumes:
+    postgres_data:

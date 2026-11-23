@@ -3,21 +3,18 @@ FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+# Install uv package manager (pinned for reproducible builds)
+COPY --from=ghcr.io/astral-sh/uv:0.12.19 /uv /uvx /bin/
 
-# Install uv package manager
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
-
-# Copy dependency definition
+# Copy dependency definition (uv.lock is not committed, so dependencies resolve from pyproject.toml)
 COPY pyproject.toml .
 
 # Install dependencies into virtual environment
 RUN uv venv /app/.venv && \
-    uv pip install -p /app/.venv -r pyproject.toml
+    uv pip install --no-cache -p /app/.venv -r pyproject.toml
+
+# Node.js and npm, copied into the runtime image for stdio MCP servers started with `node` / `npx`
+FROM node:22-bookworm-slim AS node
 
 # Final runtime image
 FROM python:3.12-slim AS runner
@@ -28,26 +25,36 @@ WORKDIR /app
 RUN groupadd -g 1000 mcphub && \
     useradd -u 1000 -g mcphub -s /bin/bash -m mcphub
 
-# Copy virtual environment and code
-COPY --from=builder /app/.venv /app/.venv
-COPY . /app
+# Runtimes for stdio MCP servers, which the backend starts as subprocesses:
+# python (the app's own venv), uv / uvx, and node / npm / npx.
+COPY --from=builder /bin/uv /bin/uvx /usr/local/bin/
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && \
+    ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 
-# Set environment paths and permissions
+# Copy the virtual environment
+COPY --from=builder --chown=mcphub:mcphub /app/.venv /app/.venv
+
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONPATH="/app" \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+RUN chown mcphub:mcphub /app
+USER mcphub
 
 # Pre-download the tool-search embedding model so containers do not fetch it on first start.
 # Keep the model name and cache dir in sync with EMBEDDING_MODEL / EMBEDDING_CACHE_DIR in .env.
 RUN python -c "from fastembed import TextEmbedding; TextEmbedding('BAAI/bge-small-en-v1.5', cache_dir='/app/.cache/fastembed')"
 
-RUN chown -R mcphub:mcphub /app
-
-USER mcphub
+# Copy application code last so code changes do not invalidate the layers above (see .dockerignore)
+COPY --chown=mcphub:mcphub . /app
 
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)" || exit 1
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Apply database migrations, then start the API
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]

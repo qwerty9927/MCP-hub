@@ -1,0 +1,2 @@
+# Docker Compose settings with real secrets (copy from .env.example)
+.env

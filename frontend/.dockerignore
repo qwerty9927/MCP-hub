@@ -1,0 +1,25 @@
+# Dependencies and build output (rebuilt inside the image)
+node_modules/
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+
+# .env / .env.local are deliberately NOT ignored: `next build` reads NEXT_PUBLIC_API_BASE_URL from them.
+# Keep only public (NEXT_PUBLIC_*) values there, since they end up in the browser bundle anyway.
+
+# Tests and reports
+coverage/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+e2e/
+
+# Misc
+.DS_Store
+*.pem
+*.log
+Dockerfile
+.dockerignore
