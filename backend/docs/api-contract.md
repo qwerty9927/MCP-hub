@@ -455,6 +455,40 @@ Returns a single `ExecutionResponse` by its UUID.
 
 ---
 
+### 4.3 Tool Usage
+`GET /api/v1/executions/tool-usage`
+
+The caller's most-called tools over a period, counted from the execution history (Playground and `/mcp` calls alike), with how those calls ended. Usage is counted per server and tool, so a tool name that exists on two servers appears twice. Calls to servers deleted since are still counted.
+
+#### Query Parameters:
+* `range` (string, default `7d`): `24h`, `7d`, `30d` or `all`.
+* `limit` (integer, default `10`, 1-50): how many tools to return, most-called first.
+
+#### Response (`200 OK`):
+```json
+{
+  "range": "7d",
+  "since": "2026-11-16T09:00:00Z",
+  "total_calls": 42,
+  "items": [
+    {
+      "server_id": "8a2c1f5e-0d3b-4c7e-9f1a-2b6d4e8c0a17",
+      "server_name": "atlassian",
+      "tool_name": "searchJiraIssuesUsingJql",
+      "total_calls": 17,
+      "completed_calls": 15,
+      "failed_calls": 1,
+      "rejected_calls": 1,
+      "avg_duration_ms": 812.4,
+      "last_called_at": "2026-11-23T08:41:10Z"
+    }
+  ]
+}
+```
+`total_calls` counts every call in the period, not only those of the listed tools. `since` is `null` for `all`. `avg_duration_ms` leaves out rejected calls, which never reached the server.
+
+---
+
 ## 5. System Probes & Telemetry
 
 ### 5.1 Liveness Probe

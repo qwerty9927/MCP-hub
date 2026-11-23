@@ -1,18 +1,20 @@
 """Execution history endpoints."""
 
 import math
+from dataclasses import asdict
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 
 from app.api.dependencies import get_current_principal, get_execution_repository
+from app.core.enums.execution_enum import UsageRange
 from app.core.exceptions import NotFoundError
 from app.domain.execution_entity import ExecutionEntity
 from app.domain.principal_entity import Principal
 from app.infrastructure.repositories.execution_repository import ExecutionRepositoryAbstract
 from app.schemas.common_schema import PaginatedResponse
-from app.schemas.execution_schema import ExecutionResponse
+from app.schemas.execution_schema import ExecutionResponse, ToolUsageReportResponse, ToolUsageResponse
 
 router = APIRouter(prefix="/executions", tags=["Executions"])
 
@@ -51,6 +53,29 @@ async def list_executions(
         page=page,
         page_size=page_size,
         total_pages=total_pages,
+    )
+
+
+@router.get(
+    "/tool-usage",
+    response_model=ToolUsageReportResponse,
+    summary="Most-called tools over a period",
+)
+async def tool_usage(
+    principal: Annotated[Principal, Depends(get_current_principal)],
+    execution_repository: Annotated[ExecutionRepositoryAbstract, Depends(get_execution_repository)],
+    usage_range: UsageRange = Query(default=UsageRange.WEEK, alias="range", description="Period: 24h, 7d, 30d or all"),
+    limit: int = Query(default=10, ge=1, le=50, description="How many tools to return, most-called first"),
+) -> ToolUsageReportResponse:
+    """The caller's most-called tools in the period, with how their calls ended, from the execution history.
+    Declared before /{execution_id} so the path is not read as an id."""
+    since = usage_range.since()
+    items, total = await execution_repository.tool_usage(user_id=principal.user_id, since=since, limit=limit)
+    return ToolUsageReportResponse(
+        range=usage_range,
+        since=since,
+        total_calls=total,
+        items=[ToolUsageResponse(**asdict(item)) for item in items],
     )
 
 

@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import Select, and_, asc, desc, func, or_, select
 
 import app.infrastructure.database as db_module
-from app.domain.execution_entity import ExecutionEntity
+from app.domain.execution_entity import ExecutionEntity, ToolUsageEntity
 from app.domain.session_entity import ToolCallEntity
 from app.models.execution_model import ExecutionModel
 
@@ -59,6 +60,11 @@ class ExecutionRepositoryAbstract(ABC):
     @abstractmethod
     async def get_tool_call(self, session_id: UUID, call_id: UUID) -> ToolCallEntity | None:
         """Retrieve a specific tool call within a session."""
+        pass
+
+    @abstractmethod
+    async def tool_usage(self, *, user_id: UUID, since: datetime | None, limit: int) -> tuple[list[ToolUsageEntity], int]:
+        """The owner's most-called Tools since `since` (all time if None), most first, and the total calls in that period."""
         pass
 
 
@@ -208,6 +214,49 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
             result = await session.execute(stmt)
             model = result.scalar_one_or_none()
             return model.to_tool_call_domain() if model else None
+
+    async def tool_usage(self, *, user_id: UUID, since: datetime | None, limit: int) -> tuple[list[ToolUsageEntity], int]:
+        async with db_module.async_session_factory() as session:
+            in_period = _owned(select(ExecutionModel), user_id)
+            if since is not None:
+                in_period = in_period.where(ExecutionModel.executed_at >= since)
+            total = (await session.execute(select(func.count()).select_from(in_period.subquery()))).scalar_one()
+
+            # A tool name can exist on several Servers, so usage is counted per (Server, Tool).
+            status = func.lower(ExecutionModel.status)
+            calls = func.count()
+            stmt = (
+                select(
+                    ExecutionModel.server_id,
+                    func.max(ExecutionModel.server_name),  # the latest name, should the Server have been renamed
+                    ExecutionModel.tool_name,
+                    calls,
+                    func.count().filter(status == "completed"),
+                    func.count().filter(status == "failed"),
+                    func.count().filter(status == "rejected"),
+                    func.avg(ExecutionModel.duration_ms).filter(status != "rejected"),
+                    func.max(ExecutionModel.executed_at),
+                )
+                .where(in_period.whereclause)
+                .group_by(ExecutionModel.server_id, ExecutionModel.tool_name)
+                .order_by(calls.desc(), ExecutionModel.tool_name)
+                .limit(limit)
+            )
+            rows = (await session.execute(stmt)).all()
+            return [
+                ToolUsageEntity(
+                    server_id=UUID(server_id),
+                    server_name=server_name,
+                    tool_name=tool_name,
+                    total_calls=total_calls,
+                    completed_calls=completed,
+                    failed_calls=failed,
+                    rejected_calls=rejected,
+                    avg_duration_ms=float(avg_duration) if avg_duration is not None else None,
+                    last_called_at=last_called_at,
+                )
+                for server_id, server_name, tool_name, total_calls, completed, failed, rejected, avg_duration, last_called_at in rows
+            ], total
 
 
 def _owned(stmt: Select, user_id: UUID) -> Select:
