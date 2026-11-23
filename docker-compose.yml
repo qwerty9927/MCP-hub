@@ -3,7 +3,8 @@
 #   backend  -> backend/.env
 #   frontend -> frontend/.env
 # Then: docker compose up --build
-# Console: http://localhost:3000  API: http://localhost:8000 (docs at /docs)
+# Console: http://localhost:${FRONTEND_PORT:-3000}  API: http://localhost:${BACKEND_PORT:-8000} (docs at /docs)
+# The browser-facing URLs below are derived from BACKEND_PORT / FRONTEND_PORT (root .env), overriding the app env files.
 
 name: mcp-hub
 
@@ -29,6 +30,8 @@ services:
             interval: 5s
             timeout: 5s
             retries: 10
+        networks:
+            - mcp-hub
 
     backend:
         build:
@@ -45,12 +48,21 @@ services:
         environment:
             # Overrides backend/.env, whose DATABASE_URL points at localhost: inside compose the database is `db`.
             DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-mcp_hub}
+            # Browser-facing addresses follow the published ports: the console's origin for CORS, and the URLs the
+            # OAuth callback is built from.
+            CORS_ORIGINS: '["http://localhost:${FRONTEND_PORT:-3000}"]'
+            FRONTEND_BASE_URL: http://localhost:${FRONTEND_PORT:-3000}
+            PUBLIC_API_BASE_URL: http://localhost:${BACKEND_PORT:-8000}
+        networks:
+            - mcp-hub
 
     frontend:
         build:
-            # `next build` reads frontend/.env.local and frontend/.env from the build context, so
-            # NEXT_PUBLIC_API_BASE_URL comes from there (it is inlined into the browser bundle at build time).
             context: ./frontend
+            args:
+                # Inlined into the browser bundle by `next build` (overrides frontend/.env). The browser calls the
+                # backend's published port, not the `backend` service name. Rebuild after changing BACKEND_PORT.
+                NEXT_PUBLIC_API_BASE_URL: http://localhost:${BACKEND_PORT:-8000}/api/v1
         restart: unless-stopped
         depends_on:
             backend:
@@ -60,6 +72,14 @@ services:
         # Runtime (server-side) variables; NEXT_PUBLIC_* changes need `docker compose up --build`.
         env_file:
             - ./frontend/.env
+        networks:
+            - mcp-hub
+
+networks:
+    # One bridge network for all three services; they reach each other by service name (db, backend, frontend).
+    mcp-hub:
+        name: mcp-hub
+        driver: bridge
 
 volumes:
     postgres_data:
