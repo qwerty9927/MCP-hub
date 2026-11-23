@@ -162,6 +162,37 @@ export interface ExecutionFilterParams {
     status?: string;
 }
 
+/** Time window for tool-usage metrics; `all` = no lower bound. */
+export type UsageRange = "24h" | "7d" | "30d" | "all";
+
+/** Aggregated call counts for one tool on one Server within a {@link UsageRange}. */
+export interface ToolUsage {
+    server_id: string;
+    server_name: string;
+    tool_name: string;
+    total_calls: number;
+    completed_calls: number;
+    failed_calls: number;
+    rejected_calls: number;
+    avg_duration_ms: number | null;
+    last_called_at: string;
+}
+
+export interface ToolUsageReport {
+    range: UsageRange;
+    /** Start of the window (ISO); null for `all`. */
+    since: string | null;
+    /** Every call in the range, not only the listed items. */
+    total_calls: number;
+    /** Sorted by `total_calls`, highest first. */
+    items: ToolUsage[];
+}
+
+export interface ToolUsageParams {
+    range: UsageRange;
+    limit?: number;
+}
+
 export interface HealthResponse {
     status: string;
     version: string;
