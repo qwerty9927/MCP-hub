@@ -25,3 +25,18 @@ class ExecutionEntity:
     status: str = "completed"
     started_at: datetime | None = None
     completed_at: datetime | None = None
+
+
+@dataclass
+class ToolUsageEntity:
+    """How often one Tool of one Server was called over a period, and how those calls ended."""
+
+    server_id: UUID
+    server_name: str
+    tool_name: str
+    total_calls: int
+    completed_calls: int
+    failed_calls: int
+    rejected_calls: int
+    avg_duration_ms: float | None  # over calls that reached the Server; rejected ones never did
+    last_called_at: datetime

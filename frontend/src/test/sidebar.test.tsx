@@ -28,6 +28,7 @@ describe("Sidebar Navigation Component", () => {
         expect(screen.getByText("Tool Playground")).toBeInTheDocument();
         expect(screen.getByText("Sessions")).toBeInTheDocument();
         expect(screen.getByText("Execution History")).toBeInTheDocument();
+        expect(screen.getByText("Metrics").closest("a")).toHaveAttribute("href", "/metrics");
         expect(screen.getByText("Settings")).toBeInTheDocument();
     });
 });

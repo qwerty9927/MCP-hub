@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Server, Wrench, Terminal, History, Settings, Cpu, Bot } from "lucide-react";
+import { LayoutDashboard, Server, Wrench, Terminal, History, BarChart3, Settings, Cpu, Bot } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { systemApi } from "@/lib/api";
@@ -38,6 +38,11 @@ export const NAV_ITEMS = [
         name: "Execution History",
         href: "/executions",
         icon: History,
+    },
+    {
+        name: "Metrics",
+        href: "/metrics",
+        icon: BarChart3,
     },
     {
         name: "Settings",

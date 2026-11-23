@@ -1,5 +1,5 @@
 import { apiClient } from "../api-client";
-import { ExecutionFilterParams, ExecutionRecord, PaginatedResponse } from "@/types";
+import { ExecutionFilterParams, ExecutionRecord, PaginatedResponse, ToolUsageParams, ToolUsageReport } from "@/types";
 
 export const executionsApi = {
     list: async (params?: ExecutionFilterParams, signal?: AbortSignal): Promise<PaginatedResponse<ExecutionRecord>> => {
@@ -15,6 +15,15 @@ export const executionsApi = {
         return apiClient<ExecutionRecord>({
             url: `/executions/${executionId}`,
             method: "GET",
+            signal,
+        });
+    },
+
+    toolUsage: async (params: ToolUsageParams, signal?: AbortSignal): Promise<ToolUsageReport> => {
+        return apiClient<ToolUsageReport>({
+            url: "/executions/tool-usage",
+            method: "GET",
+            params,
             signal,
         });
     },
