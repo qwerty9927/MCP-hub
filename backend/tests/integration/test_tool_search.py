@@ -5,19 +5,22 @@ import sys
 from pathlib import Path
 from uuid import UUID, uuid4
 
+import numpy as np
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select, update
+from sqlalchemy import event, select, text, update
 
 import app.infrastructure.database as db_module
 from app.api.dependencies import get_tool_catalog_service
 from app.background_service.embedding_backfill import EmbeddingBackfillService
 from app.domain.server_entity import ServerEntity, TransportType
 from app.domain.tool_entity import ToolEntity
+from app.domain.user_entity import UserEntity
 from app.infrastructure.repositories.server_repository import PostgresServerRepository
 from app.infrastructure.repositories.tool_repository import PostgresToolRepository
+from app.infrastructure.repositories.user_repository import PostgresUserRepository
 from app.models.tool_model import ToolModel
-from app.services.embedding_service import FastEmbedService
+from app.services.embedding_service import FastEmbedService, normalize
 from app.services.tool_catalog import ToolCatalogService
 from tests.fake_embeddings import FailingEmbeddingService, FakeEmbeddingService
 
@@ -95,6 +98,66 @@ async def test_failed_embedding_keeps_discovery_working_and_backfill_fills_it_in
     catalog = ToolCatalogService(tool_repository=PostgresToolRepository(), embedding_service=FakeEmbeddingService())
     [ranked] = await catalog.search(["calculate"], user_id=account_id, top_k=5)
     assert [t.id for t, _ in ranked] == [tool.id]
+
+
+@pytest.fixture
+async def force_hnsw_index():
+    """Make the planner scan the HNSW index even on this tiny table, as it would on a large one.
+
+    Without these it picks a btree index and sorts, which is exact and hides the bug. The VACUUM first clears the
+    dead index entries left by earlier tests' DELETEs, which would otherwise use up the index scan's work budget.
+    """
+    async with db_module.engine.connect() as connection:
+        await connection.execution_options(isolation_level="AUTOCOMMIT")
+        await connection.execute(text("VACUUM discovered_tools"))
+
+    def prefer_ordered_index_scans(dbapi_connection, _record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("SET enable_seqscan = off")
+        cursor.execute("SET enable_sort = off")
+        cursor.close()
+
+    event.listen(db_module.engine.sync_engine, "connect", prefer_ordered_index_scans)
+    yield
+    event.remove(db_module.engine.sync_engine, "connect", prefer_ordered_index_scans)
+
+
+async def store_tools_near(user: UUID, server_name: str, count: int, query: list[float], spread: float, rng) -> list[ToolEntity]:
+    """`count` Tools whose embeddings are `query` nudged by `spread` in random directions (distinct, like real ones).
+
+    Identical vectors would share HNSW graph elements and so not fill `hnsw.ef_search`.
+    """
+    server = await PostgresServerRepository().create(
+        ServerEntity(id=uuid4(), name=server_name, transport=TransportType.STDIO, user_id=user)
+    )
+    tools = [
+        ToolEntity(id=uuid4(), server_id=server.id, server_name=server_name, name=f"tool_{i}", input_schema={}, user_id=user)
+        for i in range(count)
+    ]
+    vectors = []
+    for _ in tools:
+        noise = rng.standard_normal(len(query))
+        vectors.append(normalize(np.asarray(query) + spread * noise / np.linalg.norm(noise)))
+    await PostgresToolRepository().replace_server_tools(server.id, server_name, tools, vectors)
+    return tools
+
+
+async def test_search_fills_top_k_when_other_accounts_crowd_the_index(account_id, force_hnsw_index):
+    """Filters must not cut results short: the index scan goes past its first `hnsw.ef_search` (40) candidates."""
+    other_id = (await PostgresUserRepository().create(UserEntity(email=f"{uuid4().hex[:12]}@test.local", password_hash="x"))).id
+    fake = FakeEmbeddingService()
+    query = await fake.embed_query("calculate expression")
+    rng = np.random.default_rng(7)
+    # Another account's 100 Tools are all nearer the query than any of mine.
+    await store_tools_near(other_id, "crowd", 100, query, spread=0.5, rng=rng)
+    mine = await store_tools_near(account_id, "math", 3, query, spread=1.5, rng=rng)
+
+    catalog = ToolCatalogService(tool_repository=PostgresToolRepository(), embedding_service=fake)
+    [ranked] = await catalog.search(["calculate expression"], user_id=account_id, top_k=3)
+
+    assert {t.id for t, _ in ranked} == {t.id for t in mine}
+    similarities = [similarity for _, similarity in ranked]
+    assert similarities == sorted(similarities, reverse=True)
 
 
 @pytest.mark.skipif(os.environ.get("RUN_SLOW") != "1", reason="loads the real embedding model; set RUN_SLOW=1")
