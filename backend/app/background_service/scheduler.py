@@ -21,10 +21,17 @@ from app.core.logging import logger
 from app.services.auth_service import AuthService
 
 
-def logged_job(job_id: str, func: Callable[[], Awaitable[int]], *, trigger: str = "scheduled") -> Callable[[], Awaitable[int]]:
-    """`func` with a log line when each run starts and when it ends (with its duration and result).
+def logged_job(
+    job_id: str,
+    func: Callable[[], Awaitable[int]],
+    *,
+    unit: str = "item(s) processed",
+    trigger: str = "scheduled",
+) -> Callable[[], Awaitable[int]]:
+    """`func` with a log line when each run starts and one when it finishes or fails, with its duration.
 
-    Jobs never raise by contract; a run that does anyway (or is cancelled at shutdown) is logged and re-raised.
+    `func` returns how many `unit` it handled. A job that raises is logged as failed (ERROR) and counts 0, so the
+    scheduler keeps running it on time; cancellation at shutdown is logged and re-raised.
     """
 
     @functools.wraps(func)
@@ -33,10 +40,13 @@ def logged_job(job_id: str, func: Callable[[], Awaitable[int]], *, trigger: str 
         started = time.monotonic()
         try:
             result = await func()
+        except Exception as exc:
+            logger.error(f"Job '{job_id}' failed after {time.monotonic() - started:.2f}s: {type(exc).__name__}: {exc}")
+            return 0
         except BaseException as exc:
             logger.warning(f"Job '{job_id}' stopped after {time.monotonic() - started:.2f}s: {type(exc).__name__}")
             raise
-        logger.info(f"Job '{job_id}' finished in {time.monotonic() - started:.2f}s (result: {result})")
+        logger.info(f"Job '{job_id}' finished in {time.monotonic() - started:.2f}s: {result} {unit}")
         return result
 
     return run
@@ -51,7 +61,7 @@ def create_scheduler(
     """Build the scheduler with its jobs registered, each scheduled from `settings`. Not started: call `start()` inside a running event loop."""
     scheduler = AsyncIOScheduler(timezone=UTC)
     scheduler.add_job(
-        logged_job(settings.SESSION_SWEEP_JOB_ID, session_sweeper.complete_idle_sessions),
+        logged_job(settings.SESSION_SWEEP_JOB_ID, session_sweeper.complete_idle_sessions, unit="idle session(s) completed"),
         trigger=CronTrigger(**settings.SESSION_SWEEP_CRON, timezone=UTC),
         id=settings.SESSION_SWEEP_JOB_ID,
         name="Complete idle sessions",
@@ -61,7 +71,7 @@ def create_scheduler(
         replace_existing=True,
     )
     scheduler.add_job(
-        logged_job(settings.EMBEDDING_BACKFILL_JOB_ID, embedding_backfill.backfill_embeddings),
+        logged_job(settings.EMBEDDING_BACKFILL_JOB_ID, embedding_backfill.backfill_embeddings, unit="tool(s) embedded"),
         trigger=IntervalTrigger(minutes=settings.EMBEDDING_BACKFILL_INTERVAL_MINUTES, timezone=UTC),
         id=settings.EMBEDDING_BACKFILL_JOB_ID,
         name="Embed tools that have no embedding",
@@ -72,7 +82,7 @@ def create_scheduler(
     )
     scheduler.add_job(
         # AuthService.purge_expired_refresh_tokens (ADR-0009): one idempotent DELETE
-        logged_job(settings.REFRESH_TOKEN_PURGE_JOB_ID, auth_service.purge_expired_refresh_tokens),
+        logged_job(settings.REFRESH_TOKEN_PURGE_JOB_ID, auth_service.purge_expired_refresh_tokens, unit="expired refresh token(s) deleted"),
         trigger=IntervalTrigger(minutes=settings.REFRESH_TOKEN_PURGE_INTERVAL_MINUTES, timezone=UTC),
         id=settings.REFRESH_TOKEN_PURGE_JOB_ID,
         name="Delete expired console refresh tokens",

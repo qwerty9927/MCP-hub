@@ -236,9 +236,10 @@ Strict unidirectional dependency flow:
 
 ### Background jobs (`app/background_service/`, ADR-0005)
 - One APScheduler `AsyncIOScheduler` per process, built by `create_scheduler()` and started/shut down in `main.py` `lifespan`; a fresh one per lifespan, since a scheduler cannot restart after shutdown. In-memory job store: jobs are defined in code.
-- `SESSION_SWEEP_JOB_ID` (cron `SESSION_SWEEP_CRON`, every minute by default, `max_instances=1`, `coalesce=True`) runs `SessionSweeperService.complete_idle_sessions`: one idempotent `UPDATE` completing active Sessions idle past their own timeout. It never raises and never touches `last_activity_at`.
+- `SESSION_SWEEP_JOB_ID` (cron `SESSION_SWEEP_CRON`, every minute by default, `max_instances=1`, `coalesce=True`) runs `SessionSweeperService.complete_idle_sessions`: one idempotent `UPDATE` completing active Sessions idle past their own timeout. It never touches `last_activity_at`.
 - Every job must be safe to run on several hub instances at once. Do not use FastAPI `BackgroundTasks` for periodic work: it only runs after a request.
 - `REFRESH_TOKEN_PURGE_JOB_ID` (interval, hourly by default) runs `AuthService.purge_expired_refresh_tokens`: one `DELETE` of expired console refresh tokens (ADR-0009).
+- Every job runs wrapped by `logged_job` (`scheduler.py`): it logs `started`, then `finished in Xs: N <unit>` or, when the job raises, `failed after Xs: <error>` at ERROR and counts 0, so the scheduler keeps running it. Jobs themselves let errors propagate.
 - Every job's id, trigger and misfire grace are settings in `.env` (`SESSION_SWEEP_*`, `EMBEDDING_BACKFILL_*`, `REFRESH_TOKEN_PURGE_*`), passed to `create_scheduler(settings, ...)`; shared idle arithmetic in `app/helpers/session_idle.py`.
 
 ### Configuration Policy (Strict .env Compliance)

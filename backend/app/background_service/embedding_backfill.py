@@ -32,7 +32,8 @@ class EmbeddingBackfillService:
     async def backfill_embeddings(self) -> int:
         """Run one backfill, in batches of `batch_size` (EMBEDDING_BACKFILL_BATCH); returns how many Tools were embedded.
 
-        Never raises: a failed run is logged (keeping the batches already stored) and the scheduler runs the next one on time.
+        A failure raises after the batches already stored are kept: the scheduler's logged_job logs the run as
+        failed and the next one picks up the Tools still without an embedding.
         """
         embedded = 0
         try:
@@ -40,8 +41,8 @@ class EmbeddingBackfillService:
                 vectors = await self._embed([tool_embedding_text(tool) for tool in tools])
                 await self._tool_repository.set_embeddings({tool.id: vector for tool, vector in zip(tools, vectors, strict=True)})
                 embedded += len(tools)
-        except Exception as exc:
-            logger.error(f"Could not backfill tool embeddings: {exc}")
-        if embedded:
-            logger.info(f"Backfilled embeddings for {embedded} tool(s)")
+        except Exception:
+            if embedded:
+                logger.warning(f"Backfill stopped after embedding {embedded} tool(s); the rest are retried on the next run")
+            raise
         return embedded

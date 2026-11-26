@@ -226,13 +226,14 @@ async def test_purge_deletes_only_expired_tokens(auth: AuthService, account_id):
     assert await repo.get_by_hash(live_hash) is not None
 
 
-async def test_purge_never_raises(monkeypatch: pytest.MonkeyPatch, auth: AuthService):
+async def test_a_purge_failure_raises_for_the_job_wrapper_to_log(monkeypatch: pytest.MonkeyPatch, auth: AuthService):
     async def broken(_before):
         raise RuntimeError("db down")
 
     monkeypatch.setattr(auth._refresh_token_repository, "delete_expired", broken)
 
-    assert await auth.purge_expired_refresh_tokens() == 0
+    with pytest.raises(RuntimeError, match="db down"):
+        await auth.purge_expired_refresh_tokens()
 
 
 async def test_a_refresh_racing_logout_never_leaves_a_live_token(auth: AuthService, monkeypatch: pytest.MonkeyPatch):

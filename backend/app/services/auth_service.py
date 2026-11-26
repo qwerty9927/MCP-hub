@@ -126,15 +126,8 @@ class AuthService:
         logger.info(f"Signed out sign-in {presented.family_id} of account {presented.user_id}")
 
     async def purge_expired_refresh_tokens(self) -> int:
-        """Delete expired refresh tokens; run by the scheduler. Never raises."""
-        try:
-            deleted = await self._refresh_token_repository.delete_expired(datetime.now(UTC))
-        except Exception as exc:
-            logger.error(f"Could not purge expired refresh tokens: {exc}")
-            return 0
-        if deleted:
-            logger.info(f"Purged {deleted} expired refresh token(s)")
-        return deleted
+        """Delete expired refresh tokens; returns how many. Run by the scheduler, whose logged_job logs a failure."""
+        return await self._refresh_token_repository.delete_expired(datetime.now(UTC))
 
     async def get_user(self, user_id: UUID) -> UserResponse:
         user = await self._user_repository.get_by_id(user_id)

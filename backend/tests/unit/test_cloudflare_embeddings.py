@@ -314,7 +314,8 @@ async def test_backfill_uses_the_queue_only_when_told_to():
     assert len(api.submitted) == 1 and api.sync_calls == 0
 
     direct = BatchAPI()
-    assert await EmbeddingBackfillService(InMemoryTools(2), adapter_for(client_for(direct)), 64).backfill_embeddings() == 0
+    with pytest.raises(CloudflareAPIError, match="sync call not expected"):
+        await EmbeddingBackfillService(InMemoryTools(2), adapter_for(client_for(direct)), 64).backfill_embeddings()
     assert direct.sync_calls == 1 and direct.submitted == []  # direct path called the sync endpoint (refused here)
 
 
