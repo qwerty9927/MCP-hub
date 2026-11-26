@@ -1,6 +1,7 @@
 """Structured logging configuration and context management."""
 
 import logging
+import os
 import sys
 import uuid
 from contextvars import ContextVar
@@ -19,6 +20,38 @@ class CorrelationIdFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         record.correlation_id = _correlation_id_ctx.get() or "-"
         return True
+
+
+class ColorLevelFormatter(logging.Formatter):
+    """Colors the level name with ANSI codes. Used only when stderr is a terminal (see `_use_color`)."""
+
+    _COLORS = {
+        logging.DEBUG: "\033[36m",  # cyan
+        logging.INFO: "\033[32m",  # green
+        logging.WARNING: "\033[33m",  # yellow
+        logging.ERROR: "\033[31m",  # red
+        logging.CRITICAL: "\033[1;31m",  # bold red
+    }
+    _RESET = "\033[0m"
+
+    def format(self, record: logging.LogRecord) -> str:
+        color = self._COLORS.get(record.levelno)
+        if color is None:
+            return super().format(record)
+        plain = record.levelname
+        record.levelname = f"{color}{plain}{self._RESET}"
+        try:
+            return super().format(record)
+        finally:
+            record.levelname = plain  # other handlers see the record unchanged
+
+
+def _use_color(stream: object) -> bool:
+    """Color only for a real terminal, and never when NO_COLOR is set (https://no-color.org)."""
+    if os.environ.get("NO_COLOR"):
+        return False
+    isatty = getattr(stream, "isatty", None)
+    return bool(isatty and isatty())
 
 
 def get_correlation_id() -> str:
@@ -42,7 +75,9 @@ def setup_logging() -> None:
 
     log_format = "[%(asctime)s] [%(levelname)s] [corr_id:%(correlation_id)s] [%(name)s:%(funcName)s:%(lineno)d]: %(message)s"
 
-    formatter = logging.Formatter(log_format, datefmt="%Y-%m-%d %H:%M:%S")
+    # Docker, CI and log files get plain text: escape codes would show up there as junk.
+    formatter_class = ColorLevelFormatter if _use_color(sys.stderr) else logging.Formatter
+    formatter = formatter_class(log_format, datefmt="%Y-%m-%d %H:%M:%S")
 
     handler = logging.StreamHandler(sys.stderr)
     handler.setFormatter(formatter)

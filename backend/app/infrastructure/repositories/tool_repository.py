@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy import delete, exists, func, select, text, update
 
 import app.infrastructure.database as db_module
-from app.core.constants.tool_search_constants import HNSW_ITERATIVE_SCAN
+from app.core.config import get_settings
 from app.domain.tool_entity import ToolEntity
 from app.helpers.validation import is_uuid
 from app.models.api_key_disabled_tool_model import ApiKeyDisabledToolModel
@@ -115,7 +115,7 @@ class PostgresToolRepository(ToolRepositoryAbstract):
         async with db_module.async_session_factory() as session:
             # Filters are applied to the index's candidates; without this, a caller whose Tools are not among the
             # hnsw.ef_search (40) nearest of all accounts gets fewer than top_k, or none. Scoped to this transaction.
-            await session.execute(text(f"SET LOCAL hnsw.iterative_scan = {HNSW_ITERATIVE_SCAN}"))
+            await session.execute(text(f"SET LOCAL hnsw.iterative_scan = {get_settings().HNSW_ITERATIVE_SCAN}"))
             distance = ToolModel.embedding.cosine_distance(query_embedding)
             conditions = [
                 ToolModel.user_id == str(user_id),

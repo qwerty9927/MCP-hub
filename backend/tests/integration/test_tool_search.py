@@ -13,14 +13,16 @@ from sqlalchemy import event, select, text, update
 import app.infrastructure.database as db_module
 from app.api.dependencies import get_tool_catalog_service
 from app.background_service.embedding_backfill import EmbeddingBackfillService
+from app.core.config import get_settings
 from app.domain.server_entity import ServerEntity, TransportType
 from app.domain.tool_entity import ToolEntity
 from app.domain.user_entity import UserEntity
+from app.infrastructure.embedding.embedding_factory import create_embedding_service
+from app.infrastructure.embedding.embedding_service import normalize
 from app.infrastructure.repositories.server_repository import PostgresServerRepository
 from app.infrastructure.repositories.tool_repository import PostgresToolRepository
 from app.infrastructure.repositories.user_repository import PostgresUserRepository
 from app.models.tool_model import ToolModel
-from app.services.embedding_service import FastEmbedService, normalize
 from app.services.tool_catalog import ToolCatalogService
 from tests.fake_embeddings import FailingEmbeddingService, FakeEmbeddingService
 
@@ -92,7 +94,11 @@ async def test_failed_embedding_keeps_discovery_working_and_backfill_fills_it_in
     async with db_module.async_session_factory() as session:
         assert (await session.execute(select(ToolModel.embedding).where(ToolModel.id == str(tool.id)))).scalar_one() is None
 
-    backfill = EmbeddingBackfillService(tool_repository=PostgresToolRepository(), embedding_service=FakeEmbeddingService())
+    backfill = EmbeddingBackfillService(
+        tool_repository=PostgresToolRepository(),
+        embedding_service=FakeEmbeddingService(),
+        batch_size=get_settings().EMBEDDING_BACKFILL_BATCH,
+    )
     assert await backfill.backfill_embeddings() == 1
     assert await backfill.backfill_embeddings() == 0
     catalog = ToolCatalogService(tool_repository=PostgresToolRepository(), embedding_service=FakeEmbeddingService())
@@ -163,10 +169,7 @@ async def test_search_fills_top_k_when_other_accounts_crowd_the_index(account_id
 @pytest.mark.skipif(os.environ.get("RUN_SLOW") != "1", reason="loads the real embedding model; set RUN_SLOW=1")
 async def test_real_model_matches_by_meaning_not_words(account_id):
     """The point of vector search: 'open a ticket' finds create_issue though they share no words."""
-    from app.core.config import get_settings
-
-    settings = get_settings()
-    model = FastEmbedService(settings.EMBEDDING_MODEL, settings.EMBEDDING_DIMENSION, settings.EMBEDDING_CACHE_DIR)
+    model = create_embedding_service(get_settings().model_copy(update={"EMBEDDING_PROVIDER": "local"}))
     catalog = ToolCatalogService(tool_repository=PostgresToolRepository(), embedding_service=model)
     server = await PostgresServerRepository().create(
         ServerEntity(id=uuid4(), name="work", transport=TransportType.STDIO, user_id=account_id)
@@ -186,3 +189,41 @@ async def test_real_model_matches_by_meaning_not_words(account_id):
     [ranked] = await catalog.search(["open a ticket for a bug"], user_id=account_id, top_k=3)
 
     assert ranked[0][0].name == "create_issue"
+
+
+@pytest.mark.skipif(
+    os.environ.get("RUN_CLOUDFLARE") != "1",
+    reason="calls Cloudflare Workers AI and loads the local model; set RUN_CLOUDFLARE=1, CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN",
+)
+async def test_cloudflare_and_local_embed_alike():
+    """ADR-0010: both providers run the same model, so switching EMBEDDING_PROVIDER needs no re-embedding."""
+    settings = get_settings()
+    local = create_embedding_service(settings.model_copy(update={"EMBEDDING_PROVIDER": "local"}))
+    cloudflare = create_embedding_service(settings.model_copy(update={"EMBEDDING_PROVIDER": "cloudflare"}))
+    texts = ["create issue\nserver: github\nCreate a new issue in a GitHub repository", "send slack message"]
+    try:
+        pairs = zip(await local.embed_documents(texts), await cloudflare.embed_documents(texts), strict=True)
+        query_pair = (await local.embed_query("open a ticket"), await cloudflare.embed_query("open a ticket"))
+    finally:
+        await cloudflare.aclose()
+
+    for a, b in [*pairs, query_pair]:
+        assert float(np.dot(a, b)) > 0.99
+
+
+@pytest.mark.skipif(
+    os.environ.get("RUN_CLOUDFLARE") != "1",
+    reason="queues a real Workers AI batch (takes ~30s); set RUN_CLOUDFLARE=1, CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN",
+)
+async def test_cloudflare_batch_queue_embeds_like_direct_calls():
+    """The backfill's queued path (EMBEDDING_BACKFILL_QUEUED) returns the vectors a direct call does, in order."""
+    cloudflare = create_embedding_service(get_settings().model_copy(update={"EMBEDDING_PROVIDER": "cloudflare"}))
+    texts = ["send slack message", "create github issue", "list calendar events"]
+    try:
+        queued = await cloudflare.embed_documents_queued(texts)
+        direct = await cloudflare.embed_documents(texts)
+    finally:
+        await cloudflare.aclose()
+
+    for a, b in zip(queued, direct, strict=True):
+        assert float(np.dot(a, b)) > 0.999

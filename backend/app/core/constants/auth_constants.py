@@ -11,8 +11,3 @@ CONSOLE_CLIENT_HEADER_VALUE: str = "console"
 
 # Refresh tokens are prefixed so a leaked one is recognisable, like API keys (`mhk_`).
 REFRESH_TOKEN_PREFIX: str = "mhr_"
-
-# The APScheduler job that deletes expired refresh tokens, and how often it runs.
-REFRESH_TOKEN_PURGE_JOB_ID: str = "purge-expired-refresh-tokens"
-REFRESH_TOKEN_PURGE_INTERVAL_MINUTES: int = 60
-REFRESH_TOKEN_PURGE_MISFIRE_GRACE_SECONDS: int = 300

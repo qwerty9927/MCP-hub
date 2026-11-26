@@ -1,6 +1,5 @@
 """Main FastAPI application entry point for MCP Hub Backend."""
 
-import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -32,9 +31,9 @@ from app.background_service.scheduler import create_scheduler
 from app.core.config import get_settings
 from app.core.exceptions import AppError
 from app.core.logging import get_correlation_id, logger, setup_logging
+from app.infrastructure.embedding.embedding_service import warm_up
 from app.middlewares.correlation import CorrelationAndLoggingMiddleware
 from app.schemas.common_schema import ErrorDetail, ErrorResponse
-from app.services.embedding_service import warm_up
 
 
 @asynccontextmanager
@@ -46,27 +45,25 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Tool search (ADR-0006): load the embedding model, then embed any Tools stored without an embedding.
     await warm_up(get_embedding_service())
-    embedding_backfill = get_embedding_backfill_service()
-    backfill = asyncio.create_task(embedding_backfill.backfill_embeddings())
 
     # Start MCP Server Streamable HTTP lifecycle
     mcp_server = get_mcp_server()
     async with mcp_server.run():
         # Background jobs (app/background_service/). A fresh scheduler per lifespan: one cannot restart after shutdown.
-        scheduler = create_scheduler(get_session_sweeper_service(), embedding_backfill, get_auth_service().purge_expired_refresh_tokens)
+        scheduler = create_scheduler(settings, get_session_sweeper_service(), get_embedding_backfill_service(), get_auth_service())
         scheduler.start()
         logger.info(f"Background scheduler started with jobs: {[job.id for job in scheduler.get_jobs()]}")
         try:
             yield
         finally:
             scheduler.shutdown(wait=False)
-            backfill.cancel()
             logger.info("Background scheduler shut down.")
 
     logger.info("Initiating graceful shutdown...")
     await get_oauth_flow_registry().shutdown()
     connection_manager = get_connection_manager()
     await connection_manager.shutdown()
+    await get_embedding_service().aclose()
     logger.info("Graceful shutdown complete.")
 
 

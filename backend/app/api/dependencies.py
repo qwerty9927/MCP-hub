@@ -12,6 +12,8 @@ from app.core.constants.auth_constants import CONSOLE_CLIENT_HEADER, CONSOLE_CLI
 from app.core.exceptions import ForbiddenError, UnauthorizedError
 from app.domain.principal_entity import Principal
 from app.helpers.crypto import SecretCipher
+from app.infrastructure.embedding.embedding_factory import create_embedding_service
+from app.infrastructure.embedding.embedding_service import EmbeddingServiceAbstract
 from app.infrastructure.oauth.provider_catalog import get_provider_catalog
 from app.infrastructure.repositories.api_key_repository import ApiKeyRepositoryAbstract, PostgresApiKeyRepository
 from app.infrastructure.repositories.execution_repository import (
@@ -40,7 +42,6 @@ from app.infrastructure.repositories.user_repository import PostgresUserReposito
 from app.mcp.mcp_server import MCPServer
 from app.services.auth_service import AuthService
 from app.services.connection_manager import ConnectionManager
-from app.services.embedding_service import EmbeddingServiceAbstract, FastEmbedService
 from app.services.oauth_service import OAuthFlowRegistry, OAuthService
 from app.services.server_registry import ServerRegistryService
 from app.services.session_explorer import SessionExplorerService
@@ -64,11 +65,8 @@ _oauth_credential_repository: OAuthCredentialRepositoryAbstract = PostgresOAuthC
 )
 _oauth_flow_registry = OAuthFlowRegistry()
 _connection_manager = ConnectionManager(oauth_credentials=_oauth_credential_repository)
-_embedding_service: EmbeddingServiceAbstract = FastEmbedService(
-    model_name=_settings.EMBEDDING_MODEL,
-    dimension=_settings.EMBEDDING_DIMENSION,
-    cache_dir=_settings.EMBEDDING_CACHE_DIR,
-)
+# Local fastembed or Cloudflare Workers AI, picked once from EMBEDDING_PROVIDER (ADR-0010).
+_embedding_service: EmbeddingServiceAbstract = create_embedding_service(_settings)
 _mcp_server: MCPServer | None = None
 
 _bearer_security = HTTPBearer(auto_error=False, description="Console login token from POST /auth/login")
@@ -210,7 +208,12 @@ def get_session_sweeper_service() -> SessionSweeperService:
 
 def get_embedding_backfill_service() -> EmbeddingBackfillService:
     """Return the background job that embeds Tools stored without an embedding."""
-    return EmbeddingBackfillService(tool_repository=get_tool_repository(), embedding_service=get_embedding_service())
+    return EmbeddingBackfillService(
+        tool_repository=get_tool_repository(),
+        embedding_service=get_embedding_service(),
+        batch_size=_settings.EMBEDDING_BACKFILL_BATCH,
+        queued=_settings.EMBEDDING_BACKFILL_QUEUED,
+    )
 
 
 def get_session_tracker_service() -> SessionTrackerService:

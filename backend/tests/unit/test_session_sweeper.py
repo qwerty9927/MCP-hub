@@ -5,13 +5,13 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 from uuid import uuid4
 
+import pytest
 from apscheduler.triggers.cron import CronTrigger
 
 from app.background_service.scheduler import create_scheduler
 from app.background_service.session_sweeper import SessionSweeperService
-from app.core.constants.auth_constants import REFRESH_TOKEN_PURGE_JOB_ID
-from app.core.constants.session_constants import DEFAULT_SESSION_IDLE_SECONDS, SESSION_SWEEP_JOB_ID
-from app.core.constants.tool_search_constants import EMBEDDING_BACKFILL_JOB_ID
+from app.core.config import get_settings
+from app.core.constants.session_constants import DEFAULT_SESSION_IDLE_SECONDS
 from app.core.enums.session_enum import SessionStatus
 from app.domain.session_entity import SessionEntity
 from app.infrastructure.repositories.session_repository import PostgresSessionRepository
@@ -58,18 +58,23 @@ async def test_sweep_failure_is_logged_not_raised():
 
 
 async def test_scheduler_registers_one_non_overlapping_cron_job():
-    scheduler = create_scheduler(SessionSweeperService(PostgresSessionRepository()), MagicMock(), MagicMock())
+    settings = get_settings()
+    scheduler = create_scheduler(settings, SessionSweeperService(PostgresSessionRepository()), MagicMock(), MagicMock())
 
     jobs = scheduler.get_jobs()
-    assert {job.id for job in jobs} == {SESSION_SWEEP_JOB_ID, EMBEDDING_BACKFILL_JOB_ID, REFRESH_TOKEN_PURGE_JOB_ID}
-    job = scheduler.get_job(SESSION_SWEEP_JOB_ID)
+    assert {job.id for job in jobs} == {
+        settings.SESSION_SWEEP_JOB_ID,
+        settings.EMBEDDING_BACKFILL_JOB_ID,
+        settings.REFRESH_TOKEN_PURGE_JOB_ID,
+    }
+    job = scheduler.get_job(settings.SESSION_SWEEP_JOB_ID)
     assert isinstance(job.trigger, CronTrigger)
     assert job.max_instances == 1 and job.coalesce is True
 
     scheduler.start()
     try:
         assert scheduler.running
-        assert scheduler.get_job(SESSION_SWEEP_JOB_ID).next_run_time is not None
+        assert scheduler.get_job(settings.SESSION_SWEEP_JOB_ID).next_run_time is not None
     finally:
         scheduler.shutdown(wait=False)
     await asyncio.sleep(0)  # AsyncIOScheduler finishes stopping on the next event-loop tick
@@ -91,3 +96,41 @@ async def _session(
         )
     )
     return created.id
+
+
+async def test_every_job_run_logs_its_start_and_end(caplog):
+    from app.background_service.scheduler import logged_job
+
+    async def job() -> int:
+        return 3
+
+    with caplog.at_level("INFO"):
+        assert await logged_job("demo-job", job)() == 3
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert "Job 'demo-job' started (scheduled)" in messages
+    assert any(m.startswith("Job 'demo-job' finished in ") and m.endswith("(result: 3)") for m in messages)
+
+
+async def test_a_job_that_raises_is_logged_as_stopped_and_re_raised(caplog):
+    from app.background_service.scheduler import logged_job
+
+    async def job() -> int:
+        raise RuntimeError("boom")
+
+    with caplog.at_level("INFO"), pytest.raises(RuntimeError):
+        await logged_job("demo-job", job, trigger="startup")()
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert "Job 'demo-job' started (startup)" in messages
+    assert any(m.startswith("Job 'demo-job' stopped after ") and m.endswith(": RuntimeError") for m in messages)
+
+
+async def test_scheduled_jobs_are_wrapped_with_start_and_end_logs():
+    settings = get_settings()
+    sweeper = SessionSweeperService(PostgresSessionRepository())
+    auth_service = MagicMock()
+    scheduler = create_scheduler(settings, sweeper, MagicMock(), auth_service)
+
+    assert scheduler.get_job(settings.SESSION_SWEEP_JOB_ID).func.__wrapped__ == sweeper.complete_idle_sessions
+    assert scheduler.get_job(settings.REFRESH_TOKEN_PURGE_JOB_ID).func.__wrapped__ is auth_service.purge_expired_refresh_tokens

@@ -14,8 +14,3 @@ ACTIVITY_REFRESH_SECONDS: int = 60
 SESSION_SOURCE_DERIVED: str = "derived"
 
 MAX_USER_AGENT_LENGTH: int = 255
-
-# The APScheduler job that completes idle Sessions, and when it runs (CronTrigger fields, UTC): every minute.
-SESSION_SWEEP_JOB_ID: str = "complete-idle-sessions"
-SESSION_SWEEP_CRON: dict[str, str] = {"minute": "*"}
-SESSION_SWEEP_MISFIRE_GRACE_SECONDS: int = 30
