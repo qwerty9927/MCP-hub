@@ -49,12 +49,13 @@ async def test_completes_only_active_sessions_idle_past_their_timeout(account_id
     assert await SessionSweeperService(repo).complete_idle_sessions() == 0
 
 
-async def test_sweep_failure_is_logged_not_raised():
+async def test_a_sweep_failure_raises_for_the_job_wrapper_to_log():
     class Broken(PostgresSessionRepository):
         async def complete_idle_sessions(self, now, default_idle_seconds):
             raise RuntimeError("db down")
 
-    assert await SessionSweeperService(Broken()).complete_idle_sessions() == 0
+    with pytest.raises(RuntimeError, match="db down"):
+        await SessionSweeperService(Broken()).complete_idle_sessions()
 
 
 async def test_scheduler_registers_one_non_overlapping_cron_job():
@@ -105,25 +106,39 @@ async def test_every_job_run_logs_its_start_and_end(caplog):
         return 3
 
     with caplog.at_level("INFO"):
-        assert await logged_job("demo-job", job)() == 3
+        assert await logged_job("demo-job", job, unit="widget(s) polished")() == 3
 
     messages = [record.getMessage() for record in caplog.records]
     assert "Job 'demo-job' started (scheduled)" in messages
-    assert any(m.startswith("Job 'demo-job' finished in ") and m.endswith("(result: 3)") for m in messages)
+    assert any(m.startswith("Job 'demo-job' finished in ") and m.endswith(": 3 widget(s) polished") for m in messages)
 
 
-async def test_a_job_that_raises_is_logged_as_stopped_and_re_raised(caplog):
+async def test_a_failing_job_is_logged_as_failed_not_finished_and_counts_zero(caplog):
     from app.background_service.scheduler import logged_job
 
     async def job() -> int:
-        raise RuntimeError("boom")
+        raise RuntimeError("db down")
 
-    with caplog.at_level("INFO"), pytest.raises(RuntimeError):
-        await logged_job("demo-job", job, trigger="startup")()
+    with caplog.at_level("INFO"):
+        assert await logged_job("demo-job", job, trigger="startup")() == 0  # the scheduler keeps running it
 
-    messages = [record.getMessage() for record in caplog.records]
-    assert "Job 'demo-job' started (startup)" in messages
-    assert any(m.startswith("Job 'demo-job' stopped after ") and m.endswith(": RuntimeError") for m in messages)
+    by_message = {record.getMessage(): record.levelname for record in caplog.records}
+    assert by_message["Job 'demo-job' started (startup)"] == "INFO"
+    [failed] = [m for m in by_message if m.startswith("Job 'demo-job' failed after ")]
+    assert failed.endswith(": RuntimeError: db down") and by_message[failed] == "ERROR"
+    assert not any("finished" in m for m in by_message)
+
+
+async def test_a_cancelled_job_is_logged_as_stopped_and_re_raised(caplog):
+    from app.background_service.scheduler import logged_job
+
+    async def job() -> int:
+        raise asyncio.CancelledError
+
+    with caplog.at_level("INFO"), pytest.raises(asyncio.CancelledError):
+        await logged_job("demo-job", job)()
+
+    assert any(r.getMessage().startswith("Job 'demo-job' stopped after ") and r.levelname == "WARNING" for r in caplog.records)
 
 
 async def test_scheduled_jobs_are_wrapped_with_start_and_end_logs():

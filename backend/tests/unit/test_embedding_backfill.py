@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock
 from uuid import uuid4
 
+import pytest
 from apscheduler.triggers.interval import IntervalTrigger
 
 from app.background_service.embedding_backfill import EmbeddingBackfillService
@@ -52,11 +53,31 @@ async def test_nothing_pending_does_nothing():
     assert tools.batch_sizes == []
 
 
-async def test_a_failing_model_is_logged_not_raised():
+async def test_a_failing_model_raises_and_leaves_the_tools_for_the_next_run():
     tools = InMemoryTools(2)
 
-    assert await EmbeddingBackfillService(tools, FailingEmbeddingService(), BATCH).backfill_embeddings() == 0
+    with pytest.raises(RuntimeError, match="model unavailable"):
+        await EmbeddingBackfillService(tools, FailingEmbeddingService(), BATCH).backfill_embeddings()
     assert len(tools.pending) == 2  # retried on the next run
+
+
+async def test_a_failure_mid_run_keeps_the_batches_already_stored(caplog):
+    class FailsOnSecondBatch(FakeEmbeddingService):
+        calls = 0
+
+        async def embed_documents(self, texts):
+            self.calls += 1
+            if self.calls == 2:
+                raise RuntimeError("model unavailable")
+            return await super().embed_documents(texts)
+
+    tools = InMemoryTools(BATCH + 3)
+
+    with caplog.at_level("WARNING"), pytest.raises(RuntimeError):
+        await EmbeddingBackfillService(tools, FailsOnSecondBatch(), BATCH).backfill_embeddings()
+
+    assert len(tools.stored) == BATCH and len(tools.pending) == 3
+    assert any(f"Backfill stopped after embedding {BATCH} tool(s)" in r.getMessage() for r in caplog.records)
 
 
 async def test_scheduler_registers_the_backfill_as_a_non_overlapping_interval_job():
