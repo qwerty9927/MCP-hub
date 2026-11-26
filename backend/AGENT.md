@@ -75,8 +75,8 @@ backend/
 │   ├── main.py                          # FastAPI factory, ASGI middlewares, lifespan hooks (starts the scheduler)
 │   ├── background_service/              # Scheduled background jobs (APScheduler, ADR-0005, ADR-0006)
 │   │   ├── scheduler.py                 # create_scheduler(): AsyncIOScheduler + job registration
-│   │   ├── session_sweeper.py           # SessionSweeperService: completes idle Sessions (cron job complete-idle-sessions)
-│   │   └── embedding_backfill.py        # EmbeddingBackfillService: embeds Tools stored without one (job backfill-tool-embeddings)
+│   │   ├── session_sweeper.py           # SessionSweeperService: completes idle Sessions (cron job SESSION_SWEEP_JOB_ID)
+│   │   └── embedding_backfill.py        # EmbeddingBackfillService: embeds Tools stored without one (job EMBEDDING_BACKFILL_JOB_ID)
 │   ├── api/
 │   │   ├── dependencies.py              # Centralized dependency injection providers, get_current_principal
 │   │   └── v1/                          # API Routers
@@ -91,11 +91,11 @@ backend/
 │   ├── core/
 │   │   ├── config.py                    # Settings loaded strictly from .env (no in-code defaults)
 │   │   ├── constants/                   # Application constants partitioned by domain
-│   │   │   ├── auth_constants.py        # Refresh token cookie name/path, console CSRF header, purge job (ADR-0009)
+│   │   │   ├── auth_constants.py        # Refresh token cookie name/path, console CSRF header, token prefix (ADR-0009)
 │   │   │   ├── meta_tools.py            # Meta-tool identifiers (SEARCH_TOOLS, MULTI_EXECUTE_TOOLS)
 │   │   │   ├── oauth_constants.py       # OAuth sign-in timeouts, client name, re-authorization reason (ADR-0008)
-│   │   │   ├── session_constants.py     # Session idle defaults/bounds, sweep job id and cron schedule
-│   │   │   └── tool_search_constants.py # Embedding backfill job id, batch size and interval
+│   │   │   ├── cloudflare_constants.py  # Workers AI texts per request (URL and timeout are settings, ADR-0010)
+│   │   │   └── session_constants.py     # Session idle defaults/bounds
 │   │   ├── enums/                       # Core enumerations partitioned by domain (no __init__.py)
 │   │   │   ├── execution_enum.py        # ExecutionOutcomeKind, RejectionReason
 │   │   │   ├── server_enum.py           # TransportType, ServerHealthStatus (incl. NEEDS_AUTH), ServerAuthType
@@ -123,6 +123,13 @@ backend/
 │   │   └── validation.py                # Tool arguments JSON-schema validation
 │   ├── infrastructure/
 │   │   ├── database.py                  # Async SQLAlchemy engine, session maker, connection pooling
+│   │   ├── cloudflare/                  # Connectors to Cloudflare APIs (ADR-0010)
+│   │   │   └── workers_ai_client.py     # CloudflareWorkersAIClient: run, submit_batch/poll_batch (Batch API), CloudflareAPIError
+│   │   ├── embedding/                   # Tool-search embeddings: the port and its providers (ADR-0006, ADR-0010)
+│   │   │   ├── embedding_service.py     # EmbeddingServiceAbstract, normalize, check_dimension, warm_up
+│   │   │   ├── fastembed_service.py     # FastEmbedService (EMBEDDING_PROVIDER=local)
+│   │   │   ├── cloudflare_embedding_service.py # CloudflareEmbeddingService (EMBEDDING_PROVIDER=cloudflare; embed_documents_queued = Batch API)
+│   │   │   └── embedding_factory.py     # create_embedding_service(settings): picks the provider once
 │   │   ├── oauth/                       # OAuth connections to hosted MCP servers (ADR-0008)
 │   │   │   ├── client_provider.py       # HubOAuthClientProvider, DbTokenStorage/MemoryTokenStorage, client metadata
 │   │   │   ├── provider_catalog.py      # OAuthProviderCatalog loaded from the JSON catalog
@@ -159,6 +166,7 @@ backend/
 │   │   ├── auth_schema.py               # Register/login, tokens, API keys
 │   │   ├── common_schema.py             # Paginated envelopes & Error responses
 │   │   ├── connection_schema.py         # Stdio & HTTP transport connection schemas
+│   │   ├── embedding_schema.py          # EmbeddingModelSpec: an embedding model's dimension and id per provider (ADR-0010)
 │   │   ├── execution_schema.py          # Execution audit models
 │   │   ├── oauth_schema.py              # OAuth providers and connect responses
 │   │   ├── server_schema.py             # Server models & validation
@@ -169,13 +177,12 @@ backend/
 │   └── services/                        # Business logic & orchestrators
 │       ├── auth_service.py              # Accounts, console login/refresh/logout (ADR-0009), API keys, bearer token -> Principal
 │       ├── connection_manager.py        # Downstream MCP client session lifecycle (SessionWorker), incl. OAuth sign-ins (authorize)
-│       ├── embedding_service.py         # EmbeddingServiceAbstract, FastEmbedService, tool_embedding_text
 │       ├── oauth_service.py             # OAuthService + OAuthFlowRegistry: sign-ins that end in a connected server
 │       ├── server_registry.py           # Server CRUD, uniqueness validation, status management
 │       ├── session_explorer.py          # Session discovery and execution history
 │       ├── session_tracker.py           # Maps each /mcp request to a derived hub Session (ADR-0003, ADR-0004)
 │       ├── tool_access_service.py       # Per-API-key tool visibility (ADR-0007)
-│       ├── tool_catalog.py              # Tool index over discovered_tools (no in-memory cache), Tool Reference resolution
+│       ├── tool_catalog.py              # Tool index over discovered_tools (no in-memory cache), Tool Reference resolution, tool_embedding_text
 │       └── tool_executor.py             # Execution module: resolve Tool Reference, check, validate, call, audit (ADR-0002)
 ├── demo_server/                         # Standalone downstream demo MCP servers (server.py math, server_b.py text)
 ├── docs/                                # api-contract.md, ADRs (docs/adr/), Postman collection & environment
@@ -229,10 +236,10 @@ Strict unidirectional dependency flow:
 
 ### Background jobs (`app/background_service/`, ADR-0005)
 - One APScheduler `AsyncIOScheduler` per process, built by `create_scheduler()` and started/shut down in `main.py` `lifespan`; a fresh one per lifespan, since a scheduler cannot restart after shutdown. In-memory job store: jobs are defined in code.
-- `complete-idle-sessions` (cron, every minute, `max_instances=1`, `coalesce=True`) runs `SessionSweeperService.complete_idle_sessions`: one idempotent `UPDATE` completing active Sessions idle past their own timeout. It never raises and never touches `last_activity_at`.
+- `SESSION_SWEEP_JOB_ID` (cron `SESSION_SWEEP_CRON`, every minute by default, `max_instances=1`, `coalesce=True`) runs `SessionSweeperService.complete_idle_sessions`: one idempotent `UPDATE` completing active Sessions idle past their own timeout. It never raises and never touches `last_activity_at`.
 - Every job must be safe to run on several hub instances at once. Do not use FastAPI `BackgroundTasks` for periodic work: it only runs after a request.
-- `purge-expired-refresh-tokens` (interval, hourly) runs `AuthService.purge_expired_refresh_tokens`: one `DELETE` of expired console refresh tokens (ADR-0009).
-- Job IDs and schedules live in `app/core/constants/session_constants.py` (refresh token purge: `auth_constants.py`); shared idle arithmetic in `app/helpers/session_idle.py`.
+- `REFRESH_TOKEN_PURGE_JOB_ID` (interval, hourly by default) runs `AuthService.purge_expired_refresh_tokens`: one `DELETE` of expired console refresh tokens (ADR-0009).
+- Every job's id, trigger and misfire grace are settings in `.env` (`SESSION_SWEEP_*`, `EMBEDDING_BACKFILL_*`, `REFRESH_TOKEN_PURGE_*`), passed to `create_scheduler(settings, ...)`; shared idle arithmetic in `app/helpers/session_idle.py`.
 
 ### Configuration Policy (Strict .env Compliance)
 - **Invariant**: Do NOT add hardcoded fallback default values for application configuration in `app/core/config.py`. All settings in `Settings` must be explicitly declared and loaded from `.env` or environment variables.
@@ -254,9 +261,9 @@ Strict unidirectional dependency flow:
     2. Proactively search for hidden prerequisites (e.g., ID lookups before mutations).
     3. Normalize queries without PII or long values.
     4. Use English verbs (`list`, `get`, `search`, `create`, `update`, `delete`, `send`).
-  - Ranking is vector similarity in pgvector (ADR-0006): each query is embedded by `EmbeddingServiceAbstract` (`app/services/embedding_service.py`, local fastembed model) and `ToolRepositoryAbstract.search_by_embedding` returns the caller's `top_k` nearest Tools on enabled Servers by cosine distance, with their `similarity`.
+  - Ranking is vector similarity in pgvector (ADR-0006): each query is embedded by `EmbeddingServiceAbstract` (`app/infrastructure/embedding/`, local fastembed or Cloudflare Workers AI per `EMBEDDING_PROVIDER`, ADR-0010) and `ToolRepositoryAbstract.search_by_embedding` returns the caller's `top_k` nearest Tools on enabled Servers by cosine distance, with their `similarity`.
   - Per-API-key visibility (ADR-0007): `/mcp` passes `principal.api_key_id` to `ToolCatalogService.search` and `ToolExecutor.execute`. Tools hidden from that key (`api_key_disabled_tools`, keyed by server and tool name) are left out of the search and rejected on execution (`RejectionReason.TOOL_DISABLED`). Console calls pass no key and are not limited.
-  - Tools are embedded from `tool_embedding_text` when their Server is discovered; a failed embedding stores NULL and `EmbeddingBackfillService` (`app/background_service/embedding_backfill.py`, job `backfill-tool-embeddings`, run at startup and every 10 minutes) fills it in. Settings: `EMBEDDING_MODEL`, `EMBEDDING_DIMENSION` (must match the `discovered_tools.embedding` column), `EMBEDDING_CACHE_DIR`. Tests use `tests/fake_embeddings.py` (set in `conftest`), never the real model; the one real-model test runs only with `RUN_SLOW=1`.
+  - Tools are embedded from `tool_embedding_text` when their Server is discovered; a failed embedding stores NULL and `EmbeddingBackfillService` (`app/background_service/embedding_backfill.py`, job `EMBEDDING_BACKFILL_JOB_ID`, run at startup and every `EMBEDDING_BACKFILL_INTERVAL_MINUTES`) fills it in, through the provider's batch queue when `EMBEDDING_BACKFILL_QUEUED=true` (Cloudflare Batch API, ADR-0010). Settings: `EMBEDDING_PROVIDER`, `EMBEDDING_MODELS` (JSON catalog; model names live only there), `EMBEDDING_MODEL`, `EMBEDDING_DIMENSION` (must match the `discovered_tools.embedding` column), `EMBEDDING_CACHE_DIR`, `HNSW_ITERATIVE_SCAN`. Tests use `tests/fake_embeddings.py` (set in `conftest`), never the real model; the one real-model test runs only with `RUN_SLOW=1`, and the live Cloudflare tests only with `RUN_CLOUDFLARE=1`.
   - Automatically excludes `META_TOOL_NAMES` from discovery candidates to avoid self-recursion.
   - Deduplicates matches across queries preserving ranking order.
 - **Parallel Dispatcher (`app/mcp/multi_execute_tools.py`)**:

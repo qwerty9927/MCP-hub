@@ -44,9 +44,10 @@ ENV PATH="/app/.venv/bin:$PATH" \
 RUN chown mcphub:mcphub /app
 USER mcphub
 
-# Pre-download the tool-search embedding model so containers do not fetch it on first start.
-# Keep the model name and cache dir in sync with EMBEDDING_MODEL / EMBEDDING_CACHE_DIR in .env.
-RUN python -c "from fastembed import TextEmbedding; TextEmbedding('BAAI/bge-small-en-v1.5', cache_dir='/app/.cache/fastembed')"
+# Pre-download the tool-search embedding model so EMBEDDING_PROVIDER=local containers do not fetch it on first start.
+# Pass the local_id of the EMBEDDING_MODELS entry EMBEDDING_MODEL names (ADR-0010); the cache dir matches EMBEDDING_CACHE_DIR.
+ARG EMBEDDING_LOCAL_MODEL_ID=BAAI/bge-small-en-v1.5
+RUN python -c "import sys; from fastembed import TextEmbedding; TextEmbedding(sys.argv[1], cache_dir='/app/.cache/fastembed')" "$EMBEDDING_LOCAL_MODEL_ID"
 
 # Copy application code last so code changes do not invalidate the layers above (see .dockerignore)
 COPY --chown=mcphub:mcphub . /app

@@ -4,7 +4,7 @@ import hashlib
 import re
 
 from app.core.config import get_settings
-from app.services.embedding_service import EmbeddingServiceAbstract, normalize
+from app.infrastructure.embedding.embedding_service import EmbeddingServiceAbstract, normalize
 
 _STOP_WORDS = {"a", "an", "the", "of", "to", "and", "or", "for", "in", "on", "with", "server"}
 

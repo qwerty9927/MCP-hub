@@ -11,11 +11,11 @@ from app.core.logging import logger
 from app.domain.server_entity import ServerEntity
 from app.domain.tool_entity import ToolEntity
 from app.helpers.text import slugify
+from app.infrastructure.embedding.embedding_service import EmbeddingServiceAbstract
 from app.infrastructure.repositories.tool_repository import ToolRepositoryAbstract
 from app.schemas.common_schema import PaginatedResponse
 from app.schemas.tool_schema import ToolResponse
 from app.services.connection_manager import ConnectionManager
-from app.services.embedding_service import EmbeddingServiceAbstract, tool_embedding_text
 
 
 class ToolCatalogService:
@@ -178,3 +178,16 @@ class ToolCatalogService:
         except Exception as exc:
             logger.warning(f"Could not embed {len(tools)} tools; they are not searchable until the backfill embeds them: {exc}")
             return [None] * len(tools)
+
+
+def tool_embedding_text(tool: ToolEntity) -> str:
+    """The text a Tool is embedded from: its name, Server, description and parameters (ADR-0006)."""
+    parts = [tool.name.replace("_", " "), f"server: {tool.server_name}"]
+    if tool.description:
+        parts.append(tool.description)
+    properties = (tool.input_schema or {}).get("properties")
+    if isinstance(properties, dict):
+        for name, spec in properties.items():
+            description = spec.get("description") if isinstance(spec, dict) else None
+            parts.append(f"{name}: {description}" if description else str(name))
+    return "\n".join(parts)
