@@ -2,6 +2,7 @@
 
 import math
 from dataclasses import asdict
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 from uuid import UUID
 
@@ -14,9 +15,18 @@ from app.domain.execution_entity import ExecutionEntity
 from app.domain.principal_entity import Principal
 from app.infrastructure.repositories.execution_repository import ExecutionRepositoryAbstract
 from app.schemas.common_schema import PaginatedResponse
-from app.schemas.execution_schema import ExecutionResponse, ToolUsageReportResponse, ToolUsageResponse
+from app.schemas.execution_schema import (
+    CallBucketResponse,
+    CallTimeseriesResponse,
+    ExecutionResponse,
+    ToolUsageReportResponse,
+    ToolUsageResponse,
+)
 
 router = APIRouter(prefix="/executions", tags=["Executions"])
+
+# "All time" charts start at the first call, but never more than this far back.
+MAX_ALL_TIME_SPAN = timedelta(days=365)
 
 
 @router.get(
@@ -64,19 +74,76 @@ async def list_executions(
 async def tool_usage(
     principal: Annotated[Principal, Depends(get_current_principal)],
     execution_repository: Annotated[ExecutionRepositoryAbstract, Depends(get_execution_repository)],
-    usage_range: UsageRange = Query(default=UsageRange.WEEK, alias="range", description="Period: 24h, 7d, 30d or all"),
+    usage_range: UsageRange = Query(default=UsageRange.WEEK, alias="range", description="Period: 1h, 24h, 7d, 30d or all"),
     limit: int = Query(default=10, ge=1, le=50, description="How many tools to return, most-called first"),
+    server_id: UUID | None = Query(default=None, description="Only this Server's tools and calls"),
 ) -> ToolUsageReportResponse:
-    """The caller's most-called tools in the period, with how their calls ended, from the execution history.
+    """The caller's most-called tools in the period, with how their calls ended, from the execution history,
+    plus the period's P90 duration and the call count of the period before it.
     Declared before /{execution_id} so the path is not read as an id."""
-    since = usage_range.since()
-    items, total = await execution_repository.tool_usage(user_id=principal.user_id, since=since, limit=limit)
+    now = datetime.now(UTC)
+    since = usage_range.since(now)
+    user_id = principal.user_id
+    items, total = await execution_repository.tool_usage(user_id=user_id, since=since, limit=limit, server_id=server_id)
+    stats = await execution_repository.call_stats(user_id=user_id, since=since, server_id=server_id)
+
+    previous_total: int | None = None
+    previous = usage_range.previous_period(now)
+    if previous is not None:
+        previous_stats = await execution_repository.call_stats(user_id=user_id, since=previous[0], until=previous[1], server_id=server_id)
+        previous_total = previous_stats.total_calls
+
     return ToolUsageReportResponse(
         range=usage_range,
         since=since,
+        server_id=server_id,
         total_calls=total,
+        previous_total_calls=previous_total,
+        p90_duration_ms=stats.p90_duration_ms,
         items=[ToolUsageResponse(**asdict(item)) for item in items],
     )
+
+
+@router.get(
+    "/timeseries",
+    response_model=CallTimeseriesResponse,
+    summary="Tool calls over time",
+)
+async def calls_timeseries(
+    principal: Annotated[Principal, Depends(get_current_principal)],
+    execution_repository: Annotated[ExecutionRepositoryAbstract, Depends(get_execution_repository)],
+    usage_range: UsageRange = Query(default=UsageRange.DAY, alias="range", description="Period: 1h, 24h, 7d, 30d or all"),
+    server_id: UUID | None = Query(default=None, description="Only this Server's calls"),
+) -> CallTimeseriesResponse:
+    """The caller's calls counted per bucket over the period, with how they ended. Buckets are 5 minutes for 1h,
+    1 hour for 24h, 6 hours for 7d and 1 day for 30d and all; "all" starts at the day of the first call, at most
+    a year back. Declared before /{execution_id} so the path is not read as an id."""
+    now = datetime.now(UTC)
+    bucket = usage_range.bucket
+    since = usage_range.since(now)
+    if since is None:
+        first = await execution_repository.first_call_at(user_id=principal.user_id, server_id=server_id)
+        if first is None:
+            return CallTimeseriesResponse(
+                range=usage_range, since=None, server_id=server_id, bucket_seconds=int(bucket.total_seconds()), buckets=[]
+            )
+        since = _start_of_day(max(first, now - MAX_ALL_TIME_SPAN))
+
+    buckets = await execution_repository.call_timeseries(
+        user_id=principal.user_id, since=since, until=now, bucket=bucket, server_id=server_id
+    )
+    return CallTimeseriesResponse(
+        range=usage_range,
+        since=since,
+        server_id=server_id,
+        bucket_seconds=int(bucket.total_seconds()),
+        buckets=[CallBucketResponse(**asdict(item)) for item in buckets],
+    )
+
+
+def _start_of_day(moment: datetime) -> datetime:
+    """Midnight UTC of the day `moment` falls on."""
+    return moment.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
 
 
 @router.get(
