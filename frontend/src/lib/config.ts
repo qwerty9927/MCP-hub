@@ -19,7 +19,8 @@ export const MCP_ENDPOINT_URL = API_BASE_URL.replace(/\/api\/v1\/?$/, "/mcp");
 export const API_DOCS_URL = API_BASE_URL.replace(/\/api\/v1\/?$/, "/docs");
 
 /**
- * Whether the console links to API_DOCS_URL. The backend returns 404 for its docs when ENVIRONMENT=production,
- * so production builds of the console hide the links; `next dev` and tests show them.
+ * Whether the console shows details about the backend: links to API_DOCS_URL, the API base URL, the backend
+ * version and the Settings page's health probes. Production builds hide them (the backend also returns 404 for
+ * its docs when ENVIRONMENT=production); `next dev` and tests show them.
  */
-export const SHOW_API_DOCS = process.env.NODE_ENV !== "production";
+export const SHOW_BACKEND_DETAILS = process.env.NODE_ENV !== "production";

@@ -7,6 +7,7 @@ import { LayoutDashboard, Server, Wrench, Terminal, History, BarChart3, Settings
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { systemApi } from "@/lib/api";
+import { SHOW_BACKEND_DETAILS } from "@/lib/config";
 
 export const NAV_ITEMS = [
     {
@@ -59,12 +60,13 @@ interface SidebarProps {
 export function Sidebar({ onItemClick, className }: SidebarProps) {
     const pathname = usePathname();
 
-    // Polling backend health probe every 30s
+    // Polling backend health probe every 30s, for the status footer (not shown, so not polled, in production builds)
     const { data: health, isError } = useQuery({
         queryKey: ["system-health"],
         queryFn: ({ signal }) => systemApi.health(signal),
         refetchInterval: 30000,
         retry: false,
+        enabled: SHOW_BACKEND_DETAILS,
     });
 
     return (
@@ -108,17 +110,21 @@ export function Sidebar({ onItemClick, className }: SidebarProps) {
                 </nav>
             </div>
 
-            {/* Backend Status Footer */}
-            <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs">
-                <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Backend API</span>
-                    <span className="flex items-center gap-1.5 font-medium">
-                        <span className={cn("h-2 w-2 rounded-full", isError ? "bg-red-500" : health ? "bg-emerald-500" : "bg-amber-500")} />
-                        {isError ? "Offline" : health ? "Online" : "Connecting"}
-                    </span>
+            {/* Backend Status Footer (hidden in production builds) */}
+            {SHOW_BACKEND_DETAILS && (
+                <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs">
+                    <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Backend API</span>
+                        <span className="flex items-center gap-1.5 font-medium">
+                            <span
+                                className={cn("h-2 w-2 rounded-full", isError ? "bg-red-500" : health ? "bg-emerald-500" : "bg-amber-500")}
+                            />
+                            {isError ? "Offline" : health ? "Online" : "Connecting"}
+                        </span>
+                    </div>
+                    {health && <div className="mt-1 text-[11px] text-muted-foreground font-mono">v{health.version}</div>}
                 </div>
-                {health && <div className="mt-1 text-[11px] text-muted-foreground font-mono">v{health.version}</div>}
-            </div>
+            )}
         </div>
     );
 }

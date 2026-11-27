@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useLogout, useMe } from "@/features/auth/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
-import { API_BASE_URL, API_DOCS_URL, SHOW_API_DOCS } from "@/lib/config";
+import { API_BASE_URL, API_DOCS_URL, SHOW_BACKEND_DETAILS } from "@/lib/config";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -40,8 +40,8 @@ export function Header({ onMenuToggle }: HeaderProps) {
             </div>
 
             <div className="flex items-center gap-3">
-                {/* API Docs Link (the backend hides its docs in production) */}
-                {SHOW_API_DOCS && (
+                {/* API Docs Link (hidden in production builds: the backend serves no docs there) */}
+                {SHOW_BACKEND_DETAILS && (
                     <Button asChild variant="outline" size="sm" className="hidden sm:inline-flex gap-1.5 h-8 text-xs font-medium">
                         <a href={API_DOCS_URL} target="_blank" rel="noopener noreferrer">
                             <ExternalLink className="h-3.5 w-3.5" />
@@ -73,7 +73,7 @@ export function Header({ onMenuToggle }: HeaderProps) {
                             </div>
                         </DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        {SHOW_API_DOCS && (
+                        {SHOW_BACKEND_DETAILS && (
                             <>
                                 <DropdownMenuItem asChild>
                                     <a
@@ -87,12 +87,12 @@ export function Header({ onMenuToggle }: HeaderProps) {
                                     </a>
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
+                                <DropdownMenuItem disabled className="text-xs text-muted-foreground">
+                                    Backend: {API_BASE_URL}
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
                             </>
                         )}
-                        <DropdownMenuItem disabled className="text-xs text-muted-foreground">
-                            Backend: {API_BASE_URL}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
                         <DropdownMenuItem onSelect={handleSignOut} className="cursor-pointer gap-2">
                             <LogOut className="h-3.5 w-3.5" />
                             Sign out
