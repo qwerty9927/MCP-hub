@@ -9,8 +9,15 @@ if (!apiBaseUrl) {
     throw new Error("NEXT_PUBLIC_API_BASE_URL is not set: add it to frontend/.env (see frontend/.env.example)");
 }
 
-/** REST API base, e.g. http://localhost:8000/api/v1 */
+/** REST API base, e.g. http://localhost:8000/api/v1: the backend's public address, shown to users and in snippets. */
 export const API_BASE_URL: string = apiBaseUrl;
+
+/**
+ * Where the console itself sends its API calls: the same path on the console's own origin (e.g. /api/v1).
+ * next.config.ts rewrites it to API_PROXY_TARGET, so the refresh token cookie is first-party and reaches /auth/refresh
+ * even when the console and the API are on different sites (Vercel), where browsers drop cross-site cookies.
+ */
+export const API_PROXY_PATH = new URL(API_BASE_URL).pathname.replace(/\/$/, "");
 
 /** The hub's own MCP endpoint (Streamable HTTP), on the same origin as the API. */
 export const MCP_ENDPOINT_URL = API_BASE_URL.replace(/\/api\/v1\/?$/, "/mcp");

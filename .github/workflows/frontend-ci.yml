@@ -24,8 +24,9 @@ defaults:
 
 env:
   NEXT_TELEMETRY_DISABLED: "1"
-  # No frontend/.env in CI; the build requires the API URL (src/lib/config.ts, next.config.ts).
+  # No frontend/.env in CI; the build requires the API URL and proxy target (src/lib/config.ts, next.config.ts).
   NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api/v1
+  API_PROXY_TARGET: http://localhost:8000
 
 jobs:
   check:

@@ -44,7 +44,7 @@ Dashboard administration console will be available at [http://localhost:3000](ht
 [`docker-compose.yml`](docker-compose.yml) runs PostgreSQL (with pgvector), the backend and the console together. Each app reads its own env file, the same one you use when running it locally:
 
 - `backend` reads `backend/.env` (all backend settings). Compose overrides only `DATABASE_URL`, so the backend uses the `db` container instead of `localhost`.
-- `frontend` reads `frontend/.env`. `next build` inlines `NEXT_PUBLIC_API_BASE_URL` from it into the browser bundle, so rebuild with `docker compose up --build` after changing it.
+- `frontend` reads `frontend/.env`. `next build` inlines `NEXT_PUBLIC_API_BASE_URL` from it into the browser bundle and bakes in the `API_PROXY_TARGET` rewrite, so rebuild with `docker compose up --build` after changing either. Compose sets `API_PROXY_TARGET` to `http://backend:8000`.
 
 ```bash
 cp backend/.env.example backend/.env                 # skip if you already have one; fill in JWT_SECRET and OAUTH_ENCRYPTION_KEY
@@ -60,7 +60,10 @@ docker compose up --build
 
 **First user.** Open [http://localhost:3000/register](http://localhost:3000/register) and create an account, then sign in. This needs `ALLOW_SELF_SIGNUP=true` in `backend/.env`. On anything reachable from a network, set it to `false` once your account exists and run `docker compose up -d`, because any registered user can add stdio servers.
 
-**Addresses.** The console calls the API from the browser, so `NEXT_PUBLIC_API_BASE_URL` must be the address the browser uses (`http://localhost:8000/api/v1`). `CORS_ORIGINS` and `FRONTEND_BASE_URL` in `backend/.env` must include the console's address (`http://localhost:3000`).
+**Addresses.**
+- **Console API calls:** the browser sends them to the console's own origin (`/api/v1/...`), and the console's server forwards them to `API_PROXY_TARGET`. This keeps the refresh token cookie first-party, so sign-in survives new and duplicated tabs even when the console and the API are on different sites (for example on Vercel).
+- **`NEXT_PUBLIC_API_BASE_URL`:** the backend's public address (`http://localhost:8000/api/v1`). The console shows it in the MCP endpoint, the API key config and the code snippets, and its path must match the backend's `API_V1_STR`.
+- **Backend:** `FRONTEND_BASE_URL` in `backend/.env` must be the console's address (`http://localhost:3000`), and `CORS_ORIGINS` should include it.
 
 **Compose overrides (optional).** A root `.env` (see [`.env.example`](.env.example)) can change the database credentials (`POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_DB`, default `postgres`/`postgres`/`mcp_hub`; the database port is not published), point `POSTGRES_DATA` at an existing Postgres 17 data folder instead of the `postgres_data` volume (stop any other Postgres using it first) and the host ports (`BACKEND_PORT`, `FRONTEND_PORT`). Don't put backend setting names there: the backend also reads `../.env` when run from `backend/`.
 

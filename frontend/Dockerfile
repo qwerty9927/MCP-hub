@@ -22,7 +22,12 @@ ENV NEXT_OUTPUT=standalone
 # .env.local / .env files in the build context; the optional build argument overrides those when passed.
 # The API URL is the address the user's browser uses to reach the backend, not a container-internal one.
 ARG NEXT_PUBLIC_API_BASE_URL
-RUN if [ -z "$NEXT_PUBLIC_API_BASE_URL" ]; then unset NEXT_PUBLIC_API_BASE_URL; fi && pnpm build
+# The backend origin the console's server proxies /api/v1 to (next.config.ts rewrites, baked in at build time).
+# Unlike the API URL, this one is reached from the server, so in Compose it is the `backend` service.
+ARG API_PROXY_TARGET
+RUN if [ -z "$NEXT_PUBLIC_API_BASE_URL" ]; then unset NEXT_PUBLIC_API_BASE_URL; fi && \
+    if [ -z "$API_PROXY_TARGET" ]; then unset API_PROXY_TARGET; fi && \
+    pnpm build
 
 # Step 3: Production runner (only the standalone server, static assets and public files)
 FROM node:22-alpine AS runner
