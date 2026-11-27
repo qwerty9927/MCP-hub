@@ -2,7 +2,6 @@
 
 import React, { useMemo } from "react";
 import { useTheme } from "next-themes";
-import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -132,20 +131,6 @@ export default function GeneralSettingsPage() {
                 >
                     <PendingFeature id="auto-enable-readonly">
                         <Switch aria-label="Auto-enable read-only tools" checked={false} tabIndex={-1} />
-                    </PendingFeature>
-                </SettingsRow>
-            </SettingsGroup>
-
-            <SettingsGroup title="Delete your profile">
-                <SettingsRow
-                    label="Delete your profile"
-                    description="Removes your user and API keys. Registered servers stay with the hub."
-                >
-                    <PendingFeature id="profile-delete">
-                        <Button variant="destructive" size="sm" className="gap-1.5" tabIndex={-1}>
-                            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                            Delete Profile
-                        </Button>
                     </PendingFeature>
                 </SettingsRow>
             </SettingsGroup>

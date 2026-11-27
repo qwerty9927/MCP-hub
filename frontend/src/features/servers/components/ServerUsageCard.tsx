@@ -4,7 +4,6 @@ import React, { useState } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SegmentedControl } from "@/components/common/SegmentedControl";
-import { PendingBadge } from "@/components/common/PendingBackend";
 import { useToolUsage } from "@/features/metrics/hooks/use-tool-usage";
 import { summarizeToolUsage } from "@/features/metrics/utils";
 import { formatDuration } from "@/lib/utils";
@@ -65,7 +64,6 @@ export function ServerUsageCard({ serverId }: { serverId: string }) {
                 <div className="flex flex-col gap-0.5">
                     <span className="flex flex-wrap items-center gap-2 text-[13px]">
                         Calls, {rangeLabel}:<span className="font-mono font-semibold">{isLoading ? "…" : formatCount(totalCalls)}</span>
-                        <PendingBadge id="server-rate-limit" />
                     </span>
                     <span className="text-xs text-muted-foreground">Tools appear here after their first call through the hub.</span>
                 </div>

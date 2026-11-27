@@ -25,7 +25,6 @@ import {
 } from "lucide-react";
 import { HealthBadge } from "@/components/common/HealthBadge";
 import { InfoCallout } from "@/components/common/InfoCallout";
-import { PendingBadge } from "@/components/common/PendingBackend";
 import { ServerUsageCard } from "@/features/servers/components/ServerUsageCard";
 import { ServerNextSteps } from "@/features/servers/components/ServerNextSteps";
 import { useTrackRecent } from "@/lib/recents";
@@ -334,14 +333,6 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                     until then.
                 </InfoCallout>
             )}
-
-            {/* Tool review after a scan is pending in the backend; today the scan's tools go live at once */}
-            <InfoCallout
-                title={`The last scan found ${server.discovered_tool_count} tools`}
-                action={<PendingBadge id="new-tools-review" />}
-            >
-                Refresh Tools makes every discovered tool callable right away. Reviewing newly discovered tools first needs backend support.
-            </InfoCallout>
 
             <ServerUsageCard serverId={server.id} />
             <ServerNextSteps serverId={server.id} />

@@ -57,13 +57,12 @@ describe("Sidebar navigation", () => {
         expect(screen.getByRole("link", { name: "Discovery" })).toHaveAttribute("href", "/discovery");
     });
 
-    it("shows the hub identity, quick search and the pending hub switcher", async () => {
+    it("shows the hub identity and quick search", async () => {
         const onOpenSearch = vi.fn();
         renderSidebar({ onOpenSearch });
 
         expect(screen.getByText("MCP Hub")).toBeInTheDocument();
         expect(screen.getByText("localhost:8000")).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: /Switch between hub instances \(backend pending\)/ })).toBeInTheDocument();
 
         screen.getByRole("button", { name: /Quick search/ }).click();
         expect(onOpenSearch).toHaveBeenCalled();

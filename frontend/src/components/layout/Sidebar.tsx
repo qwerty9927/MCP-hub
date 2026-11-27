@@ -16,7 +16,6 @@ import {
     Compass,
     KeyRound,
     Search,
-    ChevronsUpDown,
     ChevronRight,
     ChevronDown,
     LucideIcon,
@@ -26,7 +25,6 @@ import { useQuery } from "@tanstack/react-query";
 import { serversApi, systemApi } from "@/lib/api";
 import { API_BASE_URL, SHOW_BACKEND_DETAILS } from "@/lib/config";
 import { SERVERS_QUERY_KEY } from "@/features/servers/hooks/use-servers";
-import { PendingBadge } from "@/components/common/PendingBackend";
 import { ServerFilterParams } from "@/types";
 
 export interface NavItem {
@@ -122,7 +120,7 @@ export function Sidebar({ onItemClick, onOpenSearch, className }: SidebarProps) 
 
     return (
         <div className={cn("flex h-full flex-col gap-3 overflow-y-auto border-r border-border bg-background px-3 py-3", className)}>
-            {/* Hub identity; switching hubs is pending in the backend */}
+            {/* Hub identity */}
             <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5">
                 <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
                     <Cpu className="h-4 w-4" aria-hidden="true" />
@@ -133,7 +131,6 @@ export function Sidebar({ onItemClick, onOpenSearch, className }: SidebarProps) 
                         {SHOW_BACKEND_DETAILS ? backendHost() : "Admin Console"}
                     </span>
                 </div>
-                <PendingBadge id="hub-switcher" icon={ChevronsUpDown} />
             </div>
 
             {/* Quick search */}

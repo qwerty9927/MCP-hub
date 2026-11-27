@@ -165,10 +165,9 @@ describe("Hub Overview", () => {
         expect(within(card("Tool Calls")).getByText("No calls in this range")).toBeInTheDocument();
     });
 
-    it("marks only what the backend still can't serve as pending", () => {
+    it("has nothing left waiting on the backend", () => {
         const { container } = renderOverview();
 
-        const pending = Array.from(container.querySelectorAll("[data-pending-id]")).map((el) => el.getAttribute("data-pending-id"));
-        expect(pending).toEqual(["new-tools-review"]);
+        expect(container.querySelector("[data-pending-id]")).toBeNull();
     });
 });

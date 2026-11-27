@@ -1,15 +1,11 @@
 import React from "react";
 import Link from "next/link";
-import { ChevronRight, FileText, Plug, Play, SquareTerminal, LucideIcon } from "lucide-react";
-import { API_DOCS_URL, SHOW_BACKEND_DETAILS } from "@/lib/config";
-
-const MCP_SPEC_URL = "https://modelcontextprotocol.io";
+import { ChevronRight, Plug, Play, LucideIcon } from "lucide-react";
 
 interface Step {
     label: string;
     href: string;
     icon: LucideIcon;
-    external?: boolean;
 }
 
 const CHIP =
@@ -20,8 +16,6 @@ export function ServerNextSteps({ serverId }: { serverId: string }) {
     const steps: Step[] = [
         { label: "Test a Tool", href: `/playground?server=${serverId}`, icon: Play },
         { label: "Connect an Agent", href: "/settings/api-keys", icon: Plug },
-        ...(SHOW_BACKEND_DETAILS ? [{ label: "Use the API", href: API_DOCS_URL, icon: SquareTerminal, external: true }] : []),
-        { label: "Read the MCP Spec", href: MCP_SPEC_URL, icon: FileText, external: true },
     ];
 
     return (
@@ -32,21 +26,11 @@ export function ServerNextSteps({ serverId }: { serverId: string }) {
             <div className="flex flex-wrap gap-2.5 px-5 py-4">
                 {steps.map((step) => {
                     const Icon = step.icon;
-                    const content = (
-                        <>
+                    return (
+                        <Link key={step.label} href={step.href} className={CHIP}>
                             <Icon className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
                             {step.label}
                             <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
-                        </>
-                    );
-                    return step.external ? (
-                        <a key={step.label} href={step.href} target="_blank" rel="noopener noreferrer" className={CHIP}>
-                            {content}
-                            <span className="sr-only">(opens in a new tab)</span>
-                        </a>
-                    ) : (
-                        <Link key={step.label} href={step.href} className={CHIP}>
-                            {content}
                         </Link>
                     );
                 })}

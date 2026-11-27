@@ -4,8 +4,6 @@ import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { Compass, Settings2 } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
-import { InfoCallout } from "@/components/common/InfoCallout";
-import { PendingBadge } from "@/components/common/PendingBackend";
 import { SearchInput } from "@/components/common/SearchInput";
 import { SegmentedControl } from "@/components/common/SegmentedControl";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -52,10 +50,6 @@ export default function DiscoveryPage() {
                     </Button>
                 }
             />
-
-            <InfoCallout title="More catalogs are coming" action={<PendingBadge id="remote-catalog" />}>
-                Remote MCP catalogs, such as Cloudflare&rsquo;s, will be listed here once the hub can serve them.
-            </InfoCallout>
 
             <div className="flex flex-wrap items-center gap-3">
                 <SearchInput

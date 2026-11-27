@@ -12,7 +12,6 @@ import { EmptyChart } from "@/components/common/EmptyChart";
 import { ActionTile } from "@/components/common/ActionTile";
 import { InfoCallout } from "@/components/common/InfoCallout";
 import { SegmentedControl } from "@/components/common/SegmentedControl";
-import { PendingBadge } from "@/components/common/PendingBackend";
 import { RegisterServerButton } from "@/features/servers/components/RegisterServerButton";
 import { RegisterServerDialog } from "@/features/servers/components/RegisterServerDialog";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -237,9 +236,6 @@ export function OverviewDashboard() {
                     ))}
                 </InfoCallout>
             )}
-            <InfoCallout title="Review new tools before agents can call them" action={<PendingBadge id="new-tools-review" />}>
-                Today every discovered tool is live as soon as a scan finds it. A review queue for newly discovered tools will show here.
-            </InfoCallout>
 
             {/* Analytics */}
             <section aria-labelledby="overview-analytics" className="space-y-4">

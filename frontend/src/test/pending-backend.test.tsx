@@ -9,25 +9,25 @@ import { BACKEND_PENDING } from "@/lib/backend-pending";
 
 describe("Backend pending UI", () => {
     it("badge names the feature and shows what the backend must provide", async () => {
-        render(<PendingBadge id="server-rate-limit" />);
+        render(<PendingBadge id="settings-tool-policies" />);
 
-        const badge = screen.getByRole("button", { name: "Backend pending: Calls against a rate limit" });
+        const badge = screen.getByRole("button", { name: "Backend pending: Tool policies" });
         expect(badge).toHaveTextContent("Backend pending");
         await userEvent.hover(badge);
-        expect((await screen.findAllByText(BACKEND_PENDING["server-rate-limit"].needs)).length).toBeGreaterThan(0);
+        expect((await screen.findAllByText(BACKEND_PENDING["settings-tool-policies"].needs)).length).toBeGreaterThan(0);
     });
 
     it("feature wrapper keeps the control visible but inert, with the badge beside it", () => {
         render(
-            <PendingFeature id="profile-delete">
-                <button type="button">Delete Profile</button>
+            <PendingFeature id="profile-display-name">
+                <button type="button">Set Display Name</button>
             </PendingFeature>
         );
 
-        const wrapper = screen.getByText("Delete Profile").parentElement as HTMLElement;
+        const wrapper = screen.getByText("Set Display Name").parentElement as HTMLElement;
         expect(wrapper).toHaveAttribute("aria-disabled", "true");
         expect(wrapper).toHaveAttribute("inert");
-        expect(screen.getByRole("button", { name: "Backend pending: Delete profile" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Backend pending: Display name" })).toBeInTheDocument();
     });
 
     it("every pending item has a row in docs/backend-pending.md", () => {
