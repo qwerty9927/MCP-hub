@@ -1,12 +1,12 @@
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, InternalAxiosRequestConfig } from "axios";
 import { clearAuthToken, getAuthToken, loginPath, setAuthToken } from "./auth-token";
 import { normalizeApiError } from "./errors";
-import { API_BASE_URL } from "./config";
+import { API_PROXY_PATH } from "./config";
 import { TokenResponse } from "@/types";
 
 /**
  * /auth/refresh and /auth/logout act on the refresh token cookie, so the backend also requires this header (its CSRF check).
- * Sent with `withCredentials` so the browser includes the httpOnly cookie on these cross-origin calls.
+ * The calls go to the console's own origin (API_PROXY_PATH), so the browser sends the httpOnly cookie as first-party.
  */
 export const CONSOLE_CLIENT_HEADERS = { "X-MCP-Hub-Client": "console" } as const;
 
@@ -21,7 +21,8 @@ interface AuthRequestConfig extends InternalAxiosRequestConfig {
 }
 
 export const axiosInstance: AxiosInstance = axios.create({
-    baseURL: API_BASE_URL,
+    // Same-origin path, rewritten to the backend by next.config.ts (see API_PROXY_PATH)
+    baseURL: API_PROXY_PATH,
     timeout: 30000,
     headers: {
         "Content-Type": "application/json",

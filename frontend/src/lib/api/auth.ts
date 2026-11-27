@@ -14,7 +14,7 @@ export const authApi = {
     register: async (payload: RegisterRequest): Promise<UserRead> => {
         return apiClient<UserRead>({ url: "/auth/register", method: "POST", data: payload });
     },
-    /** Also sets the httpOnly refresh token cookie, hence `withCredentials` on this cross-origin call. */
+    /** Also sets the httpOnly refresh token cookie (first-party, through the console's API proxy). */
     login: async (payload: LoginRequest): Promise<TokenResponse> => {
         return apiClient<TokenResponse>({ url: "/auth/login", method: "POST", data: payload, withCredentials: true });
     },

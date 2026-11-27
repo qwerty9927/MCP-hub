@@ -114,11 +114,16 @@ Copy `.env.example` to `.env.local`:
 cp .env.example .env.local
 ```
 
-Ensure `NEXT_PUBLIC_API_BASE_URL` points to your running FastAPI backend:
+Ensure both settings point to your running FastAPI backend:
 
 ```env
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1
+API_PROXY_TARGET=http://localhost:8000
 ```
+
+- **`NEXT_PUBLIC_API_BASE_URL`:** the backend's public address, shown in the MCP endpoint, the API key config and the code snippets.
+- **`API_PROXY_TARGET`:** the backend origin the console's server forwards `/api/v1/*` to (the rewrite in `next.config.ts`). The browser only talks to the console's origin, so the refresh token cookie is first-party.
+- **On Vercel:** set both in the project's environment variables, for every environment you deploy (Production and Preview). The build fails without them.
 
 ### Development Server
 
@@ -203,10 +208,10 @@ A multi-stage `Dockerfile` is provided for running the Next.js application in pr
 ```bash
 # Build image
 docker build -t mcp-hub-frontend:latest \
-  --build-arg NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1 .
+  --build-arg NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1 \
+  --build-arg API_PROXY_TARGET=http://host.docker.internal:8000 .
 
 # Run container on port 3000
-docker run -p 3000:3000 \
-  -e NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1 \
-  mcp-hub-frontend:latest
+docker run -p 3000:3000 mcp-hub-frontend:latest
+# Both values are baked in at build time; rebuild to change them.
 ```

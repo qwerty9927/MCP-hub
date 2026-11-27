@@ -63,6 +63,9 @@ services:
                 # Inlined into the browser bundle by `next build` (overrides frontend/.env). The browser calls the
                 # backend's published port, not the `backend` service name. Rebuild after changing BACKEND_PORT.
                 NEXT_PUBLIC_API_BASE_URL: http://localhost:${BACKEND_PORT:-8000}/api/v1
+                # The console's server forwards the browser's /api/v1 calls here (next.config.ts rewrites), over the
+                # compose network. Baked into the build too.
+                API_PROXY_TARGET: http://backend:8000
         restart: unless-stopped
         depends_on:
             backend:
