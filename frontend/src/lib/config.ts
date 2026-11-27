@@ -17,3 +17,9 @@ export const MCP_ENDPOINT_URL = API_BASE_URL.replace(/\/api\/v1\/?$/, "/mcp");
 
 /** The backend's interactive API docs (Swagger UI). */
 export const API_DOCS_URL = API_BASE_URL.replace(/\/api\/v1\/?$/, "/docs");
+
+/**
+ * Whether the console links to API_DOCS_URL. The backend returns 404 for its docs when ENVIRONMENT=production,
+ * so production builds of the console hide the links; `next dev` and tests show them.
+ */
+export const SHOW_API_DOCS = process.env.NODE_ENV !== "production";

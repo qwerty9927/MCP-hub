@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useLogout, useMe } from "@/features/auth/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
-import { API_BASE_URL, API_DOCS_URL } from "@/lib/config";
+import { API_BASE_URL, API_DOCS_URL, SHOW_API_DOCS } from "@/lib/config";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -40,13 +40,15 @@ export function Header({ onMenuToggle }: HeaderProps) {
             </div>
 
             <div className="flex items-center gap-3">
-                {/* API Docs Link */}
-                <Button asChild variant="outline" size="sm" className="hidden sm:inline-flex gap-1.5 h-8 text-xs font-medium">
-                    <a href={API_DOCS_URL} target="_blank" rel="noopener noreferrer">
-                        <ExternalLink className="h-3.5 w-3.5" />
-                        Swagger Docs
-                    </a>
-                </Button>
+                {/* API Docs Link (the backend hides its docs in production) */}
+                {SHOW_API_DOCS && (
+                    <Button asChild variant="outline" size="sm" className="hidden sm:inline-flex gap-1.5 h-8 text-xs font-medium">
+                        <a href={API_DOCS_URL} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            Swagger Docs
+                        </a>
+                    </Button>
+                )}
 
                 {/* Theme Switcher */}
                 <ThemeToggle />
@@ -71,18 +73,22 @@ export function Header({ onMenuToggle }: HeaderProps) {
                             </div>
                         </DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem asChild>
-                            <a
-                                href={API_DOCS_URL}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center justify-between w-full cursor-pointer"
-                            >
-                                <span>Interactive OpenAPI</span>
-                                <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
-                            </a>
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
+                        {SHOW_API_DOCS && (
+                            <>
+                                <DropdownMenuItem asChild>
+                                    <a
+                                        href={API_DOCS_URL}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center justify-between w-full cursor-pointer"
+                                    >
+                                        <span>Interactive OpenAPI</span>
+                                        <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+                                    </a>
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                            </>
+                        )}
                         <DropdownMenuItem disabled className="text-xs text-muted-foreground">
                             Backend: {API_BASE_URL}
                         </DropdownMenuItem>
