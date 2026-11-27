@@ -60,13 +60,12 @@ interface SidebarProps {
 export function Sidebar({ onItemClick, className }: SidebarProps) {
     const pathname = usePathname();
 
-    // Polling backend health probe every 30s, for the status footer (not shown, so not polled, in production builds)
+    // Polling backend health probe every 30s, for the status footer
     const { data: health, isError } = useQuery({
         queryKey: ["system-health"],
         queryFn: ({ signal }) => systemApi.health(signal),
         refetchInterval: 30000,
         retry: false,
-        enabled: SHOW_BACKEND_DETAILS,
     });
 
     return (
@@ -110,21 +109,19 @@ export function Sidebar({ onItemClick, className }: SidebarProps) {
                 </nav>
             </div>
 
-            {/* Backend Status Footer (hidden in production builds) */}
-            {SHOW_BACKEND_DETAILS && (
-                <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs">
-                    <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Backend API</span>
-                        <span className="flex items-center gap-1.5 font-medium">
-                            <span
-                                className={cn("h-2 w-2 rounded-full", isError ? "bg-red-500" : health ? "bg-emerald-500" : "bg-amber-500")}
-                            />
-                            {isError ? "Offline" : health ? "Online" : "Connecting"}
-                        </span>
-                    </div>
-                    {health && <div className="mt-1 text-[11px] text-muted-foreground font-mono">v{health.version}</div>}
+            {/* Backend Status Footer (the version is hidden in production builds) */}
+            <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs">
+                <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Backend API</span>
+                    <span className="flex items-center gap-1.5 font-medium">
+                        <span className={cn("h-2 w-2 rounded-full", isError ? "bg-red-500" : health ? "bg-emerald-500" : "bg-amber-500")} />
+                        {isError ? "Offline" : health ? "Online" : "Connecting"}
+                    </span>
                 </div>
-            )}
+                {SHOW_BACKEND_DETAILS && health && (
+                    <div className="mt-1 text-[11px] text-muted-foreground font-mono">v{health.version}</div>
+                )}
+            </div>
         </div>
     );
 }

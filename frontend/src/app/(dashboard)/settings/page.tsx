@@ -26,7 +26,6 @@ export default function SettingsPage() {
     } = useQuery({
         queryKey: ["settings-ready"],
         queryFn: ({ signal }) => systemApi.readiness(signal),
-        enabled: SHOW_BACKEND_DETAILS,
     });
 
     // System health probe
@@ -37,7 +36,6 @@ export default function SettingsPage() {
     } = useQuery({
         queryKey: ["settings-health"],
         queryFn: ({ signal }) => systemApi.health(signal),
-        enabled: SHOW_BACKEND_DETAILS,
     });
 
     const handleTestProbes = () => {
@@ -53,21 +51,25 @@ export default function SettingsPage() {
                 description={
                     SHOW_BACKEND_DETAILS
                         ? "Backend connection, API keys for MCP clients, and system probes."
-                        : "API keys for MCP clients and appearance."
+                        : "System probes, API keys for MCP clients, and appearance."
                 }
             />
 
-            {/* Backend API Configuration (hidden in production builds) */}
-            {SHOW_BACKEND_DETAILS && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="text-base flex items-center gap-2">
-                            <Server className="h-4 w-4 text-primary" />
-                            Backend Connection
-                        </CardTitle>
-                        <CardDescription>The REST API endpoint configured for all MCP hub management queries.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
+            {/* Backend connection and probes (production builds hide the API base URL and the version) */}
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                        <Server className="h-4 w-4 text-primary" />
+                        {SHOW_BACKEND_DETAILS ? "Backend Connection" : "System Status"}
+                    </CardTitle>
+                    <CardDescription>
+                        {SHOW_BACKEND_DETAILS
+                            ? "The REST API endpoint configured for all MCP hub management queries."
+                            : "Live health and readiness of the MCP hub backend."}
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    {SHOW_BACKEND_DETAILS && (
                         <div className="space-y-2">
                             <Label htmlFor="api_url">API Base URL</Label>
                             <Input id="api_url" value={API_BASE_URL} readOnly className="font-mono text-sm bg-muted/40" />
@@ -75,61 +77,61 @@ export default function SettingsPage() {
                                 Configured via <code className="font-mono text-xs">NEXT_PUBLIC_API_BASE_URL</code> in environment variables.
                             </p>
                         </div>
+                    )}
 
-                        <div className="rounded-lg border border-border p-4 bg-muted/20 space-y-3">
-                            <div className="flex items-center justify-between">
-                                <span className="text-sm font-semibold text-foreground">Live System Diagnostics</span>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={handleTestProbes}
-                                    disabled={readyLoading || healthLoading}
-                                    className="gap-1.5 h-8 text-xs"
-                                >
-                                    <RefreshCw className="h-3.5 w-3.5" />
-                                    Refresh Probes
-                                </Button>
+                    <div className="rounded-lg border border-border p-4 bg-muted/20 space-y-3">
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm font-semibold text-foreground">Live System Diagnostics</span>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleTestProbes}
+                                disabled={readyLoading || healthLoading}
+                                className="gap-1.5 h-8 text-xs"
+                            >
+                                <RefreshCw className="h-3.5 w-3.5" />
+                                Refresh Probes
+                            </Button>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                            <div className="flex items-center justify-between p-2.5 rounded bg-background border border-border">
+                                <span className="text-muted-foreground font-mono">GET /health</span>
+                                {healthLoading ? (
+                                    <Skeleton className="h-5 w-20" />
+                                ) : health?.status === "ok" ? (
+                                    <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
+                                        <CheckCircle2 className="h-3.5 w-3.5" />
+                                        {SHOW_BACKEND_DETAILS ? `OK (v${health.version})` : "OK"}
+                                    </span>
+                                ) : (
+                                    <span className="inline-flex items-center gap-1 font-semibold text-destructive">
+                                        <XCircle className="h-3.5 w-3.5" />
+                                        Unreachable
+                                    </span>
+                                )}
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                                <div className="flex items-center justify-between p-2.5 rounded bg-background border border-border">
-                                    <span className="text-muted-foreground font-mono">GET /health</span>
-                                    {healthLoading ? (
-                                        <Skeleton className="h-5 w-20" />
-                                    ) : health?.status === "ok" ? (
-                                        <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
-                                            <CheckCircle2 className="h-3.5 w-3.5" />
-                                            OK (v{health.version})
-                                        </span>
-                                    ) : (
-                                        <span className="inline-flex items-center gap-1 font-semibold text-destructive">
-                                            <XCircle className="h-3.5 w-3.5" />
-                                            Unreachable
-                                        </span>
-                                    )}
-                                </div>
-
-                                <div className="flex items-center justify-between p-2.5 rounded bg-background border border-border">
-                                    <span className="text-muted-foreground font-mono">GET /ready</span>
-                                    {readyLoading ? (
-                                        <Skeleton className="h-5 w-20" />
-                                    ) : readiness?.status === "ready" ? (
-                                        <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
-                                            <CheckCircle2 className="h-3.5 w-3.5" />
-                                            Ready (checks passing)
-                                        </span>
-                                    ) : (
-                                        <span className="inline-flex items-center gap-1 font-semibold text-destructive">
-                                            <XCircle className="h-3.5 w-3.5" />
-                                            Not Ready
-                                        </span>
-                                    )}
-                                </div>
+                            <div className="flex items-center justify-between p-2.5 rounded bg-background border border-border">
+                                <span className="text-muted-foreground font-mono">GET /ready</span>
+                                {readyLoading ? (
+                                    <Skeleton className="h-5 w-20" />
+                                ) : readiness?.status === "ready" ? (
+                                    <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
+                                        <CheckCircle2 className="h-3.5 w-3.5" />
+                                        Ready (checks passing)
+                                    </span>
+                                ) : (
+                                    <span className="inline-flex items-center gap-1 font-semibold text-destructive">
+                                        <XCircle className="h-3.5 w-3.5" />
+                                        Not Ready
+                                    </span>
+                                )}
                             </div>
                         </div>
-                    </CardContent>
-                </Card>
-            )}
+                    </div>
+                </CardContent>
+            </Card>
 
             {/* MCP client credentials */}
             <ApiKeysCard />
