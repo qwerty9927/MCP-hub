@@ -3,7 +3,7 @@
 **Version:** 1.0.0  
 **Base URL:** `/api/v1`  
 **Protocol:** REST / JSON  
-**OpenAPI Specification:** Available at `/openapi.json` and interactive Swagger docs at `/docs`.
+**OpenAPI Specification:** Available at `/openapi.json`, with interactive Swagger docs at `/docs` and ReDoc at `/redoc`, except when `ENVIRONMENT=production`: there all three return 404.
 
 This document forms the binding interface contract between the MCP Hub Backend and external clients, including the decoupled React frontend.
 

@@ -70,6 +70,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 def create_app() -> FastAPI:
     """Create and configure FastAPI application."""
     settings = get_settings()
+    # Swagger UI, ReDoc and the OpenAPI schema map every route; production serves none of them (404).
+    show_api_docs = settings.ENVIRONMENT != "production"
 
     app = FastAPI(
         title=settings.PROJECT_NAME,
@@ -78,9 +80,9 @@ def create_app() -> FastAPI:
             "Production-oriented MCP Hub Backend that centrally manages multiple "
             "Model Context Protocol (MCP) servers and exposes their tools through a unified REST API."
         ),
-        docs_url="/docs",
-        redoc_url="/redoc",
-        openapi_url="/openapi.json",
+        docs_url="/docs" if show_api_docs else None,
+        redoc_url="/redoc" if show_api_docs else None,
+        openapi_url="/openapi.json" if show_api_docs else None,
         lifespan=lifespan,
     )
 
