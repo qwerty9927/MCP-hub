@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Plug } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,8 @@ export type RegisterServerStep = "providers" | "connecting";
 interface RegisterServerDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    /** Start signing in to this provider as soon as the dialog opens (e.g. picked on the Discovery page). */
+    initialProvider?: OAuthProvider | null;
 }
 
 /** Providers whose name, description, category or host contains the query (case-insensitive), in one category. */
@@ -47,7 +49,7 @@ function gridColumns(): number {
  * Steps: providers (search + category chips) → connecting (popup, then done / error).
  * "Configure manually" closes the dialog and opens the full-page form at /servers/new.
  */
-export function RegisterServerDialog({ open, onOpenChange }: RegisterServerDialogProps) {
+export function RegisterServerDialog({ open, onOpenChange, initialProvider = null }: RegisterServerDialogProps) {
     const router = useRouter();
     const [step, setStep] = useState<RegisterServerStep>("providers");
     const [query, setQuery] = useState("");
@@ -101,6 +103,21 @@ export function RegisterServerDialog({ open, onOpenChange }: RegisterServerDialo
         const name = provider.connected_count > 0 ? `${provider.name} ${provider.connected_count + 1}` : undefined;
         void flow.connect(name ? { provider_id: provider.id, name } : { provider_id: provider.id });
     };
+
+    // Opened for a provider picked elsewhere: go straight to its sign-in, once per opening.
+    const startedFor = useRef<string | null>(null);
+    useEffect(() => {
+        if (!open) {
+            startedFor.current = null;
+            return;
+        }
+        if (initialProvider && startedFor.current !== initialProvider.id) {
+            startedFor.current = initialProvider.id;
+            connect(initialProvider);
+        }
+        // connect is recreated each render; the ref guards against repeats.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open, initialProvider]);
 
     const openServer = (serverId: string) => {
         handleOpenChange(false);

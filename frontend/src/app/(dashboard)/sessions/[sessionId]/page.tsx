@@ -4,6 +4,7 @@ import React, { use, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Clock, History, LayoutList, Layers, ArrowDownUp, Filter } from "lucide-react";
 import { useSession, useSessionToolCalls } from "@/features/sessions/hooks/use-sessions";
+import { useTrackRecent } from "@/lib/recents";
 import { SessionOverview } from "@/features/sessions/components/SessionOverview";
 import { ToolExecutionTimeline } from "@/features/sessions/components/ToolExecutionTimeline";
 import { ServerToolGroup } from "@/features/sessions/components/ServerToolGroup";
@@ -47,6 +48,9 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
         error: sessionError,
         refetch: refetchSession,
     } = useSession(sessionId);
+    useTrackRecent(
+        session ? { section: "Sessions", label: session.title || session.id.slice(0, 8), href: `/sessions/${session.id}` } : null
+    );
 
     // Fetch session tool calls list (shared dataset for both Timeline and Grouped modes)
     const {

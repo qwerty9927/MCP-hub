@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { CardGridSkeleton } from "@/components/common/CardGridSkeleton";
 import { ErrorAlert } from "@/components/common/ErrorAlert";
 import { useExecution } from "@/features/executions/hooks/use-executions";
+import { useTrackRecent } from "@/lib/recents";
 import { ToolCallStatusBadge } from "@/components/common/ToolCallStatusBadge";
 import { executionStatus, formatDate, formatDuration } from "@/lib/utils";
 import { toast } from "sonner";
@@ -27,6 +28,7 @@ export default function ExecutionDetailPage({ params }: ExecutionDetailPageProps
     const [copiedResponse, setCopiedResponse] = useState(false);
 
     const { data: execution, isLoading, isError, error, refetch } = useExecution(executionId);
+    useTrackRecent(execution ? { section: "Executions", label: execution.tool_name, href: `/executions/${execution.id}` } : null);
 
     const handleCopyJson = () => {
         if (!execution) return;

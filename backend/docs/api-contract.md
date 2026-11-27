@@ -464,15 +464,19 @@ Returns a single `ExecutionResponse` by its UUID.
 The caller's most-called tools over a period, counted from the execution history (Playground and `/mcp` calls alike), with how those calls ended. Usage is counted per server and tool, so a tool name that exists on two servers appears twice. Calls to servers deleted since are still counted.
 
 #### Query Parameters:
-* `range` (string, default `7d`): `24h`, `7d`, `30d` or `all`.
+* `range` (string, default `7d`): `1h`, `24h`, `7d`, `30d` or `all`.
 * `limit` (integer, default `10`, 1-50): how many tools to return, most-called first.
+* `server_id` (UUID, optional): only this server's tools and calls; every total below is limited to it too.
 
 #### Response (`200 OK`):
 ```json
 {
   "range": "7d",
   "since": "2026-11-16T09:00:00Z",
+  "server_id": null,
   "total_calls": 42,
+  "previous_total_calls": 35,
+  "p90_duration_ms": 1530.0,
   "items": [
     {
       "server_id": "8a2c1f5e-0d3b-4c7e-9f1a-2b6d4e8c0a17",
@@ -483,12 +487,37 @@ The caller's most-called tools over a period, counted from the execution history
       "failed_calls": 1,
       "rejected_calls": 1,
       "avg_duration_ms": 812.4,
+      "p90_duration_ms": 1402.0,
       "last_called_at": "2026-11-23T08:41:10Z"
     }
   ]
 }
 ```
-`total_calls` counts every call in the period, not only those of the listed tools. `since` is `null` for `all`. `avg_duration_ms` leaves out rejected calls, which never reached the server.
+`total_calls` counts every call in the period, not only those of the listed tools. `since` is `null` for `all`. `avg_duration_ms` and the `p90_duration_ms` fields leave out rejected calls, which never reached the server; `p90_duration_ms` is `null` when no call reached one. `previous_total_calls` counts the period of the same length just before this one (for `7d`, the 7 days before), and is `null` for `all`.
+
+### 4.4 Calls Over Time
+`GET /api/v1/executions/timeseries`
+
+The caller's calls counted per time bucket, with how they ended, for a trend chart. Every bucket of the period is returned, empty ones included, oldest first.
+
+#### Query Parameters:
+* `range` (string, default `24h`): `1h` (5-minute buckets), `24h` (1 hour), `7d` (6 hours), `30d` (1 day) or `all` (1 day, from the day of the first call, at most 365 days back).
+* `server_id` (UUID, optional): only this server's calls.
+
+#### Response (`200 OK`):
+```json
+{
+  "range": "24h",
+  "since": "2026-11-26T09:00:00Z",
+  "server_id": null,
+  "bucket_seconds": 3600,
+  "buckets": [
+    { "start": "2026-11-26T09:00:00Z", "total_calls": 0, "completed_calls": 0, "failed_calls": 0, "rejected_calls": 0 },
+    { "start": "2026-11-26T10:00:00Z", "total_calls": 4, "completed_calls": 3, "failed_calls": 1, "rejected_calls": 0 }
+  ]
+}
+```
+A bucket covers `[start, start + bucket_seconds)`. For `all` with no calls yet, `since` is `null` and `buckets` is empty.
 
 ---
 

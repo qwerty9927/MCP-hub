@@ -16,6 +16,7 @@ import { CardGridSkeleton } from "@/components/common/CardGridSkeleton";
 import { ErrorAlert } from "@/components/common/ErrorAlert";
 import { JsonTabs, JsonViewer } from "@/components/common/JsonViewer";
 import { useTool } from "@/features/tools/hooks/use-tools";
+import { useTrackRecent } from "@/lib/recents";
 import { formatDate } from "@/lib/utils";
 import { API_BASE_URL, MCP_ENDPOINT_URL } from "@/lib/config";
 
@@ -34,6 +35,7 @@ export default function ToolDetailPage({ params }: ToolDetailPageProps) {
     }
 
     const { data: tool, isLoading, isError, error, refetch } = useTool(decodedToolId);
+    useTrackRecent(tool ? { section: "Tools", label: tool.name, href: `/tools/${encodeURIComponent(tool.id)}` } : null);
 
     const [activeTab, setActiveTab] = useState<string>("schema");
     const [copiedSnippet, setCopiedSnippet] = useState<string | null>(null);

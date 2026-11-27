@@ -111,6 +111,60 @@ async def test_only_the_callers_own_calls_are_counted(async_client: AsyncClient,
     assert body["total_calls"] == 0 and body["items"] == []
 
 
+async def test_last_hour_range(async_client: AsyncClient):
+    me, server = await user_id_of(async_client), uuid4()
+    await record(me, "recent", server_id=server, age=timedelta(minutes=10))
+    await record(me, "two-hours-old", server_id=server, age=timedelta(hours=2))
+
+    body = (await async_client.get(URL, params={"range": "1h"})).json()
+    assert body["range"] == "1h"
+    assert [item["tool_name"] for item in body["items"]] == ["recent"]
+    assert body["total_calls"] == 1
+
+
+async def test_server_filter_limits_items_and_totals(async_client: AsyncClient):
+    me = await user_id_of(async_client)
+    jira, github = uuid4(), uuid4()
+    await record(me, "search", server_id=jira, server_name="jira")
+    await record(me, "create", server_id=jira, server_name="jira")
+    await record(me, "search", server_id=github, server_name="github")
+
+    body = (await async_client.get(URL, params={"server_id": str(jira)})).json()
+    assert body["server_id"] == str(jira)
+    assert {item["server_name"] for item in body["items"]} == {"jira"}
+    assert body["total_calls"] == 2
+
+
+async def test_p90_duration_per_tool_and_overall_skips_rejected_calls(async_client: AsyncClient):
+    me, server = await user_id_of(async_client), uuid4()
+    for duration in range(10, 101, 10):  # 10, 20, ..., 100
+        await record(me, "search", server_id=server, duration_ms=float(duration))
+    await record(me, "search", server_id=server, status="rejected", duration_ms=5000.0)
+
+    body = (await async_client.get(URL)).json()
+    # percentile_cont(0.9) over 10..100 interpolates to 91; the rejected call never reached the server.
+    assert body["items"][0]["p90_duration_ms"] == 91.0
+    assert body["p90_duration_ms"] == 91.0
+
+
+async def test_previous_total_counts_the_period_before(async_client: AsyncClient):
+    me, server = await user_id_of(async_client), uuid4()
+    await record(me, "now", server_id=server, age=timedelta(hours=1))
+    await record(me, "now", server_id=server, age=timedelta(hours=2))
+    for _ in range(3):
+        await record(me, "yesterday", server_id=server, age=timedelta(hours=30))
+    await record(me, "long-ago", server_id=server, age=timedelta(days=3))
+
+    day = (await async_client.get(URL, params={"range": "24h"})).json()
+    assert (day["total_calls"], day["previous_total_calls"]) == (2, 3)
+    assert (await async_client.get(URL, params={"range": "all"})).json()["previous_total_calls"] is None
+
+
+async def test_empty_period_has_no_p90(async_client: AsyncClient):
+    body = (await async_client.get(URL)).json()
+    assert body["p90_duration_ms"] is None and body["previous_total_calls"] == 0
+
+
 async def test_rejects_unknown_ranges_and_limits(async_client: AsyncClient):
     assert (await async_client.get(URL, params={"range": "1y"})).status_code == 422
     assert (await async_client.get(URL, params={"limit": 0})).status_code == 422

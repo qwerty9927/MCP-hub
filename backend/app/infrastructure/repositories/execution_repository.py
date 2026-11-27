@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import math
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timedelta
+from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Select, and_, asc, desc, func, or_, select
+from sqlalchemy import ColumnElement, Select, and_, asc, case, desc, func, or_, select
 
 import app.infrastructure.database as db_module
-from app.domain.execution_entity import ExecutionEntity, ToolUsageEntity
+from app.domain.execution_entity import CallBucketEntity, CallStatsEntity, ExecutionEntity, ToolUsageEntity
 from app.domain.session_entity import ToolCallEntity
 from app.models.execution_model import ExecutionModel
 
@@ -63,8 +65,30 @@ class ExecutionRepositoryAbstract(ABC):
         pass
 
     @abstractmethod
-    async def tool_usage(self, *, user_id: UUID, since: datetime | None, limit: int) -> tuple[list[ToolUsageEntity], int]:
-        """The owner's most-called Tools since `since` (all time if None), most first, and the total calls in that period."""
+    async def tool_usage(
+        self, *, user_id: UUID, since: datetime | None, limit: int, server_id: UUID | None = None
+    ) -> tuple[list[ToolUsageEntity], int]:
+        """The owner's most-called Tools since `since` (all time if None), most first, and the total calls in that period.
+        With `server_id`, only that Server's Tools and calls."""
+        pass
+
+    @abstractmethod
+    async def call_stats(
+        self, *, user_id: UUID, since: datetime | None, until: datetime | None = None, server_id: UUID | None = None
+    ) -> CallStatsEntity:
+        """Totals over the owner's calls in [since, until) (open ends when None), optionally one Server's."""
+        pass
+
+    @abstractmethod
+    async def call_timeseries(
+        self, *, user_id: UUID, since: datetime, until: datetime, bucket: timedelta, server_id: UUID | None = None
+    ) -> list[CallBucketEntity]:
+        """The owner's calls counted per bucket from `since` to `until`, one entry per bucket, empty ones included."""
+        pass
+
+    @abstractmethod
+    async def first_call_at(self, *, user_id: UUID, server_id: UUID | None = None) -> datetime | None:
+        """When the owner's earliest recorded call happened, or None when there are none."""
         pass
 
 
@@ -215,12 +239,12 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
             model = result.scalar_one_or_none()
             return model.to_tool_call_domain() if model else None
 
-    async def tool_usage(self, *, user_id: UUID, since: datetime | None, limit: int) -> tuple[list[ToolUsageEntity], int]:
+    async def tool_usage(
+        self, *, user_id: UUID, since: datetime | None, limit: int, server_id: UUID | None = None
+    ) -> tuple[list[ToolUsageEntity], int]:
         async with db_module.async_session_factory() as session:
-            in_period = _owned(select(ExecutionModel), user_id)
-            if since is not None:
-                in_period = in_period.where(ExecutionModel.executed_at >= since)
-            total = (await session.execute(select(func.count()).select_from(in_period.subquery()))).scalar_one()
+            conditions = _period(user_id, since=since, until=None, server_id=server_id)
+            total = (await session.execute(select(func.count()).select_from(ExecutionModel).where(*conditions))).scalar_one()
 
             # A tool name can exist on several Servers, so usage is counted per (Server, Tool).
             status = func.lower(ExecutionModel.status)
@@ -236,8 +260,9 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
                     func.count().filter(status == "rejected"),
                     func.avg(ExecutionModel.duration_ms).filter(status != "rejected"),
                     func.max(ExecutionModel.executed_at),
+                    _p90_reached(),
                 )
-                .where(in_period.whereclause)
+                .where(*conditions)
                 .group_by(ExecutionModel.server_id, ExecutionModel.tool_name)
                 .order_by(calls.desc(), ExecutionModel.tool_name)
                 .limit(limit)
@@ -245,20 +270,116 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
             rows = (await session.execute(stmt)).all()
             return [
                 ToolUsageEntity(
-                    server_id=UUID(server_id),
+                    server_id=UUID(row_server_id),
                     server_name=server_name,
                     tool_name=tool_name,
                     total_calls=total_calls,
                     completed_calls=completed,
                     failed_calls=failed,
                     rejected_calls=rejected,
-                    avg_duration_ms=float(avg_duration) if avg_duration is not None else None,
+                    avg_duration_ms=_float(avg_duration),
                     last_called_at=last_called_at,
+                    p90_duration_ms=_float(p90_duration),
                 )
-                for server_id, server_name, tool_name, total_calls, completed, failed, rejected, avg_duration, last_called_at in rows
+                for (
+                    row_server_id,
+                    server_name,
+                    tool_name,
+                    total_calls,
+                    completed,
+                    failed,
+                    rejected,
+                    avg_duration,
+                    last_called_at,
+                    p90_duration,
+                ) in rows
             ], total
+
+    async def call_stats(
+        self, *, user_id: UUID, since: datetime | None, until: datetime | None = None, server_id: UUID | None = None
+    ) -> CallStatsEntity:
+        async with db_module.async_session_factory() as session:
+            status = func.lower(ExecutionModel.status)
+            stmt = select(
+                func.count(),
+                func.count().filter(status == "completed"),
+                func.count().filter(status == "failed"),
+                func.count().filter(status == "rejected"),
+                _p90_reached(),
+            ).where(*_period(user_id, since=since, until=until, server_id=server_id))
+            total, completed, failed, rejected, p90 = (await session.execute(stmt)).one()
+            return CallStatsEntity(
+                total_calls=total,
+                completed_calls=completed,
+                failed_calls=failed,
+                rejected_calls=rejected,
+                p90_duration_ms=_float(p90),
+            )
+
+    async def call_timeseries(
+        self, *, user_id: UUID, since: datetime, until: datetime, bucket: timedelta, server_id: UUID | None = None
+    ) -> list[CallBucketEntity]:
+        async with db_module.async_session_factory() as session:
+            status = func.lower(ExecutionModel.status)
+            # date_bin puts each call in the bucket since + k * bucket that contains it.
+            start = func.date_bin(bucket, ExecutionModel.executed_at, since)
+            stmt = (
+                select(
+                    start,
+                    func.count(),
+                    func.count().filter(status == "completed"),
+                    func.count().filter(status == "failed"),
+                    func.count().filter(status == "rejected"),
+                )
+                .where(*_period(user_id, since=since, until=until, server_id=server_id))
+                .group_by(start)
+            )
+            rows = {row[0]: row[1:] for row in (await session.execute(stmt)).all()}
+
+        count = max(1, math.ceil((until - since) / bucket))
+        buckets = []
+        for index in range(count):
+            bucket_start = since + index * bucket
+            total, completed, failed, rejected = rows.get(bucket_start, (0, 0, 0, 0))
+            buckets.append(
+                CallBucketEntity(
+                    start=bucket_start,
+                    total_calls=total,
+                    completed_calls=completed,
+                    failed_calls=failed,
+                    rejected_calls=rejected,
+                )
+            )
+        return buckets
+
+    async def first_call_at(self, *, user_id: UUID, server_id: UUID | None = None) -> datetime | None:
+        async with db_module.async_session_factory() as session:
+            stmt = select(func.min(ExecutionModel.executed_at)).where(*_period(user_id, since=None, until=None, server_id=server_id))
+            return (await session.execute(stmt)).scalar_one()
 
 
 def _owned(stmt: Select, user_id: UUID) -> Select:
     """Limit an Execution query to `user_id`'s Executions, including those whose Server was deleted."""
     return stmt.where(ExecutionModel.user_id == str(user_id))
+
+
+def _period(user_id: UUID, *, since: datetime | None, until: datetime | None, server_id: UUID | None) -> list[ColumnElement[bool]]:
+    """Conditions for the owner's Executions in [since, until), optionally one Server's."""
+    conditions: list[ColumnElement[bool]] = [ExecutionModel.user_id == str(user_id)]
+    if since is not None:
+        conditions.append(ExecutionModel.executed_at >= since)
+    if until is not None:
+        conditions.append(ExecutionModel.executed_at < until)
+    if server_id is not None:
+        conditions.append(ExecutionModel.server_id == str(server_id))
+    return conditions
+
+
+def _p90_reached() -> ColumnElement[Any]:
+    """90th-percentile duration of the calls that reached the Server; rejected ones (NULL here) are skipped."""
+    reached = case((func.lower(ExecutionModel.status) != "rejected", ExecutionModel.duration_ms), else_=None)
+    return func.percentile_cont(0.9).within_group(reached)
+
+
+def _float(value: Any) -> float | None:
+    return float(value) if value is not None else None

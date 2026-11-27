@@ -40,3 +40,26 @@ class ToolUsageEntity:
     rejected_calls: int
     avg_duration_ms: float | None  # over calls that reached the Server; rejected ones never did
     last_called_at: datetime
+    p90_duration_ms: float | None = None  # 90th percentile, over the same calls as the average
+
+
+@dataclass
+class CallStatsEntity:
+    """Totals over every call in a period (optionally one Server's)."""
+
+    total_calls: int
+    completed_calls: int
+    failed_calls: int
+    rejected_calls: int
+    p90_duration_ms: float | None  # over calls that reached the Server
+
+
+@dataclass
+class CallBucketEntity:
+    """Calls that started in one time bucket [start, start + bucket)."""
+
+    start: datetime
+    total_calls: int
+    completed_calls: int
+    failed_calls: int
+    rejected_calls: int

@@ -1,7 +1,8 @@
 "use client";
 
 import React from "react";
-import { Menu, ExternalLink, LogOut, User } from "lucide-react";
+import { Menu, ExternalLink, LogOut, User, Settings } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLogout, useMe } from "@/features/auth/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -57,8 +58,11 @@ export function Header({ onMenuToggle }: HeaderProps) {
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="sm" className="flex items-center gap-2 h-9 px-2">
-                            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary">
-                                <User className="h-4 w-4" />
+                            <div
+                                aria-hidden="true"
+                                className="flex h-7 w-7 items-center justify-center rounded-full border border-border bg-secondary text-xs font-semibold text-foreground"
+                            >
+                                {me?.email ? me.email.charAt(0).toUpperCase() : <User className="h-4 w-4" />}
                             </div>
                             <span className="hidden sm:inline-block max-w-[180px] truncate text-xs font-medium text-foreground">
                                 {me?.email ?? "Account"}
@@ -72,6 +76,13 @@ export function Header({ onMenuToggle }: HeaderProps) {
                                 <p className="text-sm font-medium leading-none truncate">{me?.email ?? "—"}</p>
                             </div>
                         </DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem asChild>
+                            <Link href="/settings" className="flex w-full cursor-pointer items-center gap-2">
+                                <Settings className="h-3.5 w-3.5" />
+                                Settings
+                            </Link>
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         {SHOW_BACKEND_DETAILS && (
                             <>
