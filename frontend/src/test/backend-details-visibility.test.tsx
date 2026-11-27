@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -98,23 +98,25 @@ describe("backend details in production builds", () => {
         expect(screen.queryByText(/Backend: /)).not.toBeInTheDocument();
     });
 
-    it("sidebar hides the backend status footer and does not poll /health", async () => {
+    it("sidebar still polls /health and shows the status, without the version", async () => {
         renderWithQueries(<Sidebar />);
 
-        expect(screen.getByText("Overview")).toBeInTheDocument();
-        expect(screen.queryByText("Backend API")).not.toBeInTheDocument();
-        await waitFor(() => expect(probes.health).not.toHaveBeenCalled());
+        expect(screen.getByText("Backend API")).toBeInTheDocument();
+        expect(await screen.findByText("Online")).toBeInTheDocument();
+        expect(probes.health).toHaveBeenCalled();
+        expect(screen.queryByText("v0.1.0")).not.toBeInTheDocument();
     });
 
-    it("settings hides the backend connection card and sends no probes", async () => {
+    it("settings still runs the probes, without the API base URL or version", async () => {
         renderWithQueries(<SettingsPage />);
 
-        expect(screen.getByText("Appearance")).toBeInTheDocument();
+        expect(screen.getByText("System Status")).toBeInTheDocument();
         expect(screen.queryByText("Backend Connection")).not.toBeInTheDocument();
         expect(screen.queryByDisplayValue("http://localhost:8000/api/v1")).not.toBeInTheDocument();
-        await waitFor(() => {
-            expect(probes.health).not.toHaveBeenCalled();
-            expect(probes.readiness).not.toHaveBeenCalled();
-        });
+        expect(await screen.findByText("OK")).toBeInTheDocument();
+        expect(await screen.findByText("Ready (checks passing)")).toBeInTheDocument();
+        expect(probes.health).toHaveBeenCalled();
+        expect(probes.readiness).toHaveBeenCalled();
+        expect(screen.queryByText(/v0\.1\.0/)).not.toBeInTheDocument();
     });
 });
