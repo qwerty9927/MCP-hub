@@ -25,12 +25,27 @@
         --accent: 210 40% 96.1%;
         --accent-foreground: 222 47% 11.2%;
 
-        --destructive: 0 84.2% 60.2%;
+        /* red-600: white text on it reaches 4.8:1 (the design system's red-500 fill fails at 3.6:1) */
+        --destructive: 0 72% 51%;
         --destructive-foreground: 210 40% 98%;
 
         --border: 214.3 31.8% 91.4%;
-        --input: 214.3 31.8% 91.4%;
+        /* slate-500: control boundaries need 3:1 against the page */
+        --input: 215 16% 47%;
         --ring: 221 83% 53%;
+
+        /* Status words and dots (MCP Hub design system); text tokens reach 4.5:1 on card */
+        --success: 163 94% 24%;
+        --success-dot: 160 84% 39%;
+        --warning: 26 90% 37%;
+        --rejected: 17 88% 40%;
+        --danger-text: 0 74% 42%;
+        --neutral-dot: 215 20% 65%;
+
+        /* Tinted info callout */
+        --info: 214 100% 97%;
+        --info-border: 213 94% 85%;
+        --info-foreground: 224 76% 40%;
 
         --radius: 0.5rem;
     }
@@ -61,8 +76,19 @@
         --destructive-foreground: 210 40% 98%;
 
         --border: 216 34% 17%;
-        --input: 216 34% 17%;
+        --input: 215 16% 47%;
         --ring: 224 76% 48%;
+
+        --success: 158 64% 52%;
+        --success-dot: 160 84% 39%;
+        --warning: 43 96% 56%;
+        --rejected: 27 96% 61%;
+        --danger-text: 0 91% 71%;
+        --neutral-dot: 215 20% 65%;
+
+        --info: 220 60% 12%;
+        --info-border: 217 60% 32%;
+        --info-foreground: 213 94% 78%;
     }
 }
 

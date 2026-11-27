@@ -38,7 +38,7 @@ vi.mock("next-themes", () => ({ useTheme: () => ({ theme: "light", setTheme: vi.
 
 import { Header } from "@/components/layout/Header";
 import { Sidebar } from "@/components/layout/Sidebar";
-import SettingsPage from "@/app/(dashboard)/settings/page";
+import SettingsPage from "@/app/(dashboard)/settings/system/page";
 
 function renderWithQueries(ui: React.ReactElement) {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });

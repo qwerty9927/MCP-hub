@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { preferredTimeZone } from "./preferences";
 
 export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
@@ -17,6 +18,8 @@ export function formatDate(dateStr: string | null | undefined): string {
         return new Intl.DateTimeFormat("en-US", {
             dateStyle: "medium",
             timeStyle: "short",
+            // The time zone chosen in Settings, else the browser's own.
+            timeZone: preferredTimeZone(),
         }).format(date);
     } catch {
         return dateStr;

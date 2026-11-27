@@ -8,6 +8,10 @@ const SERVER_ID = "0b7f6c1e-5d2a-4c8e-9f31-2a6d4e8b7c90";
 const mutation = (isPending = false) => ({ isPending, mutate: vi.fn(), mutateAsync: vi.fn() });
 const state = { refreshPending: false };
 
+vi.mock("@/features/metrics/hooks/use-tool-usage", () => ({
+    useToolUsage: () => ({ data: { range: "24h", since: null, total_calls: 0, items: [] }, isLoading: false }),
+}));
+
 vi.mock("next/navigation", () => ({
     useRouter: () => ({ push: vi.fn() }),
     usePathname: () => `/servers/${SERVER_ID}`,

@@ -26,7 +26,7 @@ describe("HealthBadge Component", () => {
 
     it("renders Needs Auth as a warning asking to sign in again", () => {
         render(<HealthBadge status="NEEDS_AUTH" />);
-        expect(screen.getByText("Sign in again")).toHaveClass("text-amber-700");
+        expect(screen.getByText("Sign in again")).toHaveClass("text-warning");
     });
 
     it("renders Unknown status gracefully", () => {

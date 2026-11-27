@@ -28,10 +28,7 @@ export function ToolCallStatusBadge({ status, className }: ToolCallStatusBadgePr
             );
         case "rejected":
             return (
-                <Badge
-                    variant="outline"
-                    className={cn("border-orange-500/30 bg-orange-500/10 text-orange-700 dark:text-orange-400", classes)}
-                >
+                <Badge variant="rejected" className={classes}>
                     <Ban className="h-3 w-3" />
                     Rejected
                 </Badge>

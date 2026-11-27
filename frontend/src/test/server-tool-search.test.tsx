@@ -36,6 +36,10 @@ const API_KEY: ApiKeyRead = {
 
 const KEY_TOOLS: ApiKeyTool[] = TOOLS.map((tool) => ({ tool_id: tool.id, name: tool.name, description: tool.description, enabled: true }));
 
+vi.mock("@/features/metrics/hooks/use-tool-usage", () => ({
+    useToolUsage: () => ({ data: { range: "24h", since: null, total_calls: 0, items: [] }, isLoading: false }),
+}));
+
 vi.mock("next/navigation", () => ({
     useRouter: () => ({ push: vi.fn() }),
     usePathname: () => `/servers/${SERVER_ID}`,

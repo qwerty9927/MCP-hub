@@ -21,9 +21,14 @@ import {
     History,
     AlertTriangle,
     KeyRound,
+    Server as ServerIcon,
 } from "lucide-react";
-import { PageHeader } from "@/components/common/PageHeader";
 import { HealthBadge } from "@/components/common/HealthBadge";
+import { InfoCallout } from "@/components/common/InfoCallout";
+import { PendingBadge } from "@/components/common/PendingBackend";
+import { ServerUsageCard } from "@/features/servers/components/ServerUsageCard";
+import { ServerNextSteps } from "@/features/servers/components/ServerNextSteps";
+import { useTrackRecent } from "@/lib/recents";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SearchInput } from "@/components/common/SearchInput";
@@ -80,6 +85,7 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
     const [toolSearch, setToolSearch] = useState("");
 
     const { data: server, isLoading, isError, error, refetch } = useServer(serverId);
+    useTrackRecent(server ? { section: "Servers", label: server.name, href: `/servers/${server.id}` } : null);
     // Execution history keeps a deleted server's id; opened from there, a 404 means the server was deleted.
     const historyOrigin = readHistoryOrigin(useSearchParams());
     const { data: toolsData, isLoading: toolsLoading } = useServerTools(serverId);
@@ -196,11 +202,20 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                 </Button>
             </div>
 
-            {/* Header and Controls */}
-            <PageHeader
-                title={server.name}
-                description={server.description || "No description provided."}
-                actions={
+            {/* Header: product-style name, health and one-line purpose; actions on the right */}
+            <div className="flex flex-col gap-4 border-b border-border pb-6 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0 max-w-2xl space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-2.5">
+                        <ServerIcon className="h-[22px] w-[22px] shrink-0 text-primary" aria-hidden="true" />
+                        <h1 className="break-all text-2xl font-bold tracking-tight text-foreground">{server.name}</h1>
+                        <HealthBadge status={server.health_status} />
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                        {server.description || "No description provided."}{" "}
+                        <span className="whitespace-nowrap font-mono text-[13px]">· {server.transport}</span>
+                    </p>
+                </div>
+                {
                     <div className="flex flex-wrap items-center gap-2">
                         {server.auth_type === "oauth" && (
                             <OAuthReconnectButton server={server} disabled={isActionLoading} variant="outline" />
@@ -251,17 +266,10 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                         </Button>
                     </div>
                 }
-            />
+            </div>
 
-            {/* Status Highlights */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <Card className="p-4">
-                    <span className="text-xs text-muted-foreground font-medium">Health Status</span>
-                    <div className="mt-2">
-                        <HealthBadge status={server.health_status} />
-                    </div>
-                </Card>
-
+            {/* Status Highlights (health is in the header) */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <Card className="p-4">
                     <span className="text-xs text-muted-foreground font-medium">Transport Protocol</span>
                     <div className="mt-2 flex items-center gap-1.5">
@@ -294,53 +302,49 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
 
             {/* Unhealthy Server Alert Banner */}
             {server.health_status === "UNHEALTHY" && (
-                <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-destructive">
-                    <div className="flex items-start gap-3">
-                        <AlertTriangle className="h-5 w-5 mt-0.5 shrink-0" />
-                        <div className="flex-1 space-y-1">
-                            <h4 className="font-semibold text-sm">Server Connectivity Failure</h4>
-                            <p className="text-sm opacity-90">
-                                This MCP server failed its health check or subprocess communication broke down. Discovered tools are
-                                currently unavailable for execution until connectivity is re-established.
-                            </p>
-                        </div>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleTestConnection}
-                            disabled={isActionLoading}
-                            className="shrink-0 border-destructive/40 hover:bg-destructive/20 text-destructive dark:text-red-300"
-                        >
+                <InfoCallout
+                    tone="danger"
+                    icon={AlertTriangle}
+                    title="Server Connectivity Failure"
+                    action={
+                        <Button variant="outline" size="sm" onClick={handleTestConnection} disabled={isActionLoading} className="bg-card">
                             <Activity className="mr-1.5 h-3.5 w-3.5" />
                             Retest Connection
                         </Button>
-                    </div>
-                </div>
+                    }
+                >
+                    This MCP server failed its health check or subprocess communication broke down. Discovered tools are currently
+                    unavailable for execution until connectivity is re-established.
+                </InfoCallout>
             )}
 
             {/* OAuth sign-in expired */}
             {server.health_status === "NEEDS_AUTH" && (
-                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-amber-700 dark:text-amber-400">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-                        <KeyRound className="h-5 w-5 mt-0.5 shrink-0" />
-                        <div className="flex-1 space-y-1">
-                            <h4 className="font-semibold text-sm">Sign in again</h4>
-                            <p className="text-sm opacity-90">
-                                The hub can no longer refresh this server&rsquo;s sign-in. Reconnect to authorize it again; its tools stay
-                                unavailable until then.
-                            </p>
-                        </div>
-                        {server.auth_type === "oauth" && (
-                            <OAuthReconnectButton
-                                server={server}
-                                disabled={isActionLoading}
-                                variant="outline"
-                                className="shrink-0 border-amber-500/40 bg-transparent text-amber-700 hover:bg-amber-500/20 dark:text-amber-400"
-                            />
-                        )}
-                    </div>
-                </div>
+                <InfoCallout
+                    tone="warning"
+                    icon={KeyRound}
+                    title="Sign in again"
+                    action={
+                        server.auth_type === "oauth" ? (
+                            <OAuthReconnectButton server={server} disabled={isActionLoading} variant="outline" className="bg-card" />
+                        ) : undefined
+                    }
+                >
+                    The hub can no longer refresh this server&rsquo;s sign-in. Reconnect to authorize it again; its tools stay unavailable
+                    until then.
+                </InfoCallout>
             )}
+
+            {/* Tool review after a scan is pending in the backend; today the scan's tools go live at once */}
+            <InfoCallout
+                title={`The last scan found ${server.discovered_tool_count} tools`}
+                action={<PendingBadge id="new-tools-review" />}
+            >
+                Refresh Tools makes every discovered tool callable right away. Reviewing newly discovered tools first needs backend support.
+            </InfoCallout>
+
+            <ServerUsageCard serverId={server.id} />
+            <ServerNextSteps serverId={server.id} />
 
             {/* Detailed Information Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -410,7 +414,7 @@ export default function ServerDetailPage({ params }: ServerDetailPageProps) {
                                         {!apiKeysLoading && activeApiKeys.length === 0 ? (
                                             <p className="text-sm text-muted-foreground">
                                                 No API keys yet.{" "}
-                                                <Link href="/settings" className="text-primary hover:underline">
+                                                <Link href="/settings/api-keys" className="text-primary hover:underline">
                                                     Create one on the API keys page
                                                 </Link>{" "}
                                                 to choose which tools it can see.

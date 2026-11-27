@@ -37,6 +37,10 @@ const KEY_TOOLS: ApiKeyTool[] = [
     { tool_id: TOOLS[1].id, name: "delete_repo", description: null, enabled: false },
 ];
 
+vi.mock("@/features/metrics/hooks/use-tool-usage", () => ({
+    useToolUsage: () => ({ data: { range: "24h", since: null, total_calls: 0, items: [] }, isLoading: false }),
+}));
+
 vi.mock("next/navigation", () => ({
     useRouter: () => ({ push: vi.fn() }),
     usePathname: () => `/servers/${SERVER_ID}`,
@@ -154,7 +158,7 @@ describe("Server detail per-API-key tool visibility", () => {
         vi.mocked(authApi.listApiKeys).mockResolvedValue([]);
         await renderPage();
 
-        expect(await screen.findByRole("link", { name: "Create one on the API keys page" })).toHaveAttribute("href", "/settings");
+        expect(await screen.findByRole("link", { name: "Create one on the API keys page" })).toHaveAttribute("href", "/settings/api-keys");
         expect(screen.queryByRole("combobox", { name: "Visibility for API key" })).not.toBeInTheDocument();
     });
 });

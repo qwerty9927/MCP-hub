@@ -1,166 +1,154 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import { useTheme } from "next-themes";
-import { Server, Palette, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
-import { PageHeader } from "@/components/common/PageHeader";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useQuery } from "@tanstack/react-query";
-import { systemApi } from "@/lib/api";
-import { API_BASE_URL, SHOW_BACKEND_DETAILS } from "@/lib/config";
-import { toast } from "sonner";
-import { ApiKeysCard } from "@/features/auth/components/ApiKeysCard";
+import { PendingBadge, PendingFeature } from "@/components/common/PendingBackend";
+import { SettingsGroup, SettingsRow } from "@/features/settings/components/SettingsRow";
+import { useMe } from "@/features/auth/hooks/use-auth";
+import { usePreferences } from "@/lib/use-preferences";
 
-export default function SettingsPage() {
+const BROWSER_ZONE = "browser";
+
+const FALLBACK_ZONES = [
+    "UTC",
+    "America/New_York",
+    "America/Chicago",
+    "America/Los_Angeles",
+    "Europe/London",
+    "Europe/Berlin",
+    "Asia/Ho_Chi_Minh",
+    "Asia/Singapore",
+    "Asia/Tokyo",
+    "Australia/Sydney",
+];
+
+function timeZones(): string[] {
+    const supported = (Intl as unknown as { supportedValuesOf?: (key: string) => string[] }).supportedValuesOf;
+    try {
+        return supported ? ["UTC", ...supported("timeZone").filter((zone) => zone !== "UTC")] : FALLBACK_ZONES;
+    } catch {
+        return FALLBACK_ZONES;
+    }
+}
+
+function browserZone(): string {
+    try {
+        return Intl.DateTimeFormat().resolvedOptions().timeZone;
+    } catch {
+        return "UTC";
+    }
+}
+
+/** Settings › General: profile, preferences, features and the danger zone. */
+export default function GeneralSettingsPage() {
+    const { data: me, isLoading } = useMe();
     const { theme, setTheme } = useTheme();
+    const [preferences, setPreferences] = usePreferences();
+    const zones = useMemo(timeZones, []);
 
-    // System readiness probe
-    const {
-        data: readiness,
-        isLoading: readyLoading,
-        refetch: refetchReady,
-    } = useQuery({
-        queryKey: ["settings-ready"],
-        queryFn: ({ signal }) => systemApi.readiness(signal),
-    });
-
-    // System health probe
-    const {
-        data: health,
-        isLoading: healthLoading,
-        refetch: refetchHealth,
-    } = useQuery({
-        queryKey: ["settings-health"],
-        queryFn: ({ signal }) => systemApi.health(signal),
-    });
-
-    const handleTestProbes = () => {
-        refetchReady();
-        refetchHealth();
-        toast.success("Refreshed system probes");
-    };
+    const memberSince = me?.created_at ? new Intl.DateTimeFormat("en-US", { dateStyle: "long" }).format(new Date(me.created_at)) : null;
 
     return (
-        <div className="max-w-4xl space-y-6">
-            <PageHeader
-                title="Settings & Telemetry"
-                description={
-                    SHOW_BACKEND_DETAILS
-                        ? "Backend connection, API keys for MCP clients, and system probes."
-                        : "System probes, API keys for MCP clients, and appearance."
-                }
-            />
+        <div className="flex flex-col gap-7">
+            <div className="flex flex-col gap-1">
+                <h2 className="text-xl font-bold tracking-tight">General</h2>
+                {isLoading ? (
+                    <Skeleton className="h-5 w-64" />
+                ) : (
+                    <p className="text-sm text-muted-foreground">
+                        {me?.email}
+                        {memberSince && ` · Member since ${memberSince}`}
+                    </p>
+                )}
+            </div>
 
-            {/* Backend connection and probes (production builds hide the API base URL and the version) */}
-            <Card>
-                <CardHeader>
-                    <CardTitle className="text-base flex items-center gap-2">
-                        <Server className="h-4 w-4 text-primary" />
-                        {SHOW_BACKEND_DETAILS ? "Backend Connection" : "System Status"}
-                    </CardTitle>
-                    <CardDescription>
-                        {SHOW_BACKEND_DETAILS
-                            ? "The REST API endpoint configured for all MCP hub management queries."
-                            : "Live health and readiness of the MCP hub backend."}
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    {SHOW_BACKEND_DETAILS && (
-                        <div className="space-y-2">
-                            <Label htmlFor="api_url">API Base URL</Label>
-                            <Input id="api_url" value={API_BASE_URL} readOnly className="font-mono text-sm bg-muted/40" />
-                            <p className="text-xs text-muted-foreground">
-                                Configured via <code className="font-mono text-xs">NEXT_PUBLIC_API_BASE_URL</code> in environment variables.
-                            </p>
-                        </div>
-                    )}
+            <SettingsGroup title="Profile">
+                <SettingsRow label="Display name">
+                    <PendingFeature id="profile-display-name">
+                        <Button variant="outline" size="sm" tabIndex={-1}>
+                            Set Display Name
+                        </Button>
+                    </PendingFeature>
+                </SettingsRow>
+                <SettingsRow label="Email">
+                    <span className="font-mono text-[13px] text-muted-foreground">{me?.email ?? "—"}</span>
+                    <PendingBadge id="profile-verified" />
+                </SettingsRow>
+            </SettingsGroup>
 
-                    <div className="rounded-lg border border-border p-4 bg-muted/20 space-y-3">
-                        <div className="flex items-center justify-between">
-                            <span className="text-sm font-semibold text-foreground">Live System Diagnostics</span>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={handleTestProbes}
-                                disabled={readyLoading || healthLoading}
-                                className="gap-1.5 h-8 text-xs"
-                            >
-                                <RefreshCw className="h-3.5 w-3.5" />
-                                Refresh Probes
-                            </Button>
-                        </div>
+            <SettingsGroup title="Preferences">
+                <SettingsRow label="Appearance" htmlFor="appearance">
+                    <Select value={theme ?? "dark"} onValueChange={setTheme}>
+                        <SelectTrigger id="appearance" className="h-8 w-[140px] text-[13px]">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="dark">Dark</SelectItem>
+                            <SelectItem value="light">Light</SelectItem>
+                            <SelectItem value="system">System</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </SettingsRow>
+                <SettingsRow label="Timezone" htmlFor="timezone" description="Used for every date in the console. Saved in this browser.">
+                    <Select
+                        value={preferences.timeZone ?? BROWSER_ZONE}
+                        onValueChange={(value) => setPreferences({ timeZone: value === BROWSER_ZONE ? null : value })}
+                    >
+                        <SelectTrigger id="timezone" className="h-8 w-[220px] font-mono text-[13px]">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={BROWSER_ZONE}>Browser ({browserZone()})</SelectItem>
+                            {zones.map((zone) => (
+                                <SelectItem key={zone} value={zone} className="font-mono">
+                                    {zone}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </SettingsRow>
+            </SettingsGroup>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                            <div className="flex items-center justify-between p-2.5 rounded bg-background border border-border">
-                                <span className="text-muted-foreground font-mono">GET /health</span>
-                                {healthLoading ? (
-                                    <Skeleton className="h-5 w-20" />
-                                ) : health?.status === "ok" ? (
-                                    <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
-                                        <CheckCircle2 className="h-3.5 w-3.5" />
-                                        {SHOW_BACKEND_DETAILS ? `OK (v${health.version})` : "OK"}
-                                    </span>
-                                ) : (
-                                    <span className="inline-flex items-center gap-1 font-semibold text-destructive">
-                                        <XCircle className="h-3.5 w-3.5" />
-                                        Unreachable
-                                    </span>
-                                )}
-                            </div>
+            <SettingsGroup title="Features">
+                <SettingsRow
+                    label="Keyboard shortcuts"
+                    htmlFor="keyboard-shortcuts"
+                    description="⌘K / Ctrl+K opens quick search from any page. Saved in this browser."
+                >
+                    <Switch
+                        id="keyboard-shortcuts"
+                        checked={preferences.keyboardShortcuts}
+                        onCheckedChange={(checked) => setPreferences({ keyboardShortcuts: checked })}
+                    />
+                </SettingsRow>
+                <SettingsRow
+                    label="Auto-enable read-only tools"
+                    description="Newly discovered tools that declare readOnlyHint skip review and go live at once."
+                >
+                    <PendingFeature id="auto-enable-readonly">
+                        <Switch aria-label="Auto-enable read-only tools" checked={false} tabIndex={-1} />
+                    </PendingFeature>
+                </SettingsRow>
+            </SettingsGroup>
 
-                            <div className="flex items-center justify-between p-2.5 rounded bg-background border border-border">
-                                <span className="text-muted-foreground font-mono">GET /ready</span>
-                                {readyLoading ? (
-                                    <Skeleton className="h-5 w-20" />
-                                ) : readiness?.status === "ready" ? (
-                                    <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
-                                        <CheckCircle2 className="h-3.5 w-3.5" />
-                                        Ready (checks passing)
-                                    </span>
-                                ) : (
-                                    <span className="inline-flex items-center gap-1 font-semibold text-destructive">
-                                        <XCircle className="h-3.5 w-3.5" />
-                                        Not Ready
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-
-            {/* MCP client credentials */}
-            <ApiKeysCard />
-
-            {/* Interface Theme */}
-            <Card>
-                <CardHeader>
-                    <CardTitle className="text-base flex items-center gap-2">
-                        <Palette className="h-4 w-4 text-primary" />
-                        Appearance
-                    </CardTitle>
-                    <CardDescription>Customize the dashboard color theme for your display preferences.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="flex items-center gap-3">
-                        {["light", "dark", "system"].map((mode) => (
-                            <Button
-                                key={mode}
-                                variant={theme === mode ? "default" : "outline"}
-                                size="sm"
-                                onClick={() => setTheme(mode)}
-                                className="capitalize"
-                            >
-                                {mode}
-                            </Button>
-                        ))}
-                    </div>
-                </CardContent>
-            </Card>
+            <SettingsGroup title="Delete your profile">
+                <SettingsRow
+                    label="Delete your profile"
+                    description="Removes your user and API keys. Registered servers stay with the hub."
+                >
+                    <PendingFeature id="profile-delete">
+                        <Button variant="destructive" size="sm" className="gap-1.5" tabIndex={-1}>
+                            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                            Delete Profile
+                        </Button>
+                    </PendingFeature>
+                </SettingsRow>
+            </SettingsGroup>
         </div>
     );
 }

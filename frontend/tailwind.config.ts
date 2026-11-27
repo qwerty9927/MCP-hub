@@ -52,6 +52,19 @@ const config: Config = {
                     DEFAULT: "hsl(var(--card))",
                     foreground: "hsl(var(--card-foreground))",
                 },
+                success: {
+                    DEFAULT: "hsl(var(--success))",
+                    dot: "hsl(var(--success-dot))",
+                },
+                warning: "hsl(var(--warning))",
+                rejected: "hsl(var(--rejected))",
+                danger: "hsl(var(--danger-text))",
+                "neutral-dot": "hsl(var(--neutral-dot))",
+                info: {
+                    DEFAULT: "hsl(var(--info))",
+                    border: "hsl(var(--info-border))",
+                    foreground: "hsl(var(--info-foreground))",
+                },
             },
             borderRadius: {
                 lg: "var(--radius)",

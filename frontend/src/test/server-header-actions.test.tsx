@@ -8,6 +8,10 @@ const SERVER_ID = "3c1d9a7e-2b4f-4e6a-8d0c-5f7b9e1a3c2d";
 const mutation = () => ({ isPending: false, mutate: vi.fn(), mutateAsync: vi.fn() });
 const state: { authType: "none" | "oauth"; health: string } = { authType: "none", health: "DISCONNECTED" };
 
+vi.mock("@/features/metrics/hooks/use-tool-usage", () => ({
+    useToolUsage: () => ({ data: { range: "24h", since: null, total_calls: 0, items: [] }, isLoading: false }),
+}));
+
 vi.mock("next/navigation", () => ({
     useRouter: () => ({ push: vi.fn() }),
     usePathname: () => `/servers/${SERVER_ID}`,

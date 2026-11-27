@@ -16,7 +16,7 @@ export function HealthBadge({ status, className }: HealthBadgeProps) {
         case "AVAILABLE":
             return (
                 <Badge variant="success" className={cn("gap-1.5 font-medium px-2 py-0.5", className)}>
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-success-dot motion-safe:animate-pulse" />
                     {normalized === "AVAILABLE" ? "Available" : "Healthy"}
                 </Badge>
             );
@@ -31,21 +31,21 @@ export function HealthBadge({ status, className }: HealthBadgeProps) {
         case "NEEDS_AUTH":
             return (
                 <Badge variant="warning" className={cn("gap-1.5 font-medium px-2 py-0.5", className)}>
-                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-warning" />
                     Sign in again
                 </Badge>
             );
         case "DISCONNECTED":
             return (
                 <Badge variant="secondary" className={cn("gap-1.5 font-medium px-2 py-0.5 text-muted-foreground", className)}>
-                    <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-neutral-dot" />
                     Disconnected
                 </Badge>
             );
         default:
             return (
                 <Badge variant="muted" className={cn("gap-1.5 font-medium px-2 py-0.5", className)}>
-                    <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-neutral-dot" />
                     {status || "Unknown"}
                 </Badge>
             );

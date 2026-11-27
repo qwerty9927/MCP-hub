@@ -163,7 +163,7 @@ export interface ExecutionFilterParams {
 }
 
 /** Time window for tool-usage metrics; `all` = no lower bound. */
-export type UsageRange = "24h" | "7d" | "30d" | "all";
+export type UsageRange = "1h" | "24h" | "7d" | "30d" | "all";
 
 /** Aggregated call counts for one tool on one Server within a {@link UsageRange}. */
 export interface ToolUsage {
@@ -175,6 +175,8 @@ export interface ToolUsage {
     failed_calls: number;
     rejected_calls: number;
     avg_duration_ms: number | null;
+    /** 90th percentile over calls that reached the Server. */
+    p90_duration_ms?: number | null;
     last_called_at: string;
 }
 
@@ -182,8 +184,14 @@ export interface ToolUsageReport {
     range: UsageRange;
     /** Start of the window (ISO); null for `all`. */
     since: string | null;
+    /** The Server the report is limited to, if any. */
+    server_id?: string | null;
     /** Every call in the range, not only the listed items. */
     total_calls: number;
+    /** Calls in the window of the same length just before this one; null for `all`. */
+    previous_total_calls?: number | null;
+    /** 90th percentile over every call in the range that reached a Server. */
+    p90_duration_ms?: number | null;
     /** Sorted by `total_calls`, highest first. */
     items: ToolUsage[];
 }
@@ -191,6 +199,31 @@ export interface ToolUsageReport {
 export interface ToolUsageParams {
     range: UsageRange;
     limit?: number;
+    server_id?: string;
+}
+
+/** Calls that started in one bucket [start, start + bucket_seconds). */
+export interface CallBucket {
+    start: string;
+    total_calls: number;
+    completed_calls: number;
+    failed_calls: number;
+    rejected_calls: number;
+}
+
+export interface CallTimeseries {
+    range: UsageRange;
+    /** Start of the first bucket; null for `all` when there are no calls. */
+    since: string | null;
+    server_id?: string | null;
+    bucket_seconds: number;
+    /** One entry per bucket, oldest first, empty buckets included. */
+    buckets: CallBucket[];
+}
+
+export interface CallTimeseriesParams {
+    range: UsageRange;
+    server_id?: string;
 }
 
 export interface HealthResponse {
