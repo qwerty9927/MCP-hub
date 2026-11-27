@@ -124,6 +124,7 @@ API_PROXY_TARGET=http://localhost:8000
 - **`NEXT_PUBLIC_API_BASE_URL`:** the backend's public address, shown in the MCP endpoint, the API key config and the code snippets.
 - **`API_PROXY_TARGET`:** the backend origin the console's server forwards `/api/v1/*` to (the rewrite in `next.config.ts`). The browser only talks to the console's origin, so the refresh token cookie is first-party.
 - **On Vercel:** set both in the project's environment variables, for every environment you deploy (Production and Preview). The build fails without them.
+- **Keeping the backend awake:** the `Backend keepalive` workflow (`.github/workflows/backend-keepalive.yml`) calls the health probe every 10 minutes so a free-tier backend host doesn't sleep. It runs from GitHub Actions because Vercel Cron Jobs run at most once a day on the Hobby plan. Set the repository variable `KEEPALIVE_URL` to the full health URL, for example `https://<console>/api/v1/system/health`. Without it the workflow skips.
 
 ### Development Server
 
