@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ServerRead } from "@/types";
 import { serverFormSchema, ServerFormValues } from "@/schemas/server.schema";
+import { MASKED_HEADER_VALUE, serverFieldErrors } from "@/features/servers/server-form-errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,6 +28,7 @@ export function ServerForm({ initialData, onSubmit, isLoading, onCancel }: Serve
     // Parse initial env & headers if available
     const initialArgs = initialData?.connection_config.args?.join(" ") || "";
     const initialHeaders = initialData?.connection_config.headers ? JSON.stringify(initialData.connection_config.headers, null, 2) : "";
+    const hasMaskedHeaders = Object.values(initialData?.connection_config.headers ?? {}).includes(MASKED_HEADER_VALUE);
 
     const {
         register,
@@ -113,23 +115,11 @@ export function ServerForm({ initialData, onSubmit, isLoading, onCancel }: Serve
             }
 
             await onSubmit(payload);
-        } catch (err: any) {
-            if (err?.details && Array.isArray(err.details)) {
-                err.details.forEach((item: any) => {
-                    const loc = item.loc || [];
-                    const field = loc[loc.length - 1];
-                    if (field === "name") {
-                        setError("name", { message: item.msg });
-                    } else if (field === "command" || field === "stdio_config") {
-                        setError("stdio_command", { message: item.msg });
-                    } else if (field === "url" || field === "http_config") {
-                        setError("http_url", { message: item.msg });
-                    } else if (field === "description") {
-                        setError("description", { message: item.msg });
-                    }
-                });
+        } catch (err: unknown) {
+            for (const { field, message } of serverFieldErrors(err, data.transport)) {
+                setError(field, { message });
             }
-            setFormError(err.message || "An error occurred while saving the server");
+            setFormError(err instanceof Error && err.message ? err.message : "An error occurred while saving the server");
         }
     };
 
@@ -233,11 +223,13 @@ export function ServerForm({ initialData, onSubmit, isLoading, onCancel }: Serve
                                     id="stdio_command"
                                     placeholder="e.g. python3, node, uvx"
                                     disabled={isLoading}
+                                    aria-invalid={Boolean(errors.stdio_command)}
                                     {...register("stdio_command")}
                                 />
                                 {errors.stdio_command && <p className="text-xs text-destructive">{errors.stdio_command.message}</p>}
                                 <p className="text-xs text-muted-foreground">
-                                    The executable name or binary path allowed by backend security policies.
+                                    An executable the hub allows (e.g. python3, node, uvx, docker). Flags that run inline code (python -c,
+                                    node -e, sh -c) and docker flags that reach the host (-v, --privileged, --network host) are refused.
                                 </p>
                             </div>
 
@@ -247,6 +239,7 @@ export function ServerForm({ initialData, onSubmit, isLoading, onCancel }: Serve
                                     id="stdio_args"
                                     placeholder="e.g. -m demo_server.server"
                                     disabled={isLoading}
+                                    aria-invalid={Boolean(errors.stdio_args)}
                                     {...register("stdio_args")}
                                 />
                                 {errors.stdio_args && <p className="text-xs text-destructive">{errors.stdio_args.message}</p>}
@@ -261,9 +254,14 @@ export function ServerForm({ initialData, onSubmit, isLoading, onCancel }: Serve
                                     rows={3}
                                     className="font-mono text-xs"
                                     disabled={isLoading}
+                                    aria-invalid={Boolean(errors.stdio_env)}
                                     {...register("stdio_env")}
                                 />
                                 {errors.stdio_env && <p className="text-xs text-destructive">{errors.stdio_env.message}</p>}
+                                <p className="text-xs text-muted-foreground">
+                                    Variables that load code or change what the server trusts (PATH, HOME, LD_PRELOAD, NODE_OPTIONS,
+                                    OPENSSL_CONF, *_PROXY) are refused.
+                                </p>
                             </div>
                         </div>
                     )}
@@ -283,6 +281,7 @@ export function ServerForm({ initialData, onSubmit, isLoading, onCancel }: Serve
                                     type="url"
                                     placeholder="https://mcp.internal.example.com/mcp"
                                     disabled={isLoading}
+                                    aria-invalid={Boolean(errors.http_url)}
                                     {...register("http_url")}
                                 />
                                 {errors.http_url && <p className="text-xs text-destructive">{errors.http_url.message}</p>}
@@ -299,11 +298,14 @@ export function ServerForm({ initialData, onSubmit, isLoading, onCancel }: Serve
                                     rows={4}
                                     className="font-mono text-xs"
                                     disabled={isLoading}
+                                    aria-invalid={Boolean(errors.http_headers)}
                                     {...register("http_headers")}
                                 />
                                 {errors.http_headers && <p className="text-xs text-destructive">{errors.http_headers.message}</p>}
                                 <p className="text-xs text-muted-foreground">
-                                    Sensitive authorization headers are safely masked by the backend.
+                                    {hasMaskedHeaders
+                                        ? `Headers showing ${MASKED_HEADER_VALUE} keep their saved value; type a new value to replace one.`
+                                        : "Credential headers (Authorization, API keys, tokens) are hidden once saved."}
                                 </p>
                             </div>
                         </div>

@@ -80,6 +80,11 @@ export interface PaginatedResponse<T> {
     total_pages: number;
 }
 
+/** Fields GET /servers can sort by (backend ServerSortField); any other value is a 422. */
+export type ServerSortField = "created_at" | "name" | "updated_at";
+
+export type SortOrder = "asc" | "desc";
+
 export interface ServerFilterParams {
     page?: number;
     page_size?: number;
@@ -87,8 +92,8 @@ export interface ServerFilterParams {
     transport?: TransportType;
     health_status?: ServerHealthStatus;
     search?: string;
-    sort_by?: "created_at" | "name" | "updated_at" | "discovered_tool_count";
-    sort_order?: "asc" | "desc";
+    sort_by?: ServerSortField;
+    sort_order?: SortOrder;
 }
 
 export interface ToolRead {

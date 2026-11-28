@@ -11,11 +11,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRegister } from "@/features/auth/hooks/use-auth";
+import { useAuthFormError } from "@/features/auth/hooks/use-rate-limit";
 import { RegisterFormValues, registerSchema } from "@/schemas/auth.schema";
 
 export function RegisterForm() {
     const router = useRouter();
     const signUp = useRegister();
+    const formError = useAuthFormError(signUp.error);
     const {
         register,
         handleSubmit,
@@ -54,12 +56,12 @@ export function RegisterForm() {
                         <Input id="confirmPassword" type="password" autoComplete="new-password" {...register("confirmPassword")} />
                         {errors.confirmPassword && <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>}
                     </div>
-                    {signUp.error && (
+                    {formError.message && (
                         <p role="alert" className="text-sm text-destructive">
-                            {signUp.error.message}
+                            {formError.message}
                         </p>
                     )}
-                    <Button type="submit" className="w-full" disabled={signUp.isPending}>
+                    <Button type="submit" className="w-full" disabled={signUp.isPending || formError.isLocked}>
                         {signUp.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Create account
                     </Button>

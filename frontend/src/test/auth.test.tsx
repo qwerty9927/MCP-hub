@@ -4,6 +4,8 @@ import React from "react";
 import { AxiosError, AxiosHeaders } from "axios";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { LoginForm } from "@/features/auth/components/LoginForm";
+import { RegisterForm } from "@/features/auth/components/RegisterForm";
+import { AppApiError } from "@/lib/errors";
 import { AuthGuard } from "@/components/layout/AuthGuard";
 import { ApiKeysCard, mcpClientConfig } from "@/features/auth/components/ApiKeysCard";
 import { handleUnauthorized, refreshSession } from "@/lib/api-client";
@@ -90,6 +92,49 @@ describe("LoginForm", () => {
         expect(await screen.findByRole("alert")).toHaveTextContent("Invalid email or password");
         expect(getAuthToken()).toBeNull();
         expect(replace).not.toHaveBeenCalled();
+    });
+
+    it("shows how long to wait and blocks sign-in while rate limited", async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        try {
+            vi.mocked(authApi.login).mockRejectedValue(
+                new AppApiError("Too many failed attempts. Try again later.", "TooManyRequestsError", 429, undefined, undefined, 90)
+            );
+            renderWithClient(<LoginForm />);
+
+            fireEvent.change(screen.getByLabelText("Email"), { target: { value: "me@example.com" } });
+            fireEvent.change(screen.getByLabelText("Password"), { target: { value: "wrong" } });
+            fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+            expect(await screen.findByRole("alert")).toHaveTextContent("Too many attempts. Try again in 2 minutes.");
+            expect(screen.getByRole("button", { name: "Sign in" })).toBeDisabled();
+
+            await act(async () => {
+                vi.advanceTimersByTime(91_000);
+            });
+
+            expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+            expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+});
+
+describe("RegisterForm", () => {
+    it("shows how long to wait after too many sign-ups from this address", async () => {
+        vi.mocked(authApi.register).mockRejectedValue(
+            new AppApiError("Too many attempts. Try again later.", "TooManyRequestsError", 429, undefined, undefined, 45)
+        );
+        renderWithClient(<RegisterForm />);
+
+        fireEvent.change(screen.getByLabelText("Email"), { target: { value: "me@example.com" } });
+        fireEvent.change(screen.getByLabelText("Password"), { target: { value: "s3cret-pass-123" } });
+        fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "s3cret-pass-123" } });
+        fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+
+        expect(await screen.findByRole("alert")).toHaveTextContent("Too many attempts. Try again in 45 seconds.");
+        expect(screen.getByRole("button", { name: "Create account" })).toBeDisabled();
     });
 });
 

@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useLogin } from "@/features/auth/hooks/use-auth";
+import { useAuthFormError } from "@/features/auth/hooks/use-rate-limit";
 import { safeNextPath } from "@/lib/auth-token";
 import { LoginFormValues, loginSchema } from "@/schemas/auth.schema";
 
@@ -18,6 +19,7 @@ export function LoginForm() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const login = useLogin();
+    const formError = useAuthFormError(login.error);
     const {
         register,
         handleSubmit,
@@ -51,12 +53,12 @@ export function LoginForm() {
                         <Input id="password" type="password" autoComplete="current-password" {...register("password")} />
                         {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
                     </div>
-                    {login.error && (
+                    {formError.message && (
                         <p role="alert" className="text-sm text-destructive">
-                            {login.error.message}
+                            {formError.message}
                         </p>
                     )}
-                    <Button type="submit" className="w-full" disabled={login.isPending}>
+                    <Button type="submit" className="w-full" disabled={login.isPending || formError.isLocked}>
                         {login.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Sign in
                     </Button>

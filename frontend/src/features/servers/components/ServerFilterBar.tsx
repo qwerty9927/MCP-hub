@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ServerFilterParams, ServerHealthStatus, TransportType } from "@/types";
+import { DEFAULT_SERVER_SORT, findServerSortOption, SERVER_SORT_OPTIONS } from "@/features/servers/sort-options";
 
 interface ServerFilterBarProps {
     filters: ServerFilterParams;
@@ -23,8 +24,8 @@ export function ServerFilterBar({ filters, onChange }: ServerFilterBarProps) {
             transport: undefined,
             health_status: undefined,
             enabled: undefined,
-            sort_by: "created_at",
-            sort_order: "desc",
+            sort_by: DEFAULT_SERVER_SORT.sort_by,
+            sort_order: DEFAULT_SERVER_SORT.sort_order,
         });
     };
 
@@ -126,25 +127,21 @@ export function ServerFilterBar({ filters, onChange }: ServerFilterBarProps) {
             <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground whitespace-nowrap">Sort by:</span>
                 <Select
-                    value={`${filters.sort_by || "created_at"}_${filters.sort_order || "desc"}`}
-                    onValueChange={(val) => {
-                        const [field, order] = val.split("_");
-                        onChange({
-                            ...filters,
-                            sort_by: field as any,
-                            sort_order: order as any,
-                        });
+                    value={findServerSortOption(filters.sort_by, filters.sort_order).value}
+                    onValueChange={(value) => {
+                        const option = SERVER_SORT_OPTIONS.find((candidate) => candidate.value === value) ?? DEFAULT_SERVER_SORT;
+                        onChange({ ...filters, sort_by: option.sort_by, sort_order: option.sort_order, page: 1 });
                     }}
                 >
-                    <SelectTrigger className="h-9 w-[170px]">
+                    <SelectTrigger className="h-9 w-[170px]" aria-label="Sort servers">
                         <SelectValue placeholder="Sort" />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="created_at_desc">Newest First</SelectItem>
-                        <SelectItem value="created_at_asc">Oldest First</SelectItem>
-                        <SelectItem value="name_asc">Name (A-Z)</SelectItem>
-                        <SelectItem value="name_desc">Name (Z-A)</SelectItem>
-                        <SelectItem value="discovered_tool_count_desc">Most Tools</SelectItem>
+                        {SERVER_SORT_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                            </SelectItem>
+                        ))}
                     </SelectContent>
                 </Select>
             </div>

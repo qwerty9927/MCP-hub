@@ -32,3 +32,12 @@ export function formatDuration(ms: number | null | undefined): string {
     if (ms < 1000) return `${ms.toFixed(1)}ms`;
     return `${(ms / 1000).toFixed(2)}s`;
 }
+
+const SECONDS_PER_MINUTE = 60;
+
+/** A wait in seconds as words: "45 seconds", "1 minute", "2 minutes" (minutes round up, so the wait is never understated). */
+export function formatRetryAfter(seconds: number): string {
+    if (seconds < SECONDS_PER_MINUTE) return seconds === 1 ? "1 second" : `${seconds} seconds`;
+    const minutes = Math.ceil(seconds / SECONDS_PER_MINUTE);
+    return minutes === 1 ? "1 minute" : `${minutes} minutes`;
+}

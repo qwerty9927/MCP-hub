@@ -9,14 +9,24 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { systemApi } from "@/lib/api";
+import { ReadyResponse } from "@/types";
 import { API_BASE_URL, SHOW_BACKEND_DETAILS } from "@/lib/config";
 import { toast } from "sonner";
+
+/** "Not ready: database unreachable", naming each failing check of a `not_ready` probe. */
+function notReadyLabel(readiness: ReadyResponse | undefined): string {
+    const failing = Object.entries(readiness?.checks ?? {})
+        .filter(([, passing]) => !passing)
+        .map(([name]) => name);
+    return failing.length > 0 ? `Not ready: ${failing.join(", ")} unreachable` : "Not Ready";
+}
 
 /** Settings › System: the backend connection and its live health/readiness probes. */
 export default function SystemSettingsPage() {
     const {
         data: readiness,
         isLoading: readyLoading,
+        isError: readyFailed,
         refetch: refetchReady,
     } = useQuery({
         queryKey: ["settings-ready"],
@@ -106,7 +116,7 @@ export default function SystemSettingsPage() {
                                 <span className="font-mono text-muted-foreground">GET /ready</span>
                                 {readyLoading ? (
                                     <Skeleton className="h-5 w-20" />
-                                ) : readiness?.status === "ready" ? (
+                                ) : !readyFailed && readiness?.status === "ready" ? (
                                     <span className="inline-flex items-center gap-1 font-semibold text-success">
                                         <CheckCircle2 className="h-3.5 w-3.5" />
                                         Ready (checks passing)
@@ -114,7 +124,7 @@ export default function SystemSettingsPage() {
                                 ) : (
                                     <span className="inline-flex items-center gap-1 font-semibold text-danger">
                                         <XCircle className="h-3.5 w-3.5" />
-                                        Not Ready
+                                        {readyFailed ? "Unreachable" : notReadyLabel(readiness)}
                                     </span>
                                 )}
                             </div>
