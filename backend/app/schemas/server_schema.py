@@ -1,18 +1,23 @@
 """MCP Server configuration and status schemas."""
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.core.enums.server_enum import ServerAuthType, ServerHealthStatus, TransportType
-from app.helpers.security import mask_sensitive_headers, validate_http_url, validate_stdio_command
+from app.helpers.security import mask_sensitive_headers, validate_http_url, validate_stdio_command, validate_stdio_environment
 from app.schemas.connection_schema import ConnectionConfigResponse, HttpConfig, StdioConfig
+
+# Fields a server list can be sorted by
+ServerSortField = Literal["created_at", "name", "updated_at"]
 
 
 class ServerBase(BaseModel):
     """Common properties of an MCP Server."""
+
+    model_config = ConfigDict(extra="forbid")  # a misspelled field is an error, not silently ignored
 
     name: str = Field(..., min_length=1, max_length=100, description="Unique human-readable server name")
     description: str | None = Field(default=None, max_length=500, description="Server description")
@@ -29,10 +34,15 @@ class ServerCreateRequest(ServerBase):
     @model_validator(mode="after")
     def validate_transport_configuration(self) -> "ServerCreateRequest":
         if self.transport == TransportType.STDIO:
+            if self.http_config is not None:
+                raise ValueError("http_config is not allowed when transport is 'stdio'")
             if not self.stdio_config:
                 raise ValueError("stdio_config is required when transport is 'stdio'")
             validate_stdio_command(self.stdio_config.command, self.stdio_config.args)
+            validate_stdio_environment(self.stdio_config.env)
         elif self.transport == TransportType.STREAMABLE_HTTP:
+            if self.stdio_config is not None:
+                raise ValueError("stdio_config is not allowed when transport is 'streamable-http'")
             if not self.http_config:
                 raise ValueError("http_config is required when transport is 'streamable-http'")
             validate_http_url(self.http_config.url)
@@ -41,6 +51,8 @@ class ServerCreateRequest(ServerBase):
 
 class ServerUpdateRequest(BaseModel):
     """Schema for updating an existing MCP Server configuration."""
+
+    model_config = ConfigDict(extra="forbid")
 
     name: str | None = Field(default=None, min_length=1, max_length=100)
     description: str | None = Field(default=None, max_length=500)
@@ -51,12 +63,20 @@ class ServerUpdateRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_partial_transport(self) -> "ServerUpdateRequest":
+        if self.stdio_config is not None and self.http_config is not None:
+            raise ValueError("Send stdio_config or http_config, not both")
+        if self.transport == TransportType.STDIO and self.http_config is not None:
+            raise ValueError("http_config is not allowed when transport is 'stdio'")
+        if self.transport == TransportType.STREAMABLE_HTTP and self.stdio_config is not None:
+            raise ValueError("stdio_config is not allowed when transport is 'streamable-http'")
         if self.transport == TransportType.STDIO and self.stdio_config:
             validate_stdio_command(self.stdio_config.command, self.stdio_config.args)
+            validate_stdio_environment(self.stdio_config.env)
         elif self.transport == TransportType.STREAMABLE_HTTP and self.http_config:
             validate_http_url(self.http_config.url)
         elif self.stdio_config:
             validate_stdio_command(self.stdio_config.command, self.stdio_config.args)
+            validate_stdio_environment(self.stdio_config.env)
         elif self.http_config:
             validate_http_url(self.http_config.url)
         return self

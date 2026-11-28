@@ -8,6 +8,13 @@ from app.core.enums.server_enum import ServerHealthStatus, TransportType
 from app.domain.server_entity import ServerEntity
 from app.models.server_model import ServerModel
 
+# The columns a server list may be sorted by (ServerSortField); anything else sorts by created_at.
+_SORT_COLUMNS = {
+    "created_at": ServerModel.created_at,
+    "name": ServerModel.name,
+    "updated_at": ServerModel.updated_at,
+}
+
 
 class ServerRepositoryAbstract(ABC):
     """Abstract repository for MCP Server entities."""
@@ -48,6 +55,10 @@ class ServerRepositoryAbstract(ABC):
     async def update(self, server: ServerEntity) -> ServerEntity:
         """Update existing server record."""
         pass
+
+    @abstractmethod
+    async def count(self, *, user_id: UUID, health_status: ServerHealthStatus | None = None) -> int:
+        """How many of `user_id`'s servers there are, optionally only those with `health_status`."""
 
     @abstractmethod
     async def delete(self, server_id: UUID) -> bool:
@@ -118,7 +129,7 @@ class PostgresServerRepository(ServerRepositoryAbstract):
             total = total_result.scalar_one()
 
             # Sorting
-            sort_column = getattr(ServerModel, sort_by, ServerModel.created_at)
+            sort_column = _SORT_COLUMNS.get(sort_by, ServerModel.created_at)
             stmt = stmt.order_by(sort_column.desc() if sort_order.lower() == "desc" else sort_column.asc())
 
             # Pagination
@@ -155,6 +166,13 @@ class PostgresServerRepository(ServerRepositoryAbstract):
             await session.commit()
             await session.refresh(model)
             return model.to_domain()
+
+    async def count(self, *, user_id: UUID, health_status: ServerHealthStatus | None = None) -> int:
+        stmt = select(func.count()).select_from(ServerModel).where(ServerModel.user_id == str(user_id))
+        if health_status is not None:
+            stmt = stmt.where(ServerModel.health_status == health_status.value)
+        async with db_module.async_session_factory() as session:
+            return (await session.execute(stmt)).scalar_one()
 
     async def delete(self, server_id: UUID) -> bool:
         async with db_module.async_session_factory() as session:

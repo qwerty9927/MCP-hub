@@ -125,14 +125,16 @@ async def test_demo_server_full_lifecycle(async_client: AsyncClient):
     assert get_res.status_code == 404
 
 
-async def test_refresh_tools_that_cannot_connect_marks_the_server_unhealthy(async_client: AsyncClient):
+async def test_refresh_tools_that_cannot_connect_marks_the_server_unhealthy(async_client: AsyncClient, tmp_path):
     """Refresh Tools is how a server is brought online, so a failure to connect shows in its health."""
+    exits_at_once = tmp_path / "exits_at_once.py"
+    exits_at_once.write_text("raise SystemExit(1)\n")
     res = await async_client.post(
         "/api/v1/servers",
         json={
             "name": "exits-at-once",
             "transport": "stdio",
-            "stdio_config": {"command": sys.executable, "args": ["-c", "raise SystemExit(1)"]},
+            "stdio_config": {"command": sys.executable, "args": [str(exits_at_once)]},
         },
     )
     server_id = res.json()["id"]

@@ -11,6 +11,7 @@ from apscheduler.triggers.cron import CronTrigger
 from app.background_service.scheduler import create_scheduler
 from app.background_service.session_sweeper import SessionSweeperService
 from app.core.config import get_settings
+from app.core.constants.auth_constants import AUTH_RATE_LIMIT_PURGE_JOB_ID
 from app.core.constants.session_constants import DEFAULT_SESSION_IDLE_SECONDS
 from app.core.enums.session_enum import SessionStatus
 from app.domain.session_entity import SessionEntity
@@ -60,13 +61,14 @@ async def test_a_sweep_failure_raises_for_the_job_wrapper_to_log():
 
 async def test_scheduler_registers_one_non_overlapping_cron_job():
     settings = get_settings()
-    scheduler = create_scheduler(settings, SessionSweeperService(PostgresSessionRepository()), MagicMock(), MagicMock())
+    scheduler = create_scheduler(settings, SessionSweeperService(PostgresSessionRepository()), MagicMock(), MagicMock(), MagicMock())
 
     jobs = scheduler.get_jobs()
     assert {job.id for job in jobs} == {
         settings.SESSION_SWEEP_JOB_ID,
         settings.EMBEDDING_BACKFILL_JOB_ID,
         settings.REFRESH_TOKEN_PURGE_JOB_ID,
+        AUTH_RATE_LIMIT_PURGE_JOB_ID,
     }
     job = scheduler.get_job(settings.SESSION_SWEEP_JOB_ID)
     assert isinstance(job.trigger, CronTrigger)
@@ -145,7 +147,7 @@ async def test_scheduled_jobs_are_wrapped_with_start_and_end_logs():
     settings = get_settings()
     sweeper = SessionSweeperService(PostgresSessionRepository())
     auth_service = MagicMock()
-    scheduler = create_scheduler(settings, sweeper, MagicMock(), auth_service)
+    scheduler = create_scheduler(settings, sweeper, MagicMock(), auth_service, MagicMock())
 
     assert scheduler.get_job(settings.SESSION_SWEEP_JOB_ID).func.__wrapped__ == sweeper.complete_idle_sessions
     assert scheduler.get_job(settings.REFRESH_TOKEN_PURGE_JOB_ID).func.__wrapped__ is auth_service.purge_expired_refresh_tokens

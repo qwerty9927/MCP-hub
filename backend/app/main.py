@@ -11,6 +11,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.routing import Route
 
 from app.api.dependencies import (
+    get_auth_rate_limiter,
     get_auth_service,
     get_connection_manager,
     get_embedding_backfill_service,
@@ -33,7 +34,7 @@ from app.core.exceptions import AppError
 from app.core.logging import get_correlation_id, logger, setup_logging
 from app.infrastructure.embedding.embedding_service import warm_up
 from app.middlewares.correlation import CorrelationAndLoggingMiddleware
-from app.schemas.common_schema import ErrorDetail, ErrorResponse
+from app.schemas.common_schema import ERROR_RESPONSES, ErrorDetail, ErrorResponse
 
 
 @asynccontextmanager
@@ -50,7 +51,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     mcp_server = get_mcp_server()
     async with mcp_server.run():
         # Background jobs (app/background_service/). A fresh scheduler per lifespan: one cannot restart after shutdown.
-        scheduler = create_scheduler(settings, get_session_sweeper_service(), get_embedding_backfill_service(), get_auth_service())
+        scheduler = create_scheduler(
+            settings, get_session_sweeper_service(), get_embedding_backfill_service(), get_auth_service(), get_auth_rate_limiter()
+        )
         scheduler.start()
         logger.info(f"Background scheduler started with jobs: {[job.id for job in scheduler.get_jobs()]}")
         try:
@@ -65,6 +68,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await connection_manager.shutdown()
     await get_embedding_service().aclose()
     logger.info("Graceful shutdown complete.")
+
+
+def _cors_headers(request: Request, allowed_origins: list[str]) -> dict[str, str]:
+    """CORS headers for a 500 response.
+
+    Starlette sends unhandled errors from ServerErrorMiddleware, outside CORSMiddleware, so without these the browser
+    hides the error body behind a CORS failure. Mirrors the CORSMiddleware configuration in create_app.
+    """
+    origin = request.headers.get("origin")
+    if not origin or ("*" not in allowed_origins and origin not in allowed_origins):
+        return {}
+    return {
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Credentials": "true",
+        "Access-Control-Expose-Headers": "X-Correlation-ID, x-correlation-id",
+        "Vary": "Origin",
+    }
 
 
 def create_app() -> FastAPI:
@@ -111,7 +131,7 @@ def create_app() -> FastAPI:
                 correlation_id=correlation_id,
             )
         )
-        headers = {"X-Correlation-ID": correlation_id}
+        headers = {**exc.headers, "X-Correlation-ID": correlation_id}
         if exc.status_code == status.HTTP_401_UNAUTHORIZED:
             headers["WWW-Authenticate"] = "Bearer"
         return JSONResponse(
@@ -158,7 +178,7 @@ def create_app() -> FastAPI:
         return JSONResponse(
             status_code=exc.status_code,
             content=error_response.model_dump(),
-            headers={"X-Correlation-ID": correlation_id},
+            headers={**(exc.headers or {}), "X-Correlation-ID": correlation_id},  # e.g. Allow on a 405
         )
 
     @app.exception_handler(Exception)
@@ -176,7 +196,7 @@ def create_app() -> FastAPI:
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content=error_response.model_dump(),
-            headers={"X-Correlation-ID": correlation_id},
+            headers={"X-Correlation-ID": correlation_id, **_cors_headers(request, settings.CORS_ORIGINS)},
         )
 
     # Mount System probes at Root (/health, /ready, /metrics)
@@ -185,7 +205,7 @@ def create_app() -> FastAPI:
     # Mount API v1 routes
     from fastapi import APIRouter
 
-    v1_router = APIRouter(prefix=settings.API_V1_STR)
+    v1_router = APIRouter(prefix=settings.API_V1_STR, responses=ERROR_RESPONSES)
     v1_router.include_router(auth_router)
     v1_router.include_router(api_key_tools_router)
     v1_router.include_router(servers_router)

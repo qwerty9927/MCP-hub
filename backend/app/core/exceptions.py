@@ -11,11 +11,13 @@ class AppError(Exception):
         message: str = "An unexpected error occurred",
         status_code: int = 500,
         details: Any = None,
+        headers: dict[str, str] | None = None,
     ):
         super().__init__(message)
         self.message = message
         self.status_code = status_code
         self.details = details or {}
+        self.headers = headers or {}
 
 
 class BadRequestError(AppError):
@@ -58,6 +60,13 @@ class ValidationError(AppError):
 
     def __init__(self, message: str = "Validation failed", details: Any = None):
         super().__init__(message=message, status_code=422, details=details)
+
+
+class TooManyRequestsError(AppError):
+    """Raised when a client has made too many attempts in the current window (HTTP 429)."""
+
+    def __init__(self, message: str = "Too many requests", *, retry_after: int, details: Any = None):
+        super().__init__(message=message, status_code=429, details=details, headers={"Retry-After": str(retry_after)})
 
 
 class InternalServerError(AppError):

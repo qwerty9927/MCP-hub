@@ -53,8 +53,12 @@ class Settings(BaseSettings):
     REFRESH_COOKIE_SAMESITE: Literal["strict", "lax", "none"]  # "none" only when console and API are on different sites
     REFRESH_COOKIE_SECURE: bool  # true whenever the API is served over HTTPS
     REFRESH_TOKEN_EXPIRE_DAYS: int  # a refresh token unused this long expires; each rotation starts the clock again
+    # Rate limits on /auth/login, /register and /refresh: attempts per client IP (and per email for login) per window
+    AUTH_RATE_LIMIT_ATTEMPTS: int
+    AUTH_RATE_LIMIT_WINDOW_SECONDS: int
 
     # Downstream MCP servers: timeouts, concurrency, stdio allowlist, SSRF protection
+    ALLOW_STDIO_SERVERS: bool  # false refuses every stdio server: creating one, and starting a stored one
     ALLOWED_STDIO_EXECUTABLES: list[str]
     ALLOW_PRIVATE_NETWORK_HTTP: bool
     DEFAULT_CONNECTION_TIMEOUT: float
@@ -132,6 +136,22 @@ class Settings(BaseSettings):
     def _batch_poll_fits_its_timeout(self) -> "Settings":
         if self.CLOUDFLARE_BATCH_POLL_INTERVAL_SECONDS >= self.CLOUDFLARE_BATCH_TIMEOUT_SECONDS:
             raise ValueError("CLOUDFLARE_BATCH_POLL_INTERVAL_SECONDS must be shorter than CLOUDFLARE_BATCH_TIMEOUT_SECONDS")
+        return self
+
+    @field_validator("AUTH_RATE_LIMIT_ATTEMPTS", "AUTH_RATE_LIMIT_WINDOW_SECONDS")
+    @classmethod
+    def _rate_limit_is_positive(cls, value: int, info: ValidationInfo) -> int:
+        if value <= 0:
+            raise ValueError(f"{info.field_name} must be positive")
+        return value
+
+    @model_validator(mode="after")
+    def _production_blocks_private_networks(self) -> "Settings":
+        if self.ENVIRONMENT == "production" and self.ALLOW_PRIVATE_NETWORK_HTTP:
+            raise ValueError(
+                "ALLOW_PRIVATE_NETWORK_HTTP must be false when ENVIRONMENT=production: "
+                "otherwise any account can make the hub call private addresses and cloud metadata (SSRF)"
+            )
         return self
 
     @field_validator("PUBLIC_API_BASE_URL", "FRONTEND_BASE_URL")

@@ -83,7 +83,7 @@ async def test_a_failure_mid_run_keeps_the_batches_already_stored(caplog):
 async def test_scheduler_registers_the_backfill_as_a_non_overlapping_interval_job():
     settings = get_settings()
     backfill = EmbeddingBackfillService(InMemoryTools(0), FakeEmbeddingService(), BATCH)
-    scheduler = create_scheduler(settings, MagicMock(), backfill, MagicMock())
+    scheduler = create_scheduler(settings, MagicMock(), backfill, MagicMock(), MagicMock())
 
     job = scheduler.get_job(settings.EMBEDDING_BACKFILL_JOB_ID)
     assert isinstance(job.trigger, IntervalTrigger)

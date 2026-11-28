@@ -6,11 +6,13 @@ from uuid import UUID
 
 from app.core.constants.oauth_constants import OAUTH_REAUTHORIZATION_REASON
 from app.core.enums.server_enum import ServerAuthType, ServerHealthStatus, TransportType
-from app.core.exceptions import BadGatewayError, ConflictError, NotFoundError
+from app.core.exceptions import BadGatewayError, ConflictError, NotFoundError, ValidationError
 from app.core.logging import logger
 from app.domain.server_entity import ServerEntity
+from app.helpers.security import MASKED_HEADER_VALUE, validate_http_url_resolved
 from app.infrastructure.repositories.server_repository import ServerRepositoryAbstract
 from app.schemas.common_schema import PaginatedResponse
+from app.schemas.connection_schema import HttpConfig
 from app.schemas.server_schema import (
     ServerCreateRequest,
     ServerResponse,
@@ -33,6 +35,8 @@ class ServerRegistryService:
         oauth_provider_id: str | None = None,
     ) -> ServerResponse:
         """Register a new MCP server configuration owned by `user_id`."""
+        if data.http_config is not None:
+            await validate_http_url_resolved(data.http_config.url)  # the schema only checks the URL text
         existing = await self.server_repository.get_by_name(data.name, user_id=user_id)
         if existing:
             raise ConflictError(
@@ -122,6 +126,16 @@ class ServerRegistryService:
         """Update an existing server's configuration."""
         server = await self.get_server_entity(server_id, user_id=user_id)
 
+        # Validate everything before changing the entity
+        transport = data.transport or server.transport
+        if (data.stdio_config is not None and transport != TransportType.STDIO) or (
+            data.http_config is not None and transport != TransportType.STREAMABLE_HTTP
+        ):
+            raise ValidationError(f"The configuration sent does not match the server's transport '{transport}'")
+        http_config = _keep_masked_headers(data.http_config, server.http_config) if data.http_config is not None else None
+        if http_config is not None:
+            await validate_http_url_resolved(http_config.url)
+
         # Check name uniqueness if changed
         if data.name and data.name.lower() != server.name.lower():
             existing = await self.server_repository.get_by_name(data.name, user_id=server.user_id)
@@ -138,8 +152,8 @@ class ServerRegistryService:
             server.transport = data.transport
         if data.stdio_config is not None:
             server.stdio_config = data.stdio_config
-        if data.http_config is not None:
-            server.http_config = data.http_config
+        if http_config is not None:
+            server.http_config = http_config
         if data.enabled is not None:
             server.enabled = data.enabled
 
@@ -196,3 +210,24 @@ class ServerRegistryService:
 def needs_reauthorization(exc: BaseException) -> bool:
     """Whether `exc` is the 502 raised for an OAuth server whose tokens can no longer be refreshed."""
     return isinstance(exc, BadGatewayError) and isinstance(exc.details, dict) and exc.details.get("reason") == OAUTH_REAUTHORIZATION_REASON
+
+
+def _keep_masked_headers(new: HttpConfig, stored: HttpConfig | None) -> HttpConfig:
+    """`new`, with each header still showing the masked value replaced by its stored value.
+
+    Responses mask credential headers, and the console's edit form sends back what it was shown; without this an
+    edit would overwrite the secret with the mask. A masked value for a header that is not stored is refused:
+    saving it would store the mask itself as the credential.
+    """
+    stored_headers = {name.lower(): value for name, value in (stored.headers if stored else {}).items()}
+    headers: dict[str, str] = {}
+    for name, value in new.headers.items():
+        if value == MASKED_HEADER_VALUE:
+            if name.lower() not in stored_headers:
+                raise ValidationError(
+                    f"Header '{name}' has the masked value but is not stored on this server; send its real value",
+                    details={"header": name},
+                )
+            value = stored_headers[name.lower()]
+        headers[name] = value
+    return new.model_copy(update={"headers": headers})

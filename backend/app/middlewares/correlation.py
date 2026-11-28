@@ -28,8 +28,12 @@ class CorrelationAndLoggingMiddleware:
         path = scope.get("path", "")
         logger.info(f"Started {method} {path}")
 
+        status_code: int | None = None
+
         async def send_wrapper(message):
+            nonlocal status_code
             if message["type"] == "http.response.start":
+                status_code = message["status"]
                 response_headers = [(k, v) for k, v in message.get("headers", []) if k.lower() != b"x-correlation-id"]
                 response_headers.append((b"x-correlation-id", correlation_id.encode("latin1")))
                 message["headers"] = response_headers
@@ -38,11 +42,10 @@ class CorrelationAndLoggingMiddleware:
         try:
             await self.app(scope, receive, send_wrapper)
             duration_ms = (time.perf_counter() - start_time) * 1000
-            logger.info(f"Finished {method} {path} in {duration_ms:.2f}ms")
+            logger.info(f"Finished {method} {path} {status_code} in {duration_ms:.2f}ms")
         except Exception as exc:
+            # The 500 response and its traceback come from the app's generic exception handler (app/main.py),
+            # which Starlette runs outside this middleware: log the outcome once here, without a second traceback.
             duration_ms = (time.perf_counter() - start_time) * 1000
-            logger.error(
-                f"Failed {method} {path} after {duration_ms:.2f}ms: {exc}",
-                exc_info=True,
-            )
+            logger.error(f"Failed {method} {path} 500 after {duration_ms:.2f}ms: {type(exc).__name__}: {exc}")
             raise

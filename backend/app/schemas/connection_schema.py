@@ -1,10 +1,12 @@
 """Connection configuration schemas for MCP transports."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class StdioConfig(BaseModel):
     """Configuration for local subprocess stdio transport."""
+
+    model_config = ConfigDict(extra="forbid")
 
     command: str = Field(..., description="Executable name or path (e.g. 'python', 'node')")
     args: list[str] = Field(default_factory=list, description="Command-line arguments")
@@ -13,6 +15,8 @@ class StdioConfig(BaseModel):
 
 class HttpConfig(BaseModel):
     """Configuration for remote Streamable HTTP transport."""
+
+    model_config = ConfigDict(extra="forbid")
 
     url: str = Field(..., description="Full Streamable HTTP endpoint URL (e.g. 'http://localhost:8000/mcp')")
     headers: dict[str, str] = Field(default_factory=dict, description="Custom HTTP headers")
