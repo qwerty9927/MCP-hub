@@ -41,6 +41,47 @@ describe("API Error Normalization", () => {
         expect(normalized.correlationId).toBe("test-corr-id-999");
     });
 
+    it("reads Retry-After from a 429 into retryAfterSeconds", () => {
+        const axiosError = new AxiosError(
+            "Request failed with status code 429",
+            "ERR_BAD_REQUEST",
+            undefined,
+            {},
+            {
+                status: 429,
+                statusText: "Too Many Requests",
+                headers: { "retry-after": "30" },
+                config: {} as any,
+                data: { error: { code: "TooManyRequestsError", message: "Too many failed attempts. Try again later." } },
+            }
+        );
+
+        const normalized = normalizeApiError(axiosError);
+        expect(normalized.status).toBe(429);
+        expect(normalized.code).toBe("TooManyRequestsError");
+        expect(normalized.retryAfterSeconds).toBe(30);
+    });
+
+    it("leaves retryAfterSeconds unset without a usable Retry-After header", () => {
+        const response = (headers: Record<string, string>) =>
+            new AxiosError(
+                "Request failed",
+                "ERR_BAD_REQUEST",
+                undefined,
+                {},
+                {
+                    status: 429,
+                    statusText: "Too Many Requests",
+                    headers,
+                    config: {} as any,
+                    data: { error: { code: "TooManyRequestsError", message: "Too many attempts" } },
+                }
+            );
+
+        expect(normalizeApiError(response({})).retryAfterSeconds).toBeUndefined();
+        expect(normalizeApiError(response({ "retry-after": "soon" })).retryAfterSeconds).toBeUndefined();
+    });
+
     it("handles network failures gracefully", () => {
         const axiosError = new AxiosError("Network Error", "ERR_NETWORK");
         const normalized = normalizeApiError(axiosError);
