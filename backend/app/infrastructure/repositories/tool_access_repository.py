@@ -7,6 +7,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 
 import app.infrastructure.database as db_module
+from app.infrastructure.database import Database
 from app.models.api_key_disabled_tool_model import ApiKeyDisabledToolModel
 
 
@@ -27,8 +28,11 @@ class ToolAccessRepositoryAbstract(ABC):
 
 
 class PostgresToolAccessRepository(ToolAccessRepositoryAbstract):
+    def __init__(self, database: Database | None = None) -> None:
+        self._database = database or db_module.database
+
     async def disabled_tool_names(self, api_key_id: UUID, server_id: UUID) -> set[str]:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             stmt = select(ApiKeyDisabledToolModel.tool_name).where(
                 ApiKeyDisabledToolModel.api_key_id == str(api_key_id),
                 ApiKeyDisabledToolModel.server_id == str(server_id),
@@ -36,7 +40,7 @@ class PostgresToolAccessRepository(ToolAccessRepositoryAbstract):
             return set((await session.execute(stmt)).scalars())
 
     async def is_disabled(self, api_key_id: UUID, server_id: UUID, tool_name: str) -> bool:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             stmt = select(ApiKeyDisabledToolModel.tool_name).where(
                 ApiKeyDisabledToolModel.api_key_id == str(api_key_id),
                 ApiKeyDisabledToolModel.server_id == str(server_id),
@@ -45,7 +49,7 @@ class PostgresToolAccessRepository(ToolAccessRepositoryAbstract):
             return (await session.execute(stmt)).first() is not None
 
     async def set_enabled(self, api_key_id: UUID, server_id: UUID, tool_name: str, enabled: bool) -> None:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             if enabled:
                 await session.execute(
                     delete(ApiKeyDisabledToolModel).where(

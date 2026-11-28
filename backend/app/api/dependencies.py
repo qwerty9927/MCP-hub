@@ -12,6 +12,7 @@ from app.core.constants.auth_constants import CONSOLE_CLIENT_HEADER, CONSOLE_CLI
 from app.core.exceptions import ForbiddenError, UnauthorizedError
 from app.domain.principal_entity import Principal
 from app.helpers.crypto import SecretCipher
+from app.infrastructure.database import Database, database
 from app.infrastructure.embedding.embedding_factory import create_embedding_service
 from app.infrastructure.embedding.embedding_service import EmbeddingServiceAbstract
 from app.infrastructure.oauth.provider_catalog import get_provider_catalog
@@ -52,27 +53,32 @@ from app.services.tool_access_service import ToolAccessService
 from app.services.tool_catalog import ToolCatalogService
 from app.services.tool_executor import ToolExecutor
 
-# Singleton instances for PostgreSQL repositories and managers
-_server_repository: ServerRepositoryAbstract = PostgresServerRepository()
-_tool_repository: ToolRepositoryAbstract = PostgresToolRepository()
-_execution_repository: ExecutionRepositoryAbstract = PostgresExecutionRepository()
-_session_repository: SessionRepositoryAbstract = PostgresSessionRepository()
-_user_repository: UserRepositoryAbstract = PostgresUserRepository()
-_api_key_repository: ApiKeyRepositoryAbstract = PostgresApiKeyRepository()
-_refresh_token_repository: RefreshTokenRepositoryAbstract = PostgresRefreshTokenRepository()
-_tool_access_repository: ToolAccessRepositoryAbstract = PostgresToolAccessRepository()
+# Singleton instances for PostgreSQL repositories and managers, all on the app's database (created on first use)
+_server_repository: ServerRepositoryAbstract = PostgresServerRepository(database)
+_tool_repository: ToolRepositoryAbstract = PostgresToolRepository(database)
+_execution_repository: ExecutionRepositoryAbstract = PostgresExecutionRepository(database)
+_session_repository: SessionRepositoryAbstract = PostgresSessionRepository(database)
+_user_repository: UserRepositoryAbstract = PostgresUserRepository(database)
+_api_key_repository: ApiKeyRepositoryAbstract = PostgresApiKeyRepository(database)
+_refresh_token_repository: RefreshTokenRepositoryAbstract = PostgresRefreshTokenRepository(database)
+_tool_access_repository: ToolAccessRepositoryAbstract = PostgresToolAccessRepository(database)
 _settings = get_settings()
 _oauth_credential_repository: OAuthCredentialRepositoryAbstract = PostgresOAuthCredentialRepository(
-    SecretCipher(_settings.OAUTH_ENCRYPTION_KEY)
+    SecretCipher(_settings.OAUTH_ENCRYPTION_KEY), database
 )
 _oauth_flow_registry = OAuthFlowRegistry()
-_auth_rate_limiter = AuthRateLimiter(PostgresAuthRateLimitRepository(), get_settings)
+_auth_rate_limiter = AuthRateLimiter(PostgresAuthRateLimitRepository(database), get_settings)
 _connection_manager = ConnectionManager(oauth_credentials=_oauth_credential_repository)
 # Local fastembed or Cloudflare Workers AI, picked once from EMBEDDING_PROVIDER (ADR-0010).
 _embedding_service: EmbeddingServiceAbstract = create_embedding_service(_settings)
 _mcp_server: MCPServer | None = None
 
 _bearer_security = HTTPBearer(auto_error=False, description="Console login token from POST /auth/login")
+
+
+def get_database() -> Database:
+    """Return the app's database (engine and sessions)."""
+    return database
 
 
 def get_server_repository() -> ServerRepositoryAbstract:

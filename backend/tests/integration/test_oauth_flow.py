@@ -102,7 +102,7 @@ async def connect(client: AsyncClient, provider_id: str = "fake", **extra) -> di
 
 
 async def stored_credentials(server_id: str) -> ServerOAuthCredentialModel:
-    async with db_module.async_session_factory() as session:
+    async with db_module.database.session() as session:
         result = await session.execute(select(ServerOAuthCredentialModel).where(ServerOAuthCredentialModel.server_id == server_id))
         return result.scalar_one()
 
@@ -161,7 +161,7 @@ async def test_hub_reconnects_with_stored_tokens_and_refreshes_expired_ones(asyn
     # An expired access token is refreshed up front and the new one is stored.
     await drop_live_session(server_id)
     before = await stored_credentials(server_id)
-    async with db_module.async_session_factory() as session:
+    async with db_module.database.session() as session:
         model = await session.get(ServerOAuthCredentialModel, server_id)
         model.access_token_expires_at = time.time() - 10
         await session.commit()
@@ -174,7 +174,7 @@ async def test_hub_reconnects_with_stored_tokens_and_refreshes_expired_ones(asyn
 
 
 async def expire_access_token(server_id: str) -> None:
-    async with db_module.async_session_factory() as session:
+    async with db_module.database.session() as session:
         model = await session.get(ServerOAuthCredentialModel, server_id)
         model.access_token_expires_at = time.time() - 10
         await session.commit()
@@ -198,7 +198,7 @@ async def test_server_saved_without_metadata_discovers_it_before_refreshing(asyn
     """Servers connected before the discovered metadata was stored find it once, then keep it."""
     server_id = (await connect(async_client, provider_id="separate-auth"))["server_id"]
     await drop_live_session(server_id)
-    async with db_module.async_session_factory() as session:
+    async with db_module.database.session() as session:
         model = await session.get(ServerOAuthCredentialModel, server_id)
         model.discovery_json = None
         await session.commit()
@@ -267,7 +267,7 @@ async def test_reconnect_moves_the_server_to_the_providers_current_url(async_cli
     so the server must be moved there too, or the hub would present them to the old one."""
     server_id = (await connect(async_client))["server_id"]
     await drop_live_session(server_id)
-    async with db_module.async_session_factory() as session:
+    async with db_module.database.session() as session:
         model = await session.get(ServerModel, server_id)
         model.http_config = {"url": f"{oauth_server.base_url}/old-mcp", "headers": {}}
         await session.commit()

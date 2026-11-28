@@ -8,10 +8,10 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy import text
 
-import app.infrastructure.database as db_module
 from app.api.dependencies import (
     get_connection_manager,
     get_current_principal,
+    get_database,
     get_execution_repository,
     get_server_repository,
 )
@@ -19,6 +19,7 @@ from app.core.config import get_settings
 from app.core.enums.server_enum import ServerHealthStatus
 from app.core.logging import logger
 from app.domain.principal_entity import Principal
+from app.infrastructure.database import Database
 from app.infrastructure.repositories.execution_repository import ExecutionRepositoryAbstract
 from app.infrastructure.repositories.server_repository import ServerRepositoryAbstract
 from app.schemas.system_schema import HealthResponse, MetricsResponse, ReadyResponse
@@ -53,9 +54,9 @@ async def health() -> HealthResponse:
     summary="Readiness probe",
     responses={503: {"model": ReadyResponse, "description": "A dependency (the database) is unreachable"}},
 )
-async def readiness(response: Response) -> ReadyResponse:
+async def readiness(response: Response, database: Annotated[Database, Depends(get_database)]) -> ReadyResponse:
     """Readiness probe: 200 when the database answers, 503 (`not_ready`) when it does not."""
-    checks = {"database": await _database_is_reachable()}
+    checks = {"database": await _database_is_reachable(database)}
     ready = all(checks.values())
     if not ready:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
@@ -66,10 +67,10 @@ async def readiness(response: Response) -> ReadyResponse:
     )
 
 
-async def _database_is_reachable() -> bool:
+async def _database_is_reachable(database: Database) -> bool:
     try:
         async with asyncio.timeout(READY_DATABASE_TIMEOUT_SECONDS):
-            async with db_module.async_session_factory() as session:
+            async with database.session() as session:
                 await session.execute(text("SELECT 1"))
     except Exception as exc:
         logger.warning(f"Readiness check: database unreachable: {type(exc).__name__}: {exc}")

@@ -7,6 +7,7 @@ from sqlalchemy import case, delete, select
 from sqlalchemy.dialects.postgresql import insert
 
 import app.infrastructure.database as db_module
+from app.infrastructure.database import Database
 from app.models.auth_rate_limit_model import AuthRateLimitModel
 
 
@@ -30,6 +31,9 @@ class AuthRateLimitRepositoryAbstract(ABC):
 
 
 class PostgresAuthRateLimitRepository(AuthRateLimitRepositoryAbstract):
+    def __init__(self, database: Database | None = None) -> None:
+        self._database = database or db_module.database
+
     async def hit(self, bucket_key: str, *, window_seconds: int, now: datetime) -> tuple[int, datetime]:
         window_over = AuthRateLimitModel.window_started_at <= now - timedelta(seconds=window_seconds)
         statement = insert(AuthRateLimitModel).values(bucket_key=bucket_key, window_started_at=now, attempts=1)
@@ -41,7 +45,7 @@ class PostgresAuthRateLimitRepository(AuthRateLimitRepositoryAbstract):
             },
         ).returning(AuthRateLimitModel.attempts, AuthRateLimitModel.window_started_at)
 
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             row = (await session.execute(statement)).one()
             await session.commit()
             return row.attempts, row.window_started_at
@@ -51,12 +55,12 @@ class PostgresAuthRateLimitRepository(AuthRateLimitRepositoryAbstract):
             AuthRateLimitModel.bucket_key == bucket_key,
             AuthRateLimitModel.window_started_at > now - timedelta(seconds=window_seconds),
         )
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             row = (await session.execute(statement)).one_or_none()
             return (row.attempts, row.window_started_at) if row else (0, None)
 
     async def delete_stale(self, before: datetime) -> int:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             result = await session.execute(delete(AuthRateLimitModel).where(AuthRateLimitModel.window_started_at < before))
             await session.commit()
             return result.rowcount or 0

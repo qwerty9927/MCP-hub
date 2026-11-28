@@ -209,7 +209,8 @@ Strict unidirectional dependency flow:
 `API Routers (app/api/v1/)` $\rightarrow$ `Services (app/services/)` $\rightarrow$ `Repositories (app/infrastructure/repositories/)` $\rightarrow$ `Database Models (app/models/)`.
 - **Routers**: Handle HTTP parameter parsing, status codes, and call services. No business logic in routers.
 - **Services**: Contain domain workflows, coordination, validations, and downstream interactions.
-- **Repositories**: Abstract all SQL/persistence operations behind `ServerRepositoryAbstract`, `ToolRepositoryAbstract`, `ExecutionRepositoryAbstract`, and `SessionRepositoryAbstract`.
+- **Repositories**: Abstract all SQL/persistence operations behind `ServerRepositoryAbstract`, `ToolRepositoryAbstract`, `ExecutionRepositoryAbstract`, and `SessionRepositoryAbstract`. Each `Postgres*Repository` takes a `Database` (`app/infrastructure/database.py`) and opens every session with `self._database.session()`; `app/api/dependencies.py` passes the app's shared `database`. Never import an engine or session factory directly. Each repository method still runs in its own transaction.
+- **Database**: `Database` owns the engine and session factory and creates them on first use, so importing the app connects to nothing. Routes that need it directly take `Depends(get_database)`.
 - **Domain Entities**: Transfer state between services and repositories without leaking SQLAlchemy models into external layers.
 - **Core Primitives & Enums**: Enums (`app/core/enums/server_enum.py`, `app/core/enums/session_enum.py`, `app/core/enums/execution_enum.py`) and constants (`app/core/constants/meta_tools.py`) reside in `app/core/` to prevent inverted dependencies from domain/model layers into API schemas.
 - **Connection Schemas**: Transport configurations (`StdioConfig`, `HttpConfig`, `ConnectionConfigResponse`) are isolated in `app/schemas/connection_schema.py`.
@@ -320,7 +321,7 @@ Strict unidirectional dependency flow:
 - **Test Isolation**: Every test automatically runs the `cleanup_dependencies` fixture in `tests/conftest.py`, which:
   1. Shuts down active connections in `_connection_manager` after the test.
   2. Purges all rows from `discovered_tools`, `tool_executions`, `mcp_sessions`, `mcp_servers`, `api_keys` and `users` (other tables, `console_refresh_tokens` included, go with them by cascade).
-  The schema is created once per run (`init_db()` in a session-scoped fixture). The suite deletes every row in the database it targets: always export `TEST_DATABASE_URL` (conftest no longer falls back to `DATABASE_URL`).
+  The schema is created once per run (`database.create_schema()` in a session-scoped fixture; conftest points the shared `database` at `TEST_DATABASE_URL` with `database.configure()`, before anything uses it). The suite deletes every row in the database it targets: always export `TEST_DATABASE_URL` (conftest no longer falls back to `DATABASE_URL`).
 - **Test Client**: `async_client` is signed in as a default account (`user_id` fixture gives its ID; `account_id` creates a bare account for repository-level tests); `other_user_client` is a second account; `anon_client` has no credentials.
 - **Test Categories**:
   - `tests/unit/`: Test individual services, repositories (`test_repository.py`), and helpers.

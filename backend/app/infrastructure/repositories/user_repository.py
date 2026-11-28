@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 import app.infrastructure.database as db_module
 from app.core.exceptions import ConflictError
 from app.domain.user_entity import UserEntity
+from app.infrastructure.database import Database
 from app.models.user_model import UserModel
 
 
@@ -29,8 +30,11 @@ class UserRepositoryAbstract(ABC):
 
 
 class PostgresUserRepository(UserRepositoryAbstract):
+    def __init__(self, database: Database | None = None) -> None:
+        self._database = database or db_module.database
+
     async def create(self, user: UserEntity) -> UserEntity:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             model = UserModel.from_domain(user)
             session.add(model)
             try:
@@ -42,13 +46,13 @@ class PostgresUserRepository(UserRepositoryAbstract):
             return model.to_domain()
 
     async def get_by_id(self, user_id: UUID) -> UserEntity | None:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             result = await session.execute(select(UserModel).where(UserModel.id == str(user_id)))
             model = result.scalar_one_or_none()
             return model.to_domain() if model else None
 
     async def get_by_email(self, email: str) -> UserEntity | None:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             result = await session.execute(select(UserModel).where(UserModel.email == email))
             model = result.scalar_one_or_none()
             return model.to_domain() if model else None
