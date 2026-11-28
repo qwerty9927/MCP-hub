@@ -16,6 +16,7 @@ from app.infrastructure.embedding.embedding_factory import create_embedding_serv
 from app.infrastructure.embedding.embedding_service import EmbeddingServiceAbstract
 from app.infrastructure.oauth.provider_catalog import get_provider_catalog
 from app.infrastructure.repositories.api_key_repository import ApiKeyRepositoryAbstract, PostgresApiKeyRepository
+from app.infrastructure.repositories.auth_rate_limit_repository import PostgresAuthRateLimitRepository
 from app.infrastructure.repositories.execution_repository import (
     ExecutionRepositoryAbstract,
     PostgresExecutionRepository,
@@ -40,6 +41,7 @@ from app.infrastructure.repositories.tool_repository import (
 )
 from app.infrastructure.repositories.user_repository import PostgresUserRepository, UserRepositoryAbstract
 from app.mcp.mcp_server import MCPServer
+from app.services.auth_rate_limiter import AuthRateLimiter
 from app.services.auth_service import AuthService
 from app.services.connection_manager import ConnectionManager
 from app.services.oauth_service import OAuthFlowRegistry, OAuthService
@@ -64,6 +66,7 @@ _oauth_credential_repository: OAuthCredentialRepositoryAbstract = PostgresOAuthC
     SecretCipher(_settings.OAUTH_ENCRYPTION_KEY)
 )
 _oauth_flow_registry = OAuthFlowRegistry()
+_auth_rate_limiter = AuthRateLimiter(PostgresAuthRateLimitRepository(), get_settings)
 _connection_manager = ConnectionManager(oauth_credentials=_oauth_credential_repository)
 # Local fastembed or Cloudflare Workers AI, picked once from EMBEDDING_PROVIDER (ADR-0010).
 _embedding_service: EmbeddingServiceAbstract = create_embedding_service(_settings)
@@ -106,6 +109,11 @@ def get_auth_service() -> AuthService:
     )
 
 
+def get_auth_rate_limiter() -> AuthRateLimiter:
+    """Return the rate limiter for the unauthenticated /auth endpoints."""
+    return _auth_rate_limiter
+
+
 async def get_current_principal(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer_security)],
     auth_service: Annotated[AuthService, Depends(get_auth_service)],
@@ -114,7 +122,7 @@ async def get_current_principal(
     if credentials is None:
         raise UnauthorizedError("Authentication required")
 
-    principal = auth_service.authenticate_console(credentials.credentials)
+    principal = await auth_service.authenticate_console_user(credentials.credentials)
 
     if principal is None:
         raise UnauthorizedError("Invalid or expired token")

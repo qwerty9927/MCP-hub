@@ -22,6 +22,7 @@ from app.api.dependencies import _connection_manager  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models.api_key_model import ApiKeyModel  # noqa: E402
+from app.models.auth_rate_limit_model import AuthRateLimitModel  # noqa: E402
 from app.models.execution_model import ExecutionModel  # noqa: E402
 from app.models.server_model import ServerModel  # noqa: E402
 from app.models.session_model import SessionModel  # noqa: E402
@@ -36,6 +37,12 @@ dependencies_module._embedding_service = FakeEmbeddingService()
 # Allows overriding DATABASE_URL with TEST_DATABASE_URL to protect local development data.
 _settings = get_settings()
 _test_db_url = os.environ.get("TEST_DATABASE_URL", "")
+# The cleanup fixture below deletes every row after each test: never run against the application's own database.
+if not _test_db_url or _test_db_url == _settings.DATABASE_URL:
+    pytest.exit(
+        "Set TEST_DATABASE_URL to a separate database (not DATABASE_URL): the suite deletes every row in the database it uses.",
+        returncode=2,
+    )
 db_module.engine = db_module.create_database_engine(_test_db_url, poolclass=NullPool)
 db_module.async_session_factory = async_sessionmaker(
     bind=db_module.engine,
@@ -68,6 +75,7 @@ async def cleanup_dependencies():
         await session.execute(delete(ServerModel))
         await session.execute(delete(ApiKeyModel))
         await session.execute(delete(UserModel))
+        await session.execute(delete(AuthRateLimitModel))
         await session.commit()
 
     await db_module.engine.dispose()

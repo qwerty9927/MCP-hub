@@ -1,6 +1,6 @@
 """MCP Server management endpoints."""
 
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
@@ -17,6 +17,7 @@ from app.schemas.common_schema import PaginatedResponse
 from app.schemas.server_schema import (
     ServerCreateRequest,
     ServerResponse,
+    ServerSortField,
     ServerTestResponse,
     ServerUpdateRequest,
 )
@@ -57,8 +58,8 @@ async def list_servers(
     transport: TransportType | None = Query(default=None, description="Filter by transport type"),
     health_status: ServerHealthStatus | None = Query(default=None, description="Filter by health status"),
     search: str | None = Query(default=None, description="Search query matching server name or description"),
-    sort_by: str = Query(default="created_at", description="Sort field (created_at, name, updated_at)"),
-    sort_order: str = Query(default="desc", pattern="^(asc|desc)$", description="Sort order"),
+    sort_by: ServerSortField = Query(default="created_at", description="Sort field"),
+    sort_order: Literal["asc", "desc"] = Query(default="desc", description="Sort order"),
 ) -> PaginatedResponse[ServerResponse]:
     """Retrieve paginated MCP servers with optional filtering and sorting."""
     return await server_registry.list_servers(
@@ -114,13 +115,14 @@ async def delete_server(
     principal: Annotated[Principal, Depends(get_current_principal)],
     server_registry: Annotated[ServerRegistryService, Depends(get_server_registry_service)],
     connection_manager: Annotated[ConnectionManager, Depends(get_connection_manager)],
-    tool_catalog: Annotated[ToolCatalogService, Depends(get_tool_catalog_service)],
 ) -> None:
-    """Remove server registration, close active connections, and delete its stored tools."""
-    await server_registry.get_server_entity(server_id, user_id=principal.user_id)
-    await connection_manager.disconnect(server_id)
-    await tool_catalog.remove_server_tools(server_id)
+    """Remove server registration, close active connections, and delete its stored tools.
+
+    The server row is deleted first, in one transaction that also deletes its tools, OAuth credentials and per-key
+    tool settings (ON DELETE CASCADE). If it fails, nothing is lost; the connection is closed only once it is gone.
+    """
     await server_registry.delete_server(server_id, user_id=principal.user_id)
+    await connection_manager.disconnect(server_id)
 
 
 @router.post(

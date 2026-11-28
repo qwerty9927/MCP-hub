@@ -3,11 +3,12 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Cookie, Depends, Response, status
+from fastapi import APIRouter, Cookie, Depends, Request, Response, status
 
-from app.api.dependencies import get_auth_service, get_current_principal, require_console_client
+from app.api.dependencies import get_auth_rate_limiter, get_auth_service, get_current_principal, require_console_client
 from app.core.config import get_settings
 from app.core.constants.auth_constants import REFRESH_COOKIE_NAME, REFRESH_COOKIE_PATH_SUFFIX
+from app.core.exceptions import UnauthorizedError
 from app.domain.principal_entity import Principal
 from app.schemas.auth_schema import (
     ApiKeyCreatedResponse,
@@ -19,9 +20,15 @@ from app.schemas.auth_schema import (
     TokenResponse,
     UserResponse,
 )
+from app.schemas.common_schema import ErrorResponse
+from app.services.auth_rate_limiter import AuthRateLimiter
 from app.services.auth_service import AuthService, ConsoleTokens
 
-router = APIRouter(prefix="/auth", tags=["Auth"])
+router = APIRouter(
+    prefix="/auth",
+    tags=["Auth"],
+    responses={429: {"model": ErrorResponse, "description": "Too many attempts (Retry-After says when to try again)"}},
+)
 
 
 @router.post(
@@ -30,22 +37,38 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
     status_code=status.HTTP_201_CREATED,
     summary="Create an account",
 )
-async def register(payload: RegisterRequest, auth_service: Annotated[AuthService, Depends(get_auth_service)]) -> UserResponse:
-    """Self sign-up. Returns 403 when the hub has sign-up disabled."""
+async def register(
+    payload: RegisterRequest,
+    request: Request,
+    auth_service: Annotated[AuthService, Depends(get_auth_service)],
+    rate_limiter: Annotated[AuthRateLimiter, Depends(get_auth_rate_limiter)],
+) -> UserResponse:
+    """Self sign-up. Returns 403 when the hub has sign-up disabled, 429 after too many attempts from one address."""
+    await rate_limiter.check(f"register:ip:{_client_ip(request)}")
     return await auth_service.register(payload)
 
 
 @router.post("/login", response_model=TokenResponse, summary="Log in and receive a console token")
 async def login(
     payload: LoginRequest,
+    request: Request,
     response: Response,
     auth_service: Annotated[AuthService, Depends(get_auth_service)],
+    rate_limiter: Annotated[AuthRateLimiter, Depends(get_auth_rate_limiter)],
 ) -> TokenResponse:
     """Exchange email and password for a short-lived JWT used by the admin console and REST API.
 
     Also sets the refresh token, an httpOnly cookie, which POST /auth/refresh exchanges for a new JWT (ADR-0009).
+    Returns 429 after too many failed attempts from one address or at one account.
     """
-    return _issue(response, await auth_service.login(payload))
+    buckets = (f"login:ip:{_client_ip(request)}", f"login:email:{payload.email}")
+    await rate_limiter.ensure_allowed(*buckets)
+    try:
+        tokens = await auth_service.login(payload)
+    except UnauthorizedError:
+        await rate_limiter.record_failure(*buckets)
+        raise
+    return _issue(response, tokens)
 
 
 @router.post(
@@ -55,15 +78,25 @@ async def login(
     dependencies=[Depends(require_console_client)],
 )
 async def refresh(
+    request: Request,
     response: Response,
     auth_service: Annotated[AuthService, Depends(get_auth_service)],
+    rate_limiter: Annotated[AuthRateLimiter, Depends(get_auth_rate_limiter)],
     refresh_token: Annotated[str | None, Cookie(alias=REFRESH_COOKIE_NAME)] = None,
 ) -> TokenResponse:
     """Rotates the refresh token: the cookie is replaced, and the old token stops working.
 
     Presenting a refresh token that was already used signs the whole sign-in out. Needs the `X-MCP-Hub-Client: console` header.
+    Returns 429 after too many failed attempts from one address.
     """
-    return _issue(response, await auth_service.refresh(refresh_token))
+    bucket = f"refresh:ip:{_client_ip(request)}"
+    await rate_limiter.ensure_allowed(bucket)
+    try:
+        tokens = await auth_service.refresh(refresh_token)
+    except UnauthorizedError:
+        await rate_limiter.record_failure(bucket)
+        raise
+    return _issue(response, tokens)
 
 
 @router.post(
@@ -154,6 +187,11 @@ def _issue(response: Response, tokens: ConsoleTokens) -> TokenResponse:
     )
     response.headers["Cache-Control"] = "no-store"
     return tokens.access
+
+
+def _client_ip(request: Request) -> str:
+    """The client address uvicorn reports (behind a proxy, only correct when FORWARDED_ALLOW_IPS trusts it)."""
+    return request.client.host if request.client else "unknown"
 
 
 def _cookie_path() -> str:

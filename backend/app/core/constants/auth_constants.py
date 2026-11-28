@@ -9,5 +9,12 @@ REFRESH_COOKIE_PATH_SUFFIX: str = "/auth"
 CONSOLE_CLIENT_HEADER: str = "X-MCP-Hub-Client"
 CONSOLE_CLIENT_HEADER_VALUE: str = "console"
 
+# Deletes auth rate limit counters whose window is over; runs on the refresh token purge's schedule.
+AUTH_RATE_LIMIT_PURGE_JOB_ID: str = "auth-rate-limit-purge"
+
+# At most this many argon2 hashes run at once, on their own threads: a flood of logins cannot take every thread
+# of the default pool (which other blocking work shares) or more than a few cores.
+PASSWORD_HASH_MAX_CONCURRENCY: int = 4
+
 # Refresh tokens are prefixed so a leaked one is recognisable, like API keys (`mhk_`).
 REFRESH_TOKEN_PREFIX: str = "mhr_"

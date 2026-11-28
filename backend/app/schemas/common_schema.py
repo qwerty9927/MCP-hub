@@ -26,3 +26,15 @@ class ErrorResponse(BaseModel):
     """Consistent API error response structure."""
 
     error: ErrorDetail
+
+
+# Error responses every /api/v1 route can return, all in the ErrorResponse envelope. Declaring 422 here also replaces
+# FastAPI's default HTTPValidationError, which does not match the body the hub actually sends.
+ERROR_RESPONSES: dict[int | str, dict] = {
+    400: {"model": ErrorResponse, "description": "Bad request"},
+    401: {"model": ErrorResponse, "description": "Missing, invalid or expired credentials"},
+    403: {"model": ErrorResponse, "description": "Forbidden by policy"},
+    404: {"model": ErrorResponse, "description": "Not found"},
+    422: {"model": ErrorResponse, "description": "Request validation failed"},
+    500: {"model": ErrorResponse, "description": "Unexpected server error"},
+}

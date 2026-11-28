@@ -174,6 +174,13 @@ class AuthService:
         except InvalidTokenError:
             return None
 
+    async def authenticate_console_user(self, token: str) -> Principal | None:
+        """Resolve a console login token whose account still exists. A deleted account's unexpired token gets None."""
+        principal = self.authenticate_console(token)
+        if principal is None or await self._user_repository.get_by_id(principal.user_id) is None:
+            return None
+        return principal
+
     async def authenticate_api_key(self, token: str) -> Principal | None:
         """Resolve an API key (`mhk_...`) to its account; None if unknown or revoked. Used by the /mcp endpoint."""
         key = await self._api_key_repository.get_by_hash(hash_api_key(token))

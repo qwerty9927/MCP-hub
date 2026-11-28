@@ -72,8 +72,9 @@ flowchart TD
 3. **Multi-Transport Support**: First-class support for both `stdio` (subprocess pipelines) and `streamable-http` (HTTP streaming endpoints) using the official `mcp` 2.x SDK.
 4. **Unified Tool Catalog**: Tools discovered from heterogeneous MCP servers are indexed into a consolidated catalog stored in PostgreSQL and read from the database on every lookup (no in-memory cache). Every tool has a UUID id (new on each re-discovery) and an embedding for semantic search; cross-server naming collisions are resolved by the server in the REST path (`/servers/{server_id}/tools/{tool_name}`) and by namespaced slugs (`{server_slug}__{tool_name}`) in the MCP Gateway.
 5. **Defense-in-Depth Security**:
-   - Stdio commands restricted to the executables listed in `ALLOWED_STDIO_EXECUTABLES`.
-   - Command injection defense and argument validation.
+   - Stdio servers can be turned off entirely (`ALLOW_STDIO_SERVERS=false`); when on, commands are restricted to the executables listed in `ALLOWED_STDIO_EXECUTABLES`.
+   - Command injection defense and argument validation: interpreter and shell flags that run inline code (`python -c`, `node -e`, `npx -c`, `sh -c`, ...), docker flags that reach the host (`--privileged`, `-v`, `--network host`, ...; only `docker run` is allowed), and variables that load code or redirect trust (`LD_PRELOAD`, `NODE_OPTIONS`, `PYTHONPATH`, `OPENSSL_CONF`, `*_PROXY`, `PATH`, `HOME`, ...) are refused. These narrow, not sandbox: npx, uv and docker still fetch and run packages and images.
+   - Rate limits on `/auth/login`, `/register` and `/refresh` (429 with `Retry-After`), counted in Postgres so every instance shares them. Login and refresh count only failed attempts.
    - SSRF protection rejecting private IP ranges, loopback, and cloud metadata endpoints (`169.254.169.254`).
    - Automatic masking of sensitive headers and credentials in API outputs.
    - Clean environment sanitization preventing host secrets from leaking into child processes.
@@ -155,12 +156,23 @@ Copy the example configuration:
 cp .env.example .env
 ```
 
-Every setting is required; there are no in-code defaults. The ones to review first:
+Every setting is required; there are no in-code defaults.
+
+> **Upgrading an existing install:** add `ALLOW_STDIO_SERVERS`, `AUTH_RATE_LIMIT_ATTEMPTS` and
+> `AUTH_RATE_LIMIT_WINDOW_SECONDS` (see `.env.example`) to `.env` and to your host's environment, or the backend
+> will not start, then run `alembic upgrade head` (the Docker image does this on start). With
+> `ENVIRONMENT=production` the backend also refuses to start while `ALLOW_PRIVATE_NETWORK_HTTP=true`. Behind a
+> reverse proxy, set `FORWARDED_ALLOW_IPS` to the proxy's address so rate limits see each client's own IP.
+
+The ones to review first:
 ```ini
 ENVIRONMENT="development"
 DATABASE_URL="postgresql+asyncpg://postgres:postgres@localhost:5432/mcp_hub"
+ALLOW_STDIO_SERVERS=true           # false unless every account is trusted: npx, uv and docker fetch and run packages
 ALLOWED_STDIO_EXECUTABLES=["python", "python3", "python3.12", "uv", "node", "npx", "bun", "docker"]
-ALLOW_PRIVATE_NETWORK_HTTP=true    # false on any network-exposed deployment (SSRF protection)
+ALLOW_PRIVATE_NETWORK_HTTP=true    # false on any network-exposed deployment (SSRF protection); must be false in production
+AUTH_RATE_LIMIT_ATTEMPTS=10        # failed logins/refreshes per client IP (login: also per email), or registrations per IP, per window
+AUTH_RATE_LIMIT_WINDOW_SECONDS=300
 JWT_SECRET="<32+ random characters>"
 ALLOW_SELF_SIGNUP=true             # false on any network-exposed deployment: a registered user can add stdio servers
 OAUTH_ENCRYPTION_KEY="<Fernet key>"  # see the command in .env.example; rotating it makes stored OAuth tokens unreadable

@@ -17,7 +17,9 @@ from apscheduler.triggers.interval import IntervalTrigger
 from app.background_service.embedding_backfill import EmbeddingBackfillService
 from app.background_service.session_sweeper import SessionSweeperService
 from app.core.config import Settings
+from app.core.constants.auth_constants import AUTH_RATE_LIMIT_PURGE_JOB_ID
 from app.core.logging import logger
+from app.services.auth_rate_limiter import AuthRateLimiter
 from app.services.auth_service import AuthService
 
 
@@ -57,6 +59,7 @@ def create_scheduler(
     session_sweeper: SessionSweeperService,
     embedding_backfill: EmbeddingBackfillService,
     auth_service: AuthService,
+    auth_rate_limiter: AuthRateLimiter,
 ) -> AsyncIOScheduler:
     """Build the scheduler with its jobs registered, each scheduled from `settings`. Not started: call `start()` inside a running event loop."""
     scheduler = AsyncIOScheduler(timezone=UTC)
@@ -86,6 +89,17 @@ def create_scheduler(
         trigger=IntervalTrigger(minutes=settings.REFRESH_TOKEN_PURGE_INTERVAL_MINUTES, timezone=UTC),
         id=settings.REFRESH_TOKEN_PURGE_JOB_ID,
         name="Delete expired console refresh tokens",
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=settings.REFRESH_TOKEN_PURGE_MISFIRE_GRACE_SECONDS,
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        # AuthRateLimiter.purge_stale: one idempotent DELETE, on the refresh token purge's schedule
+        logged_job(AUTH_RATE_LIMIT_PURGE_JOB_ID, auth_rate_limiter.purge_stale, unit="finished rate limit window(s) deleted"),
+        trigger=IntervalTrigger(minutes=settings.REFRESH_TOKEN_PURGE_INTERVAL_MINUTES, timezone=UTC),
+        id=AUTH_RATE_LIMIT_PURGE_JOB_ID,
+        name="Delete finished auth rate limit windows",
         max_instances=1,
         coalesce=True,
         misfire_grace_time=settings.REFRESH_TOKEN_PURGE_MISFIRE_GRACE_SECONDS,

@@ -1,11 +1,14 @@
 """System health, readiness, and metrics endpoints."""
 
+import asyncio
 import time
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response, status
+from sqlalchemy import text
 
+import app.infrastructure.database as db_module
 from app.api.dependencies import (
     get_connection_manager,
     get_current_principal,
@@ -14,6 +17,7 @@ from app.api.dependencies import (
 )
 from app.core.config import get_settings
 from app.core.enums.server_enum import ServerHealthStatus
+from app.core.logging import logger
 from app.domain.principal_entity import Principal
 from app.infrastructure.repositories.execution_repository import ExecutionRepositoryAbstract
 from app.infrastructure.repositories.server_repository import ServerRepositoryAbstract
@@ -23,6 +27,9 @@ from app.services.connection_manager import ConnectionManager
 router = APIRouter(tags=["System"])
 
 START_TIME = time.perf_counter()
+
+# /ready gives up on the database after this long: a probe must answer quickly even when the database hangs.
+READY_DATABASE_TIMEOUT_SECONDS = 2.0
 
 
 @router.get(
@@ -44,21 +51,30 @@ async def health() -> HealthResponse:
     "/ready",
     response_model=ReadyResponse,
     summary="Readiness probe",
+    responses={503: {"model": ReadyResponse, "description": "A dependency (the database) is unreachable"}},
 )
-async def readiness(
-    server_repository: Annotated[ServerRepositoryAbstract, Depends(get_server_repository)],
-    connection_manager: Annotated[ConnectionManager, Depends(get_connection_manager)],
-) -> ReadyResponse:
-    """Readiness probe checking operational dependencies."""
-    checks = {
-        "repository": True,
-        "connection_manager": True,
-    }
+async def readiness(response: Response) -> ReadyResponse:
+    """Readiness probe: 200 when the database answers, 503 (`not_ready`) when it does not."""
+    checks = {"database": await _database_is_reachable()}
+    ready = all(checks.values())
+    if not ready:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     return ReadyResponse(
-        status="ready",
+        status="ready" if ready else "not_ready",
         checks=checks,
         timestamp=datetime.now(UTC),
     )
+
+
+async def _database_is_reachable() -> bool:
+    try:
+        async with asyncio.timeout(READY_DATABASE_TIMEOUT_SECONDS):
+            async with db_module.async_session_factory() as session:
+                await session.execute(text("SELECT 1"))
+    except Exception as exc:
+        logger.warning(f"Readiness check: database unreachable: {type(exc).__name__}: {exc}")
+        return False
+    return True
 
 
 @router.get(
@@ -73,8 +89,8 @@ async def metrics(
     connection_manager: Annotated[ConnectionManager, Depends(get_connection_manager)],
 ) -> MetricsResponse:
     """Telemetry metrics including active sessions, server health counts, and execution totals."""
-    servers, total_servers = await server_repository.list(page=1, page_size=1000, user_id=principal.user_id)
-    healthy_servers = sum(1 for server in servers if server.health_status == ServerHealthStatus.HEALTHY)
+    total_servers = await server_repository.count(user_id=principal.user_id)
+    healthy_servers = await server_repository.count(user_id=principal.user_id, health_status=ServerHealthStatus.HEALTHY)
     _, total_executions = await execution_repository.list(page=1, page_size=1, user_id=principal.user_id)
     uptime_seconds = round(time.perf_counter() - START_TIME, 2)
 
