@@ -73,7 +73,7 @@ async def test_another_account_finds_none_of_my_tools(async_client, other_user_c
 
 async def test_disabled_server_and_unavailable_tools_are_not_searched(async_client, user_id):
     server_id = await connected_demo_server(async_client)
-    async with db_module.async_session_factory() as session:
+    async with db_module.database.session() as session:
         await session.execute(update(ToolModel).where(ToolModel.name == "echo").values(availability_status="UNAVAILABLE"))
         await session.commit()
 
@@ -91,7 +91,7 @@ async def test_failed_embedding_keeps_discovery_working_and_backfill_fills_it_in
     failing = ToolCatalogService(tool_repository=PostgresToolRepository(), embedding_service=FailingEmbeddingService())
     await PostgresToolRepository().replace_server_tools(server.id, "math", [tool], await failing._embed_tools([tool]))
 
-    async with db_module.async_session_factory() as session:
+    async with db_module.database.session() as session:
         assert (await session.execute(select(ToolModel.embedding).where(ToolModel.id == str(tool.id)))).scalar_one() is None
 
     backfill = EmbeddingBackfillService(
@@ -113,7 +113,7 @@ async def force_hnsw_index():
     Without these it picks a btree index and sorts, which is exact and hides the bug. The VACUUM first clears the
     dead index entries left by earlier tests' DELETEs, which would otherwise use up the index scan's work budget.
     """
-    async with db_module.engine.connect() as connection:
+    async with db_module.database.engine.connect() as connection:
         await connection.execution_options(isolation_level="AUTOCOMMIT")
         await connection.execute(text("VACUUM discovered_tools"))
 
@@ -123,9 +123,9 @@ async def force_hnsw_index():
         cursor.execute("SET enable_sort = off")
         cursor.close()
 
-    event.listen(db_module.engine.sync_engine, "connect", prefer_ordered_index_scans)
+    event.listen(db_module.database.engine.sync_engine, "connect", prefer_ordered_index_scans)
     yield
-    event.remove(db_module.engine.sync_engine, "connect", prefer_ordered_index_scans)
+    event.remove(db_module.database.engine.sync_engine, "connect", prefer_ordered_index_scans)
 
 
 async def store_tools_near(user: UUID, server_name: str, count: int, query: list[float], spread: float, rng) -> list[ToolEntity]:

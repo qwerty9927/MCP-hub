@@ -8,6 +8,7 @@ import app.infrastructure.database as db_module
 from app.core.config import get_settings
 from app.domain.tool_entity import ToolEntity
 from app.helpers.validation import is_uuid
+from app.infrastructure.database import Database
 from app.models.api_key_disabled_tool_model import ApiKeyDisabledToolModel
 from app.models.server_model import ServerModel
 from app.models.tool_model import ToolModel
@@ -85,6 +86,9 @@ class ToolRepositoryAbstract(ABC):
 class PostgresToolRepository(ToolRepositoryAbstract):
     """PostgreSQL implementation of ToolRepositoryAbstract using SQLAlchemy."""
 
+    def __init__(self, database: Database | None = None) -> None:
+        self._database = database or db_module.database
+
     async def replace_server_tools(
         self,
         server_id: UUID,
@@ -94,7 +98,7 @@ class PostgresToolRepository(ToolRepositoryAbstract):
     ) -> list[ToolEntity]:
         if embeddings is not None and len(embeddings) != len(tools):
             raise ValueError(f"Got {len(embeddings)} embeddings for {len(tools)} tools")
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             # Replace the server's tools with the newly discovered ones (each new Tool has a new id).
             await session.execute(delete(ToolModel).where(ToolModel.server_id == str(server_id)))
 
@@ -112,7 +116,7 @@ class PostgresToolRepository(ToolRepositoryAbstract):
     async def search_by_embedding(
         self, query_embedding: list[float], *, user_id: UUID, top_k: int, api_key_id: UUID | None = None
     ) -> list[tuple[ToolEntity, float]]:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             # Filters are applied to the index's candidates; without this, a caller whose Tools are not among the
             # hnsw.ef_search (40) nearest of all accounts gets fewer than top_k, or none. Scoped to this transaction.
             await session.execute(text(f"SET LOCAL hnsw.iterative_scan = {get_settings().HNSW_ITERATIVE_SCAN}"))
@@ -142,20 +146,20 @@ class PostgresToolRepository(ToolRepositoryAbstract):
             return [(model.to_domain(), 1.0 - float(cosine_distance)) for model, cosine_distance in rows]
 
     async def list_tools_without_embedding(self, limit: int) -> list[ToolEntity]:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             stmt = select(ToolModel).where(ToolModel.embedding.is_(None)).order_by(ToolModel.id).limit(limit)
             return [model.to_domain() for model in (await session.execute(stmt)).scalars()]
 
     async def set_embeddings(self, embeddings: dict[UUID, list[float]]) -> None:
         if not embeddings:
             return
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             for tool_id, vector in embeddings.items():
                 await session.execute(update(ToolModel).where(ToolModel.id == str(tool_id)).values(embedding=vector))
             await session.commit()
 
     async def delete_server_tools(self, server_id: UUID) -> None:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             await session.execute(delete(ToolModel).where(ToolModel.server_id == str(server_id)))
             await session.commit()
 
@@ -166,7 +170,7 @@ class PostgresToolRepository(ToolRepositoryAbstract):
         *,
         user_id: UUID,
     ) -> ToolEntity | None:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             owned = ToolModel.user_id == str(user_id)
 
             # 1. Look up by Tool ID
@@ -199,7 +203,7 @@ class PostgresToolRepository(ToolRepositoryAbstract):
         *,
         user_id: UUID,
     ) -> tuple[list[ToolEntity], int]:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             stmt = select(ToolModel)
 
             stmt = stmt.where(ToolModel.user_id == str(user_id))

@@ -244,10 +244,10 @@ async def test_a_refresh_racing_logout_never_leaves_a_live_token(auth: AuthServi
     """
     await auth.register(RegisterRequest(**CREDS))
     tokens = await auth.login(LoginRequest(**CREDS))
-    real_factory = db_module.async_session_factory
+    real_session = db_module.database.session
 
-    def slow_commit_factory():
-        session = real_factory()
+    def slow_commit_session():
+        session = real_session()
         real_commit = session.commit
 
         async def commit():
@@ -257,7 +257,7 @@ async def test_a_refresh_racing_logout_never_leaves_a_live_token(auth: AuthServi
         session.commit = commit
         return session
 
-    monkeypatch.setattr(db_module, "async_session_factory", slow_commit_factory)
+    monkeypatch.setattr(db_module.database, "session", slow_commit_session)
 
     async def logout_once_rotation_started():
         await asyncio.sleep(0.05)
@@ -265,7 +265,7 @@ async def test_a_refresh_racing_logout_never_leaves_a_live_token(auth: AuthServi
 
     refreshed, _ = await asyncio.gather(auth.refresh(tokens.refresh_token), logout_once_rotation_started(), return_exceptions=True)
 
-    monkeypatch.setattr(db_module, "async_session_factory", real_factory)
+    monkeypatch.setattr(db_module.database, "session", real_session)
     assert not isinstance(refreshed, BaseException), refreshed  # the rotation started first, so it wins
     successor = await PostgresRefreshTokenRepository().get_by_hash(hash_refresh_token(refreshed.refresh_token))
     assert successor is not None and successor.revoked_at is not None

@@ -217,7 +217,7 @@ async def test_disabled_server_rejected_and_recorded(executor, server_repo, exec
 
 async def test_unavailable_tool_rejected_and_recorded(executor, catalog, execution_repo, downstream, connected_server, account_id):
     tool = await catalog.get_tool("add", server_id=connected_server.id, user_id=account_id)
-    async with db_module.async_session_factory() as session:
+    async with db_module.database.session() as session:
         await session.execute(update(ToolModel).where(ToolModel.id == str(tool.id)).values(availability_status="UNAVAILABLE"))
         await session.commit()
 

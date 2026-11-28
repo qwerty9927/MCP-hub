@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.infrastructure.database as db_module
 from app.domain.refresh_token_entity import RefreshTokenEntity
+from app.infrastructure.database import Database
 from app.models.refresh_token_model import RefreshTokenModel
 
 
@@ -43,8 +44,11 @@ class RefreshTokenRepositoryAbstract(ABC):
 
 
 class PostgresRefreshTokenRepository(RefreshTokenRepositoryAbstract):
+    def __init__(self, database: Database | None = None) -> None:
+        self._database = database or db_module.database
+
     async def create(self, token: RefreshTokenEntity) -> RefreshTokenEntity:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             model = RefreshTokenModel.from_domain(token)
             session.add(model)
             await session.commit()
@@ -52,7 +56,7 @@ class PostgresRefreshTokenRepository(RefreshTokenRepositoryAbstract):
             return model.to_domain()
 
     async def get_by_hash(self, token_hash: str) -> RefreshTokenEntity | None:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             result = await session.execute(select(RefreshTokenModel).where(RefreshTokenModel.token_hash == token_hash))
             model = result.scalar_one_or_none()
             return model.to_domain() if model else None
@@ -60,7 +64,7 @@ class PostgresRefreshTokenRepository(RefreshTokenRepositoryAbstract):
     async def rotate(
         self, token_hash: str, successor_hash: str, successor_expires_at: datetime, now: datetime
     ) -> RefreshTokenEntity | None:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             family_id = (
                 await session.execute(select(RefreshTokenModel.family_id).where(RefreshTokenModel.token_hash == token_hash))
             ).scalar_one_or_none()
@@ -98,7 +102,7 @@ class PostgresRefreshTokenRepository(RefreshTokenRepositoryAbstract):
             return successor.to_domain()
 
     async def revoke_family(self, *, user_id: UUID, family_id: UUID, now: datetime) -> int:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             # Waits for a rotation in progress, so its successor is committed (and revoked here) or never written.
             await _lock_family(session, str(family_id))
             stmt = (
@@ -115,7 +119,7 @@ class PostgresRefreshTokenRepository(RefreshTokenRepositoryAbstract):
             return result.rowcount
 
     async def delete_expired(self, before: datetime) -> int:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             result = await session.execute(delete(RefreshTokenModel).where(RefreshTokenModel.expires_at < before))
             await session.commit()
             return result.rowcount

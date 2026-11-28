@@ -8,6 +8,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete
 
 import app.infrastructure.database as db_module
+from app.api.dependencies import get_database
 from app.core.config import get_settings
 from app.domain.tool_entity import ToolEntity
 from app.infrastructure.repositories.server_repository import PostgresServerRepository
@@ -27,7 +28,7 @@ async def test_ready_checks_the_database(anon_client: AsyncClient):
     assert res.json()["checks"]["database"] is True
 
 
-async def test_ready_is_503_when_the_database_is_down(anon_client: AsyncClient, monkeypatch):
+async def test_ready_is_503_when_the_database_is_down(anon_client: AsyncClient):
     class Unreachable:
         async def __aenter__(self):
             raise ConnectionRefusedError("database is down")
@@ -35,8 +36,15 @@ async def test_ready_is_503_when_the_database_is_down(anon_client: AsyncClient, 
         async def __aexit__(self, *exc):
             return False
 
-    monkeypatch.setattr(db_module, "async_session_factory", lambda: Unreachable())
-    res = await anon_client.get("/ready")
+    class DatabaseDown:
+        def session(self):
+            return Unreachable()
+
+    app.dependency_overrides[get_database] = DatabaseDown
+    try:
+        res = await anon_client.get("/ready")
+    finally:
+        app.dependency_overrides.pop(get_database, None)
     assert res.status_code == 503
     assert res.json()["status"] == "not_ready"
     assert res.json()["checks"]["database"] is False
@@ -118,7 +126,7 @@ async def test_server_delete_removes_its_tools(async_client: AsyncClient, user_i
 async def test_token_of_deleted_account_is_rejected(async_client: AsyncClient, user_id):
     assert (await async_client.get("/api/v1/servers")).status_code == 200
 
-    async with db_module.async_session_factory() as session:
+    async with db_module.database.session() as session:
         await session.execute(delete(UserModel).where(UserModel.id == str(user_id)))
         await session.commit()
 
@@ -200,7 +208,7 @@ async def test_metrics_count_more_than_a_thousand_servers(async_client: AsyncCli
         }
         for i in range(1002)
     ]
-    async with db_module.async_session_factory() as session:
+    async with db_module.database.session() as session:
         await session.execute(insert(ServerModel), rows)
         await session.commit()
 

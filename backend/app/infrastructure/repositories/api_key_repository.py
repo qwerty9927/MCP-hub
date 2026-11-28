@@ -8,6 +8,7 @@ from sqlalchemy import select, update
 
 import app.infrastructure.database as db_module
 from app.domain.api_key_entity import ApiKeyEntity
+from app.infrastructure.database import Database
 from app.models.api_key_model import ApiKeyModel
 
 
@@ -45,8 +46,11 @@ class ApiKeyRepositoryAbstract(ABC):
 
 
 class PostgresApiKeyRepository(ApiKeyRepositoryAbstract):
+    def __init__(self, database: Database | None = None) -> None:
+        self._database = database or db_module.database
+
     async def create(self, key: ApiKeyEntity) -> ApiKeyEntity:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             model = ApiKeyModel.from_domain(key)
             session.add(model)
             await session.commit()
@@ -54,13 +58,13 @@ class PostgresApiKeyRepository(ApiKeyRepositoryAbstract):
             return model.to_domain()
 
     async def get_by_hash(self, key_hash: str) -> ApiKeyEntity | None:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             result = await session.execute(select(ApiKeyModel).where(ApiKeyModel.key_hash == key_hash))
             model = result.scalar_one_or_none()
             return model.to_domain() if model else None
 
     async def get_active(self, user_id: UUID, key_id: UUID) -> ApiKeyEntity | None:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             stmt = select(ApiKeyModel).where(
                 ApiKeyModel.id == str(key_id),
                 ApiKeyModel.user_id == str(user_id),
@@ -70,13 +74,13 @@ class PostgresApiKeyRepository(ApiKeyRepositoryAbstract):
             return model.to_domain() if model else None
 
     async def list_by_user(self, user_id: UUID) -> list[ApiKeyEntity]:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             stmt = select(ApiKeyModel).where(ApiKeyModel.user_id == str(user_id)).order_by(ApiKeyModel.created_at.desc())
             result = await session.execute(stmt)
             return [model.to_domain() for model in result.scalars().all()]
 
     async def revoke(self, user_id: UUID, key_id: UUID) -> bool:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             stmt = (
                 update(ApiKeyModel)
                 .where(
@@ -91,7 +95,7 @@ class PostgresApiKeyRepository(ApiKeyRepositoryAbstract):
             return result.rowcount > 0
 
     async def update_session_idle(self, user_id: UUID, key_id: UUID, session_idle_minutes: int | None) -> ApiKeyEntity | None:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             stmt = (
                 update(ApiKeyModel)
                 .where(
@@ -107,6 +111,6 @@ class PostgresApiKeyRepository(ApiKeyRepositoryAbstract):
             return model.to_domain() if model else None
 
     async def touch_last_used(self, key_id: UUID, timestamp: datetime) -> None:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             await session.execute(update(ApiKeyModel).where(ApiKeyModel.id == str(key_id)).values(last_used_at=timestamp))
             await session.commit()

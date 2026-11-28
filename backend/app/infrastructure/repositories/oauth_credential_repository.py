@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import app.infrastructure.database as db_module
 from app.domain.oauth_credential_entity import OAuthCredentialEntity
 from app.helpers.crypto import SecretCipher
+from app.infrastructure.database import Database
 from app.models.server_oauth_credential_model import ServerOAuthCredentialModel
 
 
@@ -35,11 +36,12 @@ class OAuthCredentialRepositoryAbstract(ABC):
 class PostgresOAuthCredentialRepository(OAuthCredentialRepositoryAbstract):
     """PostgreSQL implementation; encrypts with `cipher` on the way in and decrypts on the way out."""
 
-    def __init__(self, cipher: SecretCipher) -> None:
+    def __init__(self, cipher: SecretCipher, database: Database | None = None) -> None:
         self._cipher = cipher
+        self._database = database or db_module.database
 
     async def get(self, server_id: UUID, *, user_id: UUID) -> OAuthCredentialEntity | None:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             result = await session.execute(_owned(server_id, user_id))
             model = result.scalar_one_or_none()
             if model is None:
@@ -54,20 +56,20 @@ class PostgresOAuthCredentialRepository(OAuthCredentialRepositoryAbstract):
             )
 
     async def save_client_info(self, server_id: UUID, client_info_json: str, *, user_id: UUID) -> None:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             model = await _get_or_new(session, server_id, user_id)
             model.client_info_enc = self._cipher.encrypt(client_info_json)
             await session.commit()
 
     async def save_tokens(self, server_id: UUID, tokens_json: str, access_token_expires_at: float | None, *, user_id: UUID) -> None:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             model = await _get_or_new(session, server_id, user_id)
             model.tokens_enc = self._cipher.encrypt(tokens_json)
             model.access_token_expires_at = access_token_expires_at
             await session.commit()
 
     async def save_discovery(self, server_id: UUID, discovery_json: str, *, user_id: UUID) -> None:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             model = await _get_or_new(session, server_id, user_id)
             model.discovery_json = discovery_json
             await session.commit()

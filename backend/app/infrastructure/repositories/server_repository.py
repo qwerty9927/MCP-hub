@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 import app.infrastructure.database as db_module
 from app.core.enums.server_enum import ServerHealthStatus, TransportType
 from app.domain.server_entity import ServerEntity
+from app.infrastructure.database import Database
 from app.models.server_model import ServerModel
 
 # The columns a server list may be sorted by (ServerSortField); anything else sorts by created_at.
@@ -69,8 +70,11 @@ class ServerRepositoryAbstract(ABC):
 class PostgresServerRepository(ServerRepositoryAbstract):
     """PostgreSQL implementation of ServerRepositoryAbstract using SQLAlchemy."""
 
+    def __init__(self, database: Database | None = None) -> None:
+        self._database = database or db_module.database
+
     async def create(self, server: ServerEntity) -> ServerEntity:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             model = ServerModel.from_domain(server)
             session.add(model)
             await session.commit()
@@ -78,7 +82,7 @@ class PostgresServerRepository(ServerRepositoryAbstract):
             return model.to_domain()
 
     async def get_by_id(self, server_id: UUID, *, user_id: UUID) -> ServerEntity | None:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             stmt = select(ServerModel).where(ServerModel.id == str(server_id))
             stmt = stmt.where(ServerModel.user_id == str(user_id))
             result = await session.execute(stmt)
@@ -86,7 +90,7 @@ class PostgresServerRepository(ServerRepositoryAbstract):
             return model.to_domain() if model else None
 
     async def get_by_name(self, name: str, *, user_id: UUID) -> ServerEntity | None:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             # Names are unique per account, so the lookup is scoped to that account.
             stmt = select(ServerModel).where(func.lower(ServerModel.name) == name.lower(), ServerModel.user_id == str(user_id))
             result = await session.execute(stmt)
@@ -106,7 +110,7 @@ class PostgresServerRepository(ServerRepositoryAbstract):
         *,
         user_id: UUID,
     ) -> tuple[list[ServerEntity], int]:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             stmt = select(ServerModel)
 
             # Filtering
@@ -141,7 +145,7 @@ class PostgresServerRepository(ServerRepositoryAbstract):
             return [model.to_domain() for model in models], total
 
     async def update(self, server: ServerEntity) -> ServerEntity:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             stmt = select(ServerModel).where(ServerModel.id == str(server.id))
             result = await session.execute(stmt)
             model = result.scalar_one_or_none()
@@ -171,11 +175,11 @@ class PostgresServerRepository(ServerRepositoryAbstract):
         stmt = select(func.count()).select_from(ServerModel).where(ServerModel.user_id == str(user_id))
         if health_status is not None:
             stmt = stmt.where(ServerModel.health_status == health_status.value)
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             return (await session.execute(stmt)).scalar_one()
 
     async def delete(self, server_id: UUID) -> bool:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             stmt = select(ServerModel).where(ServerModel.id == str(server_id))
             result = await session.execute(stmt)
             model = result.scalar_one_or_none()

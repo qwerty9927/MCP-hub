@@ -8,7 +8,6 @@ from pathlib import Path
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.pool import NullPool
 
 # Add backend directory to sys.path
@@ -43,13 +42,7 @@ if not _test_db_url or _test_db_url == _settings.DATABASE_URL:
         "Set TEST_DATABASE_URL to a separate database (not DATABASE_URL): the suite deletes every row in the database it uses.",
         returncode=2,
     )
-db_module.engine = db_module.create_database_engine(_test_db_url, poolclass=NullPool)
-db_module.async_session_factory = async_sessionmaker(
-    bind=db_module.engine,
-    autoflush=False,
-    expire_on_commit=False,
-    class_=AsyncSession,
-)
+db_module.database.configure(_test_db_url, poolclass=NullPool)
 
 
 DEFAULT_PASSWORD = "test-password-123"
@@ -58,7 +51,7 @@ DEFAULT_PASSWORD = "test-password-123"
 @pytest.fixture(scope="session", autouse=True)
 async def initialize_test_database():
     """Ensure database schema is created once per test session rather than per test."""
-    await db_module.init_db()
+    await db_module.database.create_schema()
 
 
 @pytest.fixture(autouse=True)
@@ -68,7 +61,7 @@ async def cleanup_dependencies():
     # Cleanup state
     await _connection_manager.shutdown()
 
-    async with db_module.async_session_factory() as session:
+    async with db_module.database.session() as session:
         await session.execute(delete(ToolModel))
         await session.execute(delete(ExecutionModel))
         await session.execute(delete(SessionModel))
@@ -78,7 +71,7 @@ async def cleanup_dependencies():
         await session.execute(delete(AuthRateLimitModel))
         await session.commit()
 
-    await db_module.engine.dispose()
+    await db_module.database.dispose()
 
 
 async def login_headers(client: AsyncClient, email: str, password: str = DEFAULT_PASSWORD) -> dict[str, str]:

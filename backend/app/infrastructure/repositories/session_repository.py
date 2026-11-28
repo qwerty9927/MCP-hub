@@ -11,6 +11,7 @@ from sqlalchemy import Interval, and_, case, distinct, func, or_, select, update
 import app.infrastructure.database as db_module
 from app.core.enums.session_enum import SessionStatus
 from app.domain.session_entity import SessionDetailEntity, SessionEntity
+from app.infrastructure.database import Database
 from app.models.execution_model import ExecutionModel
 from app.models.session_model import SessionModel
 
@@ -68,8 +69,11 @@ class SessionRepositoryAbstract(ABC):
 class PostgresSessionRepository(SessionRepositoryAbstract):
     """PostgreSQL implementation of SessionRepositoryAbstract."""
 
+    def __init__(self, database: Database | None = None) -> None:
+        self._database = database or db_module.database
+
     async def create(self, session: SessionEntity) -> SessionEntity:
-        async with db_module.async_session_factory() as database_session:
+        async with self._database.session() as database_session:
             model = SessionModel.from_domain(session)
             database_session.add(model)
             await database_session.commit()
@@ -77,7 +81,7 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
             return model.to_domain()
 
     async def find_active_by_fingerprint(self, user_id: UUID, fingerprint: str) -> SessionEntity | None:
-        async with db_module.async_session_factory() as database_session:
+        async with self._database.session() as database_session:
             stmt = (
                 select(SessionModel)
                 .where(
@@ -92,7 +96,7 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
             return model.to_domain() if model else None
 
     async def get_by_id(self, session_id: UUID, *, user_id: UUID) -> SessionDetailEntity | None:
-        async with db_module.async_session_factory() as database_session:
+        async with self._database.session() as database_session:
             owner_clause = SessionModel.user_id == str(user_id)
             stmt = (
                 select(
@@ -159,7 +163,7 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
         *,
         user_id: UUID,
     ) -> tuple[list[SessionEntity], int]:
-        async with db_module.async_session_factory() as database_session:
+        async with self._database.session() as database_session:
             conditions = [SessionModel.user_id == str(user_id)]
             if search:
                 search_term = f"%{search}%"
@@ -199,7 +203,7 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
 
     async def update_status(self, session_id: UUID, status: SessionStatus | str, *, user_id: UUID) -> bool:
         status_value = status.value if hasattr(status, "value") else str(status)
-        async with db_module.async_session_factory() as database_session:
+        async with self._database.session() as database_session:
             stmt = update(SessionModel).where(SessionModel.id == str(session_id))
             stmt = stmt.where(SessionModel.user_id == str(user_id))
             stmt = stmt.values(status=status_value, last_activity_at=datetime.now(UTC))
@@ -209,7 +213,7 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
 
     async def update_activity(self, session_id: UUID, timestamp: datetime | None = None) -> None:
         now = timestamp or datetime.now(UTC)
-        async with db_module.async_session_factory() as database_session:
+        async with self._database.session() as database_session:
             stmt = update(SessionModel).where(SessionModel.id == str(session_id)).values(last_activity_at=now)
             await database_session.execute(stmt)
             await database_session.commit()
@@ -219,7 +223,7 @@ class PostgresSessionRepository(SessionRepositoryAbstract):
         idle_timeout = func.make_interval(
             0, 0, 0, 0, 0, 0, func.coalesce(SessionModel.idle_timeout_seconds, default_idle_seconds), type_=Interval
         )
-        async with db_module.async_session_factory() as database_session:
+        async with self._database.session() as database_session:
             stmt = (
                 update(SessionModel)
                 .where(

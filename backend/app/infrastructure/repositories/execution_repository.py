@@ -13,6 +13,7 @@ from sqlalchemy import ColumnElement, Select, and_, asc, case, desc, func, or_, 
 import app.infrastructure.database as db_module
 from app.domain.execution_entity import CallBucketEntity, CallStatsEntity, ExecutionEntity, ToolUsageEntity
 from app.domain.session_entity import ToolCallEntity
+from app.infrastructure.database import Database
 from app.models.execution_model import ExecutionModel
 
 
@@ -95,8 +96,11 @@ class ExecutionRepositoryAbstract(ABC):
 class PostgresExecutionRepository(ExecutionRepositoryAbstract):
     """PostgreSQL implementation of ExecutionRepositoryAbstract using SQLAlchemy."""
 
+    def __init__(self, database: Database | None = None) -> None:
+        self._database = database or db_module.database
+
     async def create(self, execution: ExecutionEntity) -> ExecutionEntity:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             model = ExecutionModel.from_domain(execution)
             session.add(model)
             await session.commit()
@@ -104,7 +108,7 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
             return model.to_domain()
 
     async def get_by_id(self, execution_id: UUID, *, user_id: UUID) -> ExecutionEntity | None:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             stmt = _owned(select(ExecutionModel).where(ExecutionModel.id == str(execution_id)), user_id)
             result = await session.execute(stmt)
             model = result.scalar_one_or_none()
@@ -121,7 +125,7 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
         *,
         user_id: UUID,
     ) -> tuple[list[ExecutionEntity], int]:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             stmt = _owned(select(ExecutionModel), user_id)
 
             if server_id is not None:
@@ -158,7 +162,7 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
         server_name: str | None = None,
         tool_name: str | None = None,
     ) -> tuple[list[ToolCallEntity], int]:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             conditions = [ExecutionModel.session_id == str(session_id)]
 
             if status:
@@ -228,7 +232,7 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
             return [model.to_tool_call_domain() for model in models], total
 
     async def get_tool_call(self, session_id: UUID, call_id: UUID) -> ToolCallEntity | None:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             stmt = select(ExecutionModel).where(
                 and_(
                     ExecutionModel.id == str(call_id),
@@ -242,7 +246,7 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
     async def tool_usage(
         self, *, user_id: UUID, since: datetime | None, limit: int, server_id: UUID | None = None
     ) -> tuple[list[ToolUsageEntity], int]:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             conditions = _period(user_id, since=since, until=None, server_id=server_id)
             total = (await session.execute(select(func.count()).select_from(ExecutionModel).where(*conditions))).scalar_one()
 
@@ -298,7 +302,7 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
     async def call_stats(
         self, *, user_id: UUID, since: datetime | None, until: datetime | None = None, server_id: UUID | None = None
     ) -> CallStatsEntity:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             status = func.lower(ExecutionModel.status)
             stmt = select(
                 func.count(),
@@ -319,7 +323,7 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
     async def call_timeseries(
         self, *, user_id: UUID, since: datetime, until: datetime, bucket: timedelta, server_id: UUID | None = None
     ) -> list[CallBucketEntity]:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             status = func.lower(ExecutionModel.status)
             # date_bin puts each call in the bucket since + k * bucket that contains it.
             start = func.date_bin(bucket, ExecutionModel.executed_at, since)
@@ -353,7 +357,7 @@ class PostgresExecutionRepository(ExecutionRepositoryAbstract):
         return buckets
 
     async def first_call_at(self, *, user_id: UUID, server_id: UUID | None = None) -> datetime | None:
-        async with db_module.async_session_factory() as session:
+        async with self._database.session() as session:
             stmt = select(func.min(ExecutionModel.executed_at)).where(*_period(user_id, since=None, until=None, server_id=server_id))
             return (await session.execute(stmt)).scalar_one()
 
