@@ -41,9 +41,9 @@ Dashboard administration console will be available at [http://localhost:3000](ht
 
 ## Running the Whole Stack with Docker Compose
 
-[`docker-compose.yml`](docker-compose.yml) runs PostgreSQL (with pgvector), the backend and the console together. Each app reads its own env file, the same one you use when running it locally:
+[`docker-compose.yml`](docker-compose.yml) runs the backend and the console together against an external, hosted PostgreSQL with the pgvector extension. Each app reads its own env file, the same one you use when running it locally:
 
-- `backend` reads `backend/.env` (all backend settings). Compose overrides only `DATABASE_URL`, so the backend uses the `db` container instead of `localhost`.
+- `backend` reads `backend/.env` (all backend settings), including `DATABASE_URL`: set it to your hosted database, e.g. `postgresql+asyncpg://USER:PASSWORD@your-db-host:5432/mcp_hub?ssl=require`. Keep the `postgresql+asyncpg://` scheme and use `ssl=require` (asyncpg rejects `sslmode`). The database needs the pgvector extension enabled; migrations run on startup. `localhost` won't work here, because inside the container it is the container itself.
 - `frontend` reads `frontend/.env`. `next build` inlines `NEXT_PUBLIC_API_BASE_URL` from it into the browser bundle and bakes in the `API_PROXY_TARGET` rewrite, so rebuild with `docker compose up --build` after changing either. Compose sets `API_PROXY_TARGET` to `http://backend:8000`.
 
 ```bash
@@ -54,8 +54,7 @@ docker compose up --build
 
 | Service    | Image / build                     | Host port | Notes |
 | ---------- | --------------------------------- | --------- | ----- |
-| `db`       | `pgvector/pgvector:pg17`          | none      | Data in the `postgres_data` volume; `docker compose exec db psql -U postgres mcp_hub` |
-| `backend`  | [`backend/Dockerfile`](backend/Dockerfile)   | `8000`    | Starts once `db` is healthy; runs `alembic upgrade head`, then uvicorn. API docs at [http://localhost:8000/docs](http://localhost:8000/docs) |
+| `backend`  | [`backend/Dockerfile`](backend/Dockerfile)   | `8000`    | Runs `alembic upgrade head` against `DATABASE_URL`, then uvicorn. API docs at [http://localhost:8000/docs](http://localhost:8000/docs) |
 | `frontend` | [`frontend/Dockerfile`](frontend/Dockerfile) | `3000`    | Next.js standalone server; starts once `backend` is healthy. Console at [http://localhost:3000](http://localhost:3000) |
 
 **First user.** Open [http://localhost:3000/register](http://localhost:3000/register) and create an account, then sign in. This needs `ALLOW_SELF_SIGNUP=true` in `backend/.env`. On anything reachable from a network, set it to `false` once your account exists and run `docker compose up -d`, because any registered user can add stdio servers.
@@ -65,7 +64,7 @@ docker compose up --build
 - **`NEXT_PUBLIC_API_BASE_URL`:** the backend's public address (`http://localhost:8000/api/v1`). The console shows it in the MCP endpoint, the API key config and the code snippets, and its path must match the backend's `API_V1_STR`.
 - **Backend:** `FRONTEND_BASE_URL` in `backend/.env` must be the console's address (`http://localhost:3000`), and `CORS_ORIGINS` should include it.
 
-**Compose overrides (optional).** A root `.env` (see [`.env.example`](.env.example)) can change the database credentials (`POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_DB`, default `postgres`/`postgres`/`mcp_hub`; the database port is not published), point `POSTGRES_DATA` at an existing Postgres 17 data folder instead of the `postgres_data` volume (stop any other Postgres using it first) and the host ports (`BACKEND_PORT`, `FRONTEND_PORT`). Don't put backend setting names there: the backend also reads `../.env` when run from `backend/`.
+**Compose overrides (optional).** A root `.env` (see [`.env.example`](.env.example)) can change the host ports (`BACKEND_PORT`, `FRONTEND_PORT`). Don't put backend setting names there: the backend also reads `../.env` when run from `backend/`.
 
 **stdio MCP servers.** The backend starts stdio servers as subprocesses inside its own container, so only runtimes in the backend image can be used:
 
@@ -76,7 +75,7 @@ docker compose up --build
 **Other notes.**
 - To reach a streamable-http server running on your machine, use `http://host.docker.internal:<port>` (Docker Desktop), with `ALLOW_PRIVATE_NETWORK_HTTP=true` in `backend/.env`.
 - `ENVIRONMENT=production` in `backend/.env` turns on DNS-rebinding protection for the hub's own `/mcp` endpoint, which then only accepts `localhost` / `127.0.0.1` / `[::1]` as the Host. Clients that reach the hub under another hostname are rejected until the backend's allowed hosts are made configurable, or you use `development`.
-- `docker compose down` stops the stack and keeps the data. `docker compose down -v` also deletes the database volume.
+- `docker compose down` stops the stack. The data lives in your external database, so it is untouched.
 - [`backend/docker-compose.yml`](backend/docker-compose.yml) still runs just the backend and database from `backend/`. Its data lives in a separate volume.
 
 ---

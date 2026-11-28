@@ -1,4 +1,5 @@
-# MCP Hub: PostgreSQL (pgvector) + FastAPI backend + Next.js console.
+# MCP Hub: FastAPI backend + Next.js console. The database is external: a hosted PostgreSQL with pgvector that
+# backend/.env's DATABASE_URL points at.
 # Each app reads its own env file, the same one used when running it locally:
 #   backend  -> backend/.env
 #   frontend -> frontend/.env
@@ -9,45 +10,16 @@
 name: mcp-hub
 
 services:
-    db:
-        # Postgres with the pgvector extension (ADR-0006); same image as CI.
-        image: pgvector/pgvector:pg17
-        restart: unless-stopped
-        environment:
-            POSTGRES_USER: ${POSTGRES_USER:-postgres}
-            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-            POSTGRES_DB: ${POSTGRES_DB:-mcp_hub}
-        volumes:
-            # POSTGRES_DATA (root .env) may name a host folder holding an existing data directory; default is the named volume.
-            - ${POSTGRES_DATA:-postgres_data}:/var/lib/postgresql/data
-        # Not published to the host; use `docker compose exec db psql -U postgres mcp_hub`.
-        healthcheck:
-            test:
-                [
-                    "CMD-SHELL",
-                    "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}",
-                ]
-            interval: 5s
-            timeout: 5s
-            retries: 10
-        networks:
-            - mcp-hub
-
     backend:
         build:
             context: ./backend
         restart: unless-stopped
         # The image's default command runs `alembic upgrade head` and then uvicorn.
-        depends_on:
-            db:
-                condition: service_healthy
         ports:
             - "${BACKEND_PORT:-8000}:8000"
         env_file:
             - ./backend/.env
         environment:
-            # Overrides backend/.env, whose DATABASE_URL points at localhost: inside compose the database is `db`.
-            DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-mcp_hub}
             # Browser-facing addresses follow the published ports: the console's origin for CORS, and the URLs the
             # OAuth callback is built from.
             CORS_ORIGINS: '["http://localhost:${FRONTEND_PORT:-3000}"]'
@@ -79,10 +51,7 @@ services:
             - mcp-hub
 
 networks:
-    # One bridge network for all three services; they reach each other by service name (db, backend, frontend).
+    # One bridge network for both services; they reach each other by service name (backend, frontend).
     mcp-hub:
         name: mcp-hub
         driver: bridge
-
-volumes:
-    postgres_data:
