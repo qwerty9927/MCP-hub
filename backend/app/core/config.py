@@ -19,12 +19,14 @@ _CRON_FIELDS = frozenset({"year", "month", "day", "week", "day_of_week", "hour",
 class Settings(BaseSettings):
     """MCP Hub backend application settings.
 
-    All configurations are required and loaded strictly from the .env file
+    All configurations are required and loaded strictly from backend/.env
     or environment variables without fallback in-code defaults.
     """
 
     model_config = SettingsConfigDict(
-        env_file=(BASE_DIR / ".env", ".env", "../.env"),
+        # Only backend/.env, wherever the process starts: a .env in the working or parent folder (the repo root's is
+        # for Docker Compose) must not override it.
+        env_file=BASE_DIR / ".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",

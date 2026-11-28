@@ -64,7 +64,7 @@ docker compose up --build
 - **`NEXT_PUBLIC_API_BASE_URL`:** the backend's public address (`http://localhost:8000/api/v1`). The console shows it in the MCP endpoint, the API key config and the code snippets, and its path must match the backend's `API_V1_STR`.
 - **Backend:** `FRONTEND_BASE_URL` in `backend/.env` must be the console's address (`http://localhost:3000`), and `CORS_ORIGINS` should include it.
 
-**Compose overrides (optional).** A root `.env` (see [`.env.example`](.env.example)) can change the host ports (`BACKEND_PORT`, `FRONTEND_PORT`). Don't put backend setting names there: the backend also reads `../.env` when run from `backend/`.
+**Compose overrides (optional).** A root `.env` (see [`.env.example`](.env.example)) can change the host ports (`BACKEND_PORT`, `FRONTEND_PORT`). The backend reads only `backend/.env`, never this file.
 
 **stdio MCP servers.** The backend starts stdio servers as subprocesses inside its own container, so only runtimes in the backend image can be used:
 
